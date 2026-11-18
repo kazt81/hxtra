@@ -43,7 +43,7 @@ def test_cached_module(tmp_path, monkeypatch):
 
 def test_web_flags_are_every_feature():
     assert set(m4cache.web_flags()) == {"HX_TUNER", "HX_BPM", "HX_DSP_METER", "HX_BREATHING_LINE", "HX_LONG_PRESS",
-                                        "HX_MORE_SNAPSHOTS", "HX_TAP_COLOR", "HX_PRESET_COLOR"}
+                                        "HX_MORE_SNAPSHOTS", "HX_TAP_COLOR", "HX_PRESET_COLOR", "HX_CC_TAP", "HX_LABEL_COLOR"}
 
 
 def test_web_options_are_the_opt_in_features():
@@ -51,7 +51,7 @@ def test_web_options_are_the_opt_in_features():
 
 
 def test_web_dsp_are_the_features_sharing_block_3():
-    assert m4cache.web_dsp() == ["HX_GR", "HX_FX_GATE", "HX_CLICK", "HX_USB_MONITOR"]
+    assert m4cache.web_dsp() == ["HX_GR", "HX_FX_GATE", "HX_GATE_SC", "HX_CLICK", "HX_USB_MONITOR"]
 
 
 def test_make_pins_every_combination_that_fits(monkeypatch):

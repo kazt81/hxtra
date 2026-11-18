@@ -1,5 +1,6 @@
 """tools/features/tuner.py and src/m4/tuner.s: Tuner Activation and Lock Tuner Settings on a third page of the tuner's settings, run
 in unicorn (the tap, the page's paint, knob turns and presses, Lock On everywhere else, and the hooks around them), and the firmware."""
+import hashlib
 import struct
 
 import pytest
@@ -10,6 +11,7 @@ import setting_ids
 from features import tuner
 from firmware import assert_virtual, built, built_e0, reader
 
+TUNER_BEFORE_LABEL_COLOR = '8899a7604edc19a027a246e7cefd6de4'     # tuner.s of f7d0a6c, the stock label colour written in
 MODS = features.load()
 IDS = setting_ids.by_name()
 ACTIVATE, LOCK = IDS['tuner.activate'], IDS['tuner.lock']
@@ -28,7 +30,7 @@ class Page:
     """tuner.s in unicorn: settings {ID: value} behind GET_VALUE and the engine's store, the view at VIEW on page `page`."""
 
     def __init__(self, m4emu, page=tuner.PAGE):
-        code, sym = m4emu.assemble('src/m4/tuner.s', MODS, IDS, VIRT_SET)
+        code, sym = m4emu.assemble('src/m4/tuner.s', MODS, IDS, VIRT_SET, inc={'tuner_label.inc': tuner.label_inc()})
         self.at = {k: CODE + v for k, v in sym.items()}
         self.m = m = m4emu.M4(code, CODE)
         self.settings, self.written, self.steps, self.guard = {}, [], 0, 0
@@ -253,6 +255,32 @@ def test_paint_switch_sends_page_4_to_its_paint(m4emu, page, to):
         assert shown == [(0, 1), (1, 1), (2, 0)] and len(t.m.calls(tuner.PAINT_END)) == 1
     else:
         assert shown == [] and len(t.m.calls(to)) == 1 and len(t.m.calls(tuner.PAINT_END)) == (to == tuner.PAINT_END)
+
+
+def test_without_label_color_the_module_is_the_one_before_it(m4emu):
+    now, _ = m4emu.assemble('src/m4/tuner.s', MODS, IDS, VIRT_SET, inc={'tuner_label.inc': tuner.label_inc()})
+    assert hashlib.md5(now).hexdigest() == TUNER_BEFORE_LABEL_COLOR
+
+
+def test_the_label_row_is_label_colors_when_it_is_built(m4emu):
+    code, sym = m4emu.assemble('src/m4/tuner.s', MODS, IDS, VIRT_SET, inc={'tuner_label.inc': tuner.label_inc(0x28e70120)})
+    rows = [struct.unpack_from('<II', code, sym['colours'] + 8 * k) for k in range(len(tuner.KNOB_COLOURS))]
+    assert rows == [(0x28e70121, 0xffffff)] + [(fn | 1, c) for fn, c in tuner.KNOB_COLOURS[1:]]
+
+
+@pytest.mark.firmware
+def test_a_build_with_label_color_sends_the_page_labels_to_it(monkeypatch):
+    placed, real = {}, pm.Patch.module
+
+    def module(self, path, inc=None):
+        placed[path] = real(self, path, inc)
+        return placed[path]
+
+    monkeypatch.setattr(pm.Patch, 'module', module)
+    read, on = built({'HX_TUNER': '1', 'HX_LABEL_COLOR': '1'})
+    assert on.index('label_color') < on.index('tuner'), 'built first, so tuner can name it'
+    row = placed['src/m4/tuner.s']['colours']
+    assert struct.unpack('<II', read(row, 8)) == (placed[tuner.LABEL_COLOR]['label_any'] | 1, 0xffffff)
 
 
 @pytest.mark.firmware

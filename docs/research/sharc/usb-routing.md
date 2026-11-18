@@ -183,7 +183,7 @@ How it was tested: the USB Monitor build (image `997d079e…`, boot usb-monitor-
   No composite in blob 0 holds a jack-output writer (`0x2aa8`/`0x2aaa`/`0x2aab`). Their instances sit in the app's top composite, which blob 0 does not hold.
 - **Which writer is which** [verified on unit, 2026-11-16, post-send's probe images post-send-5 (payload `d05c1900…`) and post-send-6 (`8f1dba83…`); Main and phones corrected by post-send-7]:
   - The probe muted, then toned (3 kHz square), each (jack writer, ch) in turn. A preset had Main and Send both carrying plucks from USB 5/6 (path B on Send).
-  - USB was recorded with Send L → Return L to USB 7/8, and a Volt 4 recorded the phones (input 1) and Main (input 2). The probes took them the other way round (input 1 Main, input 2 the phones), which swapped Main and the phones in the first version of this table. post-send-7 settled it: with Volume Knob Controls on Phones, the knob moved input 1 by 44 dB and left input 2 as it was, and Mr. Wiseman confirmed the cables.
+  - USB was recorded with Send L → Return L to USB 7/8, and a Volt 4 recorded the phones (input 1) and Main (input 2). The probes took them the other way round (input 1 Main, input 2 the phones), which swapped Main and the phones in the first version of this table. post-send-7 settled it: with Volume Knob Controls on Phones, the knob moved input 1 by 44 dB and left input 2 as it was, and the cables were confirmed.
   - Each output answered to exactly one key, in tone and in mute:
 
   | output | writer | ch | call order in a block |
@@ -197,7 +197,7 @@ How it was tested: the USB Monitor build (image `997d079e…`, boot usb-monitor-
   - The call order comes from post-send-6. Muting `0x2aab` ch 0 dropped input 1 (the phones) by 36.1 dB. The call order is each writer instance's place among the jack writers in a block, written digitally to USB 6.
   - Only those six jack-writer instances run. Send R follows because `0x2aaa` has just the two instances and ch 0 is Send L.
   - In every block Main is written first, then Send, then the phones. So code in the phones' writer can add Main (kept by Main's writer) into the Send words in the same block: Main+Snd, `src/sharc/main_send.asm`.
-  - Main's ch 1 is Main L: input 2 answered to ch 1, and its cable comes from Main L (Mr. Wiseman, 2026-11-16).
+  - Main's ch 1 is Main L: input 2 answered to ch 1, and its cable comes from Main L (2026-11-16).
   - The SP4A ch 7 dip in the first probe was the plucks (post-send's RMS shows none).
   - **Open:** in post-send-6's take, USB 7/8 to the computer was digital zero for the whole take, stock steps included. Its `0x2aac` wrapper changes ch 4 and 5. post-send-5 (ch 5 only) had the Return on 7/8. A take on plain `next` would rule the probe in or out.
 - So **a USB-only output = Path A on Send, with the `0x2aaa` (SP4B) writer's ch 0 and 1 instances writing silence.** USB 3/4 (`0x2aac` ch 2, 3) still carries the Send bus.

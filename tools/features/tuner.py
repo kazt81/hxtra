@@ -35,12 +35,18 @@ PAINT_SWITCH, PAINT_SWITCH_STOCK = 0x28dcca8e, bytes.fromhex('032b 68d8')       
 PAINT_TBH, PAINT_END = 0x28dcca92, 0x28dccb64
 STEPS = 0x28dfe2d8                                  # (raw knob delta) -> detents, as the stock turn counts them
 SHOW, VALUE_TEXT, POSITION, LABEL = 0x28dc6598, 0x28dc654c, 0x28dc648c, 0x28dc63d0   # (knob, shown / text / 0.0f..1.0f / text)
+LABEL_COLOR = 'src/m4/label_color.s'               # its label_any colours the page's labels when label_color is built
 KNOB_COLOURS = ((0x28dc6454, 0xffffff), (0x28dc651c, 0x6b6b6b), (0x28dc6534, 0x4d4d4d), (0x28dc6504, 0xb1b1b1),
                 (0x28dc6568, 0xb1b1b1))           # (knob, colour), as the stock paints a knob that can be turned
 
 
+def label_inc(label_any=None):
+    return f'.equ LABEL_COLOUR_FN, {(label_any or KNOB_COLOURS[0][0]) | 1:#x}\n'
+
+
 def apply(p):
-    m = p.module('src/m4/tuner.s')
+    lc = p.modules.get(LABEL_COLOR)
+    m = p.module('src/m4/tuner.s', inc={'tuner_label.inc': label_inc(lc and lc['label_any'])})
     p.own_call(TAP_SITE, TAP_CORE, 'the tap-tempo call', m['tuner_tap'])
     p.own_entry(TURN_FN, TURN_FN_STOCK, 'the tuner settings knob handler', m['tuner_turn_hook'])
     p.expect(RESET_RET, b'\x38\xbd', 'the tuner event handler epilogue')

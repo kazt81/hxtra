@@ -35,6 +35,7 @@ Before writing anything, read [conventions.md](conventions.md): the status tags,
 | [m4/tempo-and-leds.md](m4/tempo-and-leds.md) | the tempo settings (IDs 14..16), the tap tempo screen, the footswitch LEDs and LED task, the stock beat, the µs clock | anything tempo-synced, or lighting the LEDs |
 | [m4/controls.md](m4/controls.md) | every front-panel control's key code, the stock shortcuts and button combinations (Save = VIEW + ACTION, Menu = PAGE◀ + PAGE▶, All Bypass, the tuner, footswitch-mode combos, action panels), and how to send each over USB | driving the UI from a script or a test, or reaching a screen the devtest doesn't |
 | [m4/footswitches.md](m4/footswitches.md) | footswitch functions, key events and holds, the event handler and key task, bypass assignment, controllers, MIDI CC bypass | changing what a footswitch does |
+| [m4/command-center.md](m4/command-center.md) | the Command Center's object and slots, its command types and their tables, the Command knob's choice lists, how a footswitch press and a snapshot recall fire a command | adding or changing a Command Center command |
 | [m4/snapshots.md](m4/snapshots.md) | the snapshot manager and records, select and its callers, the snapshot footswitch mode, the snapshot icon | anything about snapshots |
 | [m4/presets.md](m4/presets.md) | the eMMC stores (presets, globals, IRs) and the preset file's layout | storing data in a preset, or reading preset files |
 | [m4/dsp-link.md](m4/dsp-link.md) | the SPI frames between the DSP and the M4, and sending DSP values in a frame's tail | getting a value from the DSP to the screen |
@@ -66,8 +67,11 @@ Before writing anything, read [conventions.md](conventions.md): the status tags,
 | [features/long-press.md](features/long-press.md) | holds per footswitch, FS6..FS10 on CC 20..24, CC text, the footswitch probes | working on long press, or footswitch holds |
 | [features/more-snapshots.md](features/more-snapshots.md) | bank B (snapshots 4..6), the bank marker, saving and the preset file key, next and previous across the banks | working on more snapshots |
 | [features/fx-gate.md](features/fx-gate.md) | the FX Loop gate (#69): decisions, the two designs and the boots, builds and their MD5s, what the unit has not checked | working on the gate in the FX Loop and Return blocks |
+| [features/gate-sidechain.md](features/gate-sidechain.md) | Noise Gate Input Sidechain (#131): design, the two dropped designs, cost, unit results, builds | working on the Noise Gate's sidechain, or on the gate core |
 | [features/metronome.md](features/metronome.md) | the Metronome block: model, browser folder, look, kernel | working on the Metronome, or adding an effect model |
 | [features/tap-color.md](features/tap-color.md) | Tap LED Color: the TAP ring, icon and label in a palette colour | working on the TAP footswitch's look |
+| [features/label-color.md](features/label-color.md) | HXtra settings' and block parameters' labels in Teal; where Global Settings, the Edit view and the tuner page colour their labels; why Rainbow was dropped | working on label colours, or Global Settings' slot paint |
+| [features/tap-command.md](features/tap-command.md) | the Tap command in the Command Center (#108): type 9, the knob's list, the press, the ring on the stock beat | working on the Tap command, or on the stock beat |
 | [features/preset-color.md](features/preset-color.md) | Preset LED Color: the current preset's ring and icon in Preset mode, the stock Preset LED case and Home builder | working on Preset mode's look |
 | [features/boot-splash.md](features/boot-splash.md) | a custom boot picture, the boot line's text, colour emoji | working on the boot screen |
 | [features/usb-monitor.md](features/usb-monitor.md) | USB monitoring: Path A Out in Ins/Outs, the owned destination send, applying a change at once, USB Only's mode riding on USB Input Trim | working on USB monitoring, or on path A's output |

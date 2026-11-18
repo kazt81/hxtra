@@ -34,7 +34,7 @@ The [research notes](research/INDEX.md) have the details: addresses, the M4-to-D
 
 ```
 build.py                      one-step build from the stock .hxf
-docs/features.md              every feature and setting, for players
+web/features.html             every feature and setting, with its demos, for players (the features page)
 docs/building.md              building from the command line, the browser build, RAM runs
 docs/research/INDEX.md        what is known about the 3.80.0 firmware: the index of the research notes
 tools/patch_menu.py           HXtra: the feature engine, the Global Settings section and its caves (HX Stomp)

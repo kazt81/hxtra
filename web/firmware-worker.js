@@ -70,6 +70,7 @@ var SOURCES = [
   "tools/patch_menu.py",
   "tools/patch_click.py",
   "tools/patch_gate.py",
+  "tools/patch_sidechain.py",
   "tools/patch_usbmon.py",
   "tools/patch_comp.py",
   "tools/m4asm.py",
@@ -84,7 +85,9 @@ var SOURCES = [
   "tools/features/breathing_line.py",
   "tools/features/dsp_meter.py",
   "tools/features/fx_gate.py",
+  "tools/features/gate_sidechain.py",
   "tools/features/gr.py",
+  "tools/features/label_color.py",
   "tools/features/long_press.py",
   "tools/features/metronome.py",
   "tools/features/more_snapshots.py",
@@ -93,6 +96,7 @@ var SOURCES = [
   "tools/features/screen_mirror.py",
   "tools/features/splash.py",
   "tools/features/tap_color.py",
+  "tools/features/tap_command.py",
   "tools/features/tuner.py",
   "tools/features/usb_input.py",
   "tools/features/usb_monitor.py",
@@ -110,6 +114,7 @@ var SOURCES = [
   "src/m4/breathing_line.s",
   "src/m4/dsp_meter.s",
   "src/m4/gr_meter.s",
+  "src/m4/label_color.s",
   "src/m4/long_press.s",
   "src/m4/metronome.s",
   "src/m4/more_snapshots.s",
@@ -118,6 +123,7 @@ var SOURCES = [
   "src/m4/screen_mirror.s",
   "src/m4/strip.s",
   "src/m4/tap_color.s",
+  "src/m4/tap_command.s",
   "src/m4/tuner.s",
   "src/m4/usb_input.s",
   "src/m4/usb_monitor.s",
@@ -125,6 +131,7 @@ var SOURCES = [
   "src/sharc/click.asm",
   "src/sharc/frame_probe.asm",
   "src/sharc/fx_gate.asm",
+  "src/sharc/gate_sc.asm",
   "src/sharc/usb_monitor.asm",
   "src/sharc/main_send.asm",
 ];
@@ -260,6 +267,11 @@ async function build(stock, flags, slots) {
            ["tools/patch_gate.py", "build/nam_lite.l6ia", "build/nam_lite_gate.l6ia"]);
       p.FS.rename("/repo/build/nam_lite_gate.l6ia", "/repo/build/nam_lite.l6ia");
     }
+    if (flags.indexOf("HX_GATE_SC") >= 0) {
+      step(5, "Adding the kernel to the DSP program…",
+           ["tools/patch_sidechain.py", "build/nam_lite.l6ia", "build/nam_lite_sc.l6ia"]);
+      p.FS.rename("/repo/build/nam_lite_sc.l6ia", "/repo/build/nam_lite.l6ia");
+    }
     if (flags.indexOf("HX_USB_MONITOR") >= 0) {
       step(5, "Adding the kernel to the DSP program…",
            ["tools/patch_usbmon.py", "build/nam_lite.l6ia", "build/nam_lite_usbmon.l6ia"]);
@@ -273,10 +285,10 @@ async function build(stock, flags, slots) {
     var report = step(6, "Checking every checksum and packing the file…",
                       ["tools/l6ia_verify.py", "build/nam_lite.l6ia"].concat(unit === "HX_Stomp" ? ["--e3-max", "0x" + E3_MAX.toString(16)] : []));
     if (report.indexOf("ALL OK") < 0) throw new Error("The built image failed its check.");
-    var file = unit + "_v3.80.0_HXtra.hxf";
+    var file = "hxtra.hxf";
     step(6, "Checking every checksum and packing the file…",
          ["tools/hxf.py", "pack", "build/nam_lite.l6ia", "build/" + file, "--donor", "build/stock.hxf"]);
-    var ram = ramPlan(p, step, file);
+    var ram = ramPlan(p, step, unit, file);
   } finally {
     run.destroy();
   }
@@ -288,14 +300,15 @@ async function build(stock, flags, slots) {
   var buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   var want = unit === "HX_Stomp" && cache ? (cache.md5[unit] || {})[flags.concat(["HX_NAM_SLOTS=" + slots]).sort().join("+")]
       : BUILT_MD5[unit];
-  post({ type: "done", unit: unit, file: file, bytes: buf, md5: outMd5, pinned: want ? outMd5 === want : null, ram: ram },
+  var name = "HXtra" + (cache && cache.release ? "_" + cache.release : "") + ".hxf";     // a checkout's page has no release
+  post({ type: "done", unit: unit, file: name, bytes: buf, md5: outMd5, pinned: want ? outMd5 === want : null, ram: ram },
        [buf].concat(ram.regions ? ram.regions.map(function (r) { return r.bytes; }) : []));
 }
 
 // The RAM run of the built file: what tools/hxf_ram.py run would send. A failure here leaves the
 // build as it is; the page then offers no RAM run.
-function ramPlan(p, step, file) {
-  if (file.indexOf("HX_Effects") === 0) {      // the RAM loader is the HX Stomp's and XL's only
+function ramPlan(p, step, unit, file) {
+  if (unit === "HX_Effects") {      // the RAM loader is the HX Stomp's and XL's only
     post({ type: "log", text: "RAM run: HX Stomp and HX Stomp XL only.\n" });
     return {};
   }

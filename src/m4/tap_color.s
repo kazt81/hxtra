@@ -17,6 +17,12 @@
 .equ COLOURS, 10
 .equ RAINBOW, 10                    @ then Random: the values that change colour at each beat
 .equ RANDOM, 11
+.equ OFF, 12                        @ no blink: the stock Tap Tempo LED Off; the labels keep the stock red
+.equ GET_VALUE, 0x28e1f845          @ (id, out): the value at out + 4, < 0 when it has none
+.equ SETTER_CONTEXT, 0x28e007ed     @ () -> the setter's context
+.equ SETTER, 0x28e1f8f5             @ (context, id, record {type, -, -, -, value}, source)
+.equ TAP_TEMPO_LED, 26              @ a bool: record type 1, as the stock knob writes it (source 1)
+.equ UNSEEN, 0xff
 
 .thumb_func
 .global tap_led
@@ -120,10 +126,8 @@ tap_icon:                           @ the Home label's TAP case, setImage (widge
 tap_paint:                          @ before the Home paint (framebuffer, Home view): a changed setting recolours the TAP labels shown
     push {r4-r8, lr}
     mov r4, r1
-    movs r0, #SETTING_TAP_COLOR_COLOR
-    movs r1, #SETTING_TAP_COLOR_COLOR_MAX
-    movs r2, #SETTING_TAP_COLOR_COLOR_DEFAULT
-    bl hxtra_setting_get
+    bl tap_sync
+    bl tap_setting
     cmp r0, #RAINBOW                @ Rainbow's and Random's tap_now follows the ring
     bhs 1f
     adr.w r1, tap_texts
@@ -177,13 +181,97 @@ tap_pick:                           @ (r0 a table) -> r0 its word for the settin
     ldr.w r0, [r4, r0, lsl #2]
     pop {r4, pc}
 
-tap_setting:                        @ -> r0 Tap LED Color
+tap_setting:                        @ -> r0 Tap LED Color, Off read as Red: the colour the labels and a stray ring turn take
+    push {r4, lr}
+    bl tap_raw
+    cmp r0, #OFF
+    it eq
+    moveq r0, #0
+    pop {r4, pc}
+
+tap_raw:                            @ -> r0 Tap LED Color as stored, Off included
     movs r0, #SETTING_TAP_COLOR_COLOR
     movs r1, #SETTING_TAP_COLOR_COLOR_MAX
     movs r2, #SETTING_TAP_COLOR_COLOR_DEFAULT
     b hxtra_setting_get
 
+.thumb_func
+.global tap_changed
+tap_changed:                        @ after Global Settings' repaint of a changed slot (view, ID): a turn of Tap LED Color, at once
+    cmp r1, #SETTING_TAP_COLOR_COLOR
+    it ne
+    bxne lr
+    b tap_sync
+
+.thumb_func
+.global tap_sync_page
+tap_sync_page:                      @ after Global Settings' page repaint (view), as after a click's reset to the default
+    b tap_sync
+
+tap_sync:                           @ the stock Tap Tempo LED, hidden, kept in step: Off when Tap LED Color is Off, else On. A change of
+    push {r4, r5, r6, lr}           @ Tap LED Color sets it; otherwise it sets Tap LED Color (the first paint, and a change from HX Edit)
+    sub sp, #8
+    bl tap_raw
+    mov r4, r0
+    movs r0, #TAP_TEMPO_LED
+    mov r1, sp
+    ldr r3, =GET_VALUE
+    blx r3
+    cmp r0, #0
+    blt tap_sync_done               @ no value: nothing to keep in step
+    ldr r5, [sp, #4]
+    cmp r5, #0
+    it ne
+    movne r5, #1
+    adr.w r6, tap_seen
+    ldrb r0, [r6]
+    cmp r0, r4
+    beq tap_sync_led
+    cmp r0, #UNSEEN
+    beq tap_sync_led
+    subs r1, r4, #OFF               @ Tap LED Color changed: Tap Tempo LED follows it
+    it ne
+    movne r1, #1
+    cmp r1, r5
+    beq tap_sync_seen
+    bl tap_set_led
+    b tap_sync_seen
+tap_sync_led:                       @ Tap Tempo LED decides: Off is Off, On with Off picks the default colour
+    cmp r5, #0
+    bne 1f
+    cmp r4, #OFF
+    beq tap_sync_seen
+    movs r4, #OFF
+    b 2f
+1:  cmp r4, #OFF
+    bne tap_sync_seen
+    movs r4, #SETTING_TAP_COLOR_COLOR_DEFAULT
+2:  movs r0, #SETTING_TAP_COLOR_COLOR
+    mov r1, r4
+    bl hxtra_setting_set
+tap_sync_seen:
+    strb r4, [r6]
+tap_sync_done:
+    add sp, #8
+    pop {r4, r5, r6, pc}
+
+tap_set_led:                        @ (-, r1 0 or 1): the stock Tap Tempo LED, written as its knob writes it
+    push {r4, lr}
+    sub sp, #8
+    movs r2, #1
+    strd r2, r1, [sp]
+    ldr r3, =SETTER_CONTEXT
+    blx r3
+    movs r1, #TAP_TEMPO_LED
+    mov r2, sp
+    movs r3, #1
+    ldr r12, =SETTER
+    blx r12
+    add sp, #8
+    pop {r4, pc}
+
 HXTRA_SETTING_GET
+HXTRA_SETTING_SET
 .ltorg
 .balign 4
 @ The stock palette, by Color: Red, Dk Orange, Lt Orange, Yellow, Green, Turquoise, Blue, Violet, Pink, White; Rainbow's and Random's labels are White's
@@ -207,3 +295,5 @@ tap_seed:                           @ the random state, then the last colour Ran
     .word 0, 0
 tap_shown:                          @ the setting the labels were last recoloured for; none yet
     .word 0xff
+tap_seen:                           @ Tap LED Color as tap_sync last kept it in step; none yet
+    .word UNSEEN

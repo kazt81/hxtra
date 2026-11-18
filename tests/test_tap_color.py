@@ -17,7 +17,9 @@ IDS = setting_ids.by_name()
 SETTING = tc.SETTINGS[0]
 MOD = 0x28e60000
 GET_VALUE, CLOCK = 0x28e1f844, 0x28da6458
-RAINBOW, RANDOM = 10, 11
+SETTER, SETTER_CONTEXT, VIRT_SET = pm.SETTER, pm.SETTER_CONTEXT, 0x28700400
+RAINBOW, RANDOM, OFF = 10, 11, 12
+TAP_TEMPO_LED = 26
 RAINBOW_STEPS = tc.rainbow()
 HOME = 0x2812a0c8
 FS_FUNCTIONS = 0x28128a74
@@ -28,27 +30,45 @@ _code = {}
 
 
 class Tap:
-    """tap_color.s in tests/m4emu.py's M4: GET_VALUE answers self.value (None: unset), the setters and the LED colour logged."""
+    """tap_color.s in tests/m4emu.py's M4: GET_VALUE answers self.value for Tap LED Color and self.led for Tap Tempo LED (None:
+    unset), the engine's store sets self.value, the stock setter sets self.led; the setters and the LED colour logged."""
 
     def __init__(self, m4emu):
         if 'tap' not in _code:
-            _code['tap'] = m4emu.assemble('src/m4/tap_color.s', MODS, IDS, inc={'rainbow.inc': tc.rainbow_inc()})
+            _code['tap'] = m4emu.assemble('src/m4/tap_color.s', MODS, IDS, virt_set=VIRT_SET, inc={'rainbow.inc': tc.rainbow_inc()})
         code, self.sym = _code['tap']
         self.m = m4emu.M4(code, MOD)
-        self.value, self.now = None, 0x12345678
+        self.value, self.led, self.now = None, 1, 0x12345678
         self.m.stub(GET_VALUE, self.get_value)
         self.m.stub(CLOCK, lambda m: m.reg('r0', self.now))
+        self.m.stub(SETTER_CONTEXT, lambda m: m.reg('r0', 0x28700800))
+        self.m.stub(SETTER, self.setter)
+        self.m.stub(VIRT_SET, self.virt_set)
         for fn in (tc.LED_COLOUR, tc.SET_COLOR, tc.SET_IMAGE):
             self.m.stub(fn)
         self.functions((2, 2, 2))
 
     def get_value(self, m):
-        assert m.reg('r0') == IDS['tap_color.color']
-        if self.value is None:
+        pid = m.reg('r0')
+        assert pid in (IDS['tap_color.color'], TAP_TEMPO_LED)
+        v = self.value if pid == IDS['tap_color.color'] else self.led
+        if v is None:
             m.reg('r0', -1)
         else:
-            m.write(m.reg('r1'), struct.pack('<II', 0, self.value))
+            m.write(m.reg('r1'), struct.pack('<II', 1 if pid == TAP_TEMPO_LED else 0, v))
             m.reg('r0', 0)
+
+    def setter(self, m):
+        record = m.read(m.reg('r2'), 8)
+        self.stored.append((m.reg('r0'), m.reg('r1'), record[0], struct.unpack('<I', record[4:])[0], m.reg('r3')))
+        self.led = struct.unpack('<I', record[4:])[0]
+
+    def virt_set(self, m):
+        assert m.reg('r0') == IDS['tap_color.color']
+        self.picked.append(m.reg('r1'))
+        self.value = m.reg('r1')
+
+    stored, picked = None, None
 
     def functions(self, fns):
         for k, f in enumerate(fns + (2, 2)):
@@ -56,8 +76,9 @@ class Tap:
 
     def call(self, sym, *args):
         self.m.log.clear()
+        self.stored, self.picked = [], []
         self.m.call(MOD + self.sym[sym], *args)
-        return [(fn, regs[:2]) for fn, regs in self.m.log if fn not in (GET_VALUE, CLOCK)]
+        return [(fn, regs[:2]) for fn, regs in self.m.log if fn not in (GET_VALUE, CLOCK, SETTER, SETTER_CONTEXT, VIRT_SET)]
 
     def shown(self):
         return self.m.u32(MOD + self.sym['tap_now'])
@@ -70,7 +91,9 @@ def tap(m4emu):
 
 def test_feature_settings():
     assert tc.FLAG == 'HX_TAP_COLOR' and tc.MENU == 'Displays'
-    assert SETTING.label == b'Color\nTap LED' and SETTING.default == 0 and SETTING.max == RANDOM and SETTING.values[RAINBOW:] == (b'Rainbow', b'Random')
+    assert SETTING.label == b'Color\nTap LED' and SETTING.default == 0 and SETTING.max == OFF
+    assert SETTING.values[RAINBOW:] == (b'Rainbow', b'Random', b'Off'), 'Off appended: stored values keep their colour'
+    assert tc.REPLACES == TAP_TEMPO_LED
     assert all(len(v) <= 8 for v in SETTING.values)
     assert pm.STOCK_CATEGORIES['Displays'] == (5, 0x28e3b540)
 
@@ -92,12 +115,87 @@ TEXTS = (0xff0000, 0xff5a18, 0xf5911e, 0xead82f, 0x43ff40, 0x3cceb5, 0x0097e4, 0
 ICONS = (0x78, 0x1ca, 0x90, 0x83, 0x1b6, 0x21e, 0x234, 0x110, 0x127, 0x115, 0x115, 0x115)
 
 
-@pytest.mark.parametrize('value', (None, 12, 15))
-def test_unset_or_out_of_range_is_stock_red(tap, value):
+@pytest.mark.parametrize('value', (None, OFF, 15))
+def test_unset_off_or_out_of_range_is_stock_red(tap, value):
     tap.value = value
     assert tap.call('tap_led', 2, 0) == [(tc.LED_COLOUR, (2, 0x0300ff))]
     assert tap.call('tap_text', 1, 0) == [(tc.SET_COLOR, (1, 0xff0000))]
     assert tap.call('tap_icon', 1, 0) == [(tc.SET_IMAGE, (1, 0x78))]
+
+
+def test_first_paint_takes_tap_tempo_led_off_as_off(tap):
+    tap.value, tap.led = 3, 0
+    tap.call('tap_paint', 0, HOME)
+    assert tap.picked == [OFF] and tap.stored == []
+
+
+def test_first_paint_takes_tap_tempo_led_on_with_off_as_the_default_colour(tap):
+    tap.value, tap.led = OFF, 1
+    tap.call('tap_paint', 0, HOME)
+    assert tap.picked == [SETTING.default] and tap.stored == []
+
+
+@pytest.mark.parametrize('value, led', [(3, 1), (OFF, 0), (None, 1)])
+def test_settings_in_step_are_left_as_they_are(tap, value, led):
+    tap.value, tap.led = value, led
+    tap.call('tap_paint', 0, HOME)
+    tap.call('tap_paint', 0, HOME)
+    assert tap.picked == [] and tap.stored == []
+
+
+def test_picking_off_turns_tap_tempo_led_off_and_a_colour_turns_it_on(tap):
+    tap.value = 4
+    tap.call('tap_paint', 0, HOME)
+    tap.value = OFF
+    tap.call('tap_paint', 0, HOME)
+    assert tap.stored == [(0x28700800, TAP_TEMPO_LED, 1, 0, 1)], 'a bool record (type 1), source 1, as the stock knob writes it'
+    tap.value = 7
+    tap.call('tap_paint', 0, HOME)
+    assert tap.stored == [(0x28700800, TAP_TEMPO_LED, 1, 1, 1)] and tap.picked == []
+
+
+def test_a_tap_tempo_led_change_from_elsewhere_sets_tap_led_color(tap):
+    tap.value = 4
+    tap.call('tap_paint', 0, HOME)
+    tap.led = 0
+    tap.call('tap_paint', 0, HOME)
+    assert tap.picked == [OFF] and tap.stored == []
+    tap.led = 1
+    tap.call('tap_paint', 0, HOME)
+    assert tap.picked == [SETTING.default]
+
+
+def test_a_turn_of_tap_led_color_in_global_settings_sets_tap_tempo_led_at_once(tap):
+    tap.value = 4
+    tap.call('tap_paint', 0, HOME)
+    tap.value = OFF
+    tap.call('tap_changed', 0x2812b000, IDS['tap_color.color'])
+    assert tap.stored == [(0x28700800, TAP_TEMPO_LED, 1, 0, 1)]
+
+
+def test_a_turn_of_another_setting_leaves_tap_tempo_led(tap):
+    tap.value = 4
+    tap.call('tap_paint', 0, HOME)
+    tap.value = OFF
+    tap.call('tap_changed', 0x2812b000, 25)
+    assert tap.stored == [] and tap.picked == []
+
+
+def test_a_page_repaint_keeps_them_in_step_as_a_reset_comes_that_way(tap):
+    tap.value = OFF
+    tap.led = 0
+    tap.call('tap_paint', 0, HOME)
+    tap.value = SETTING.default
+    tap.call('tap_sync_page', 0x2812b000)
+    assert tap.stored == [(0x28700800, TAP_TEMPO_LED, 1, 1, 1)]
+
+
+def test_without_tap_tempo_led_nothing_is_kept_in_step(tap):
+    tap.value, tap.led = 3, None
+    tap.call('tap_paint', 0, HOME)
+    tap.value = OFF
+    tap.call('tap_paint', 0, HOME)
+    assert tap.picked == [] and tap.stored == []
 
 
 def label(k):
@@ -254,7 +352,7 @@ def test_build_puts_tap_led_color_on_the_displays_page():
     new = built_e0({'HX_TAP_COLOR': '1'})
     read = reader(new)
     pages = struct.unpack('<I', read(pm.ARRAYS['pages'][1][0], 4))[0]
-    assert struct.unpack('<6I', read(pages, 24)) == (3, 4, 2, 1, 4, 1), 'no new page: it fills the empty slot'
+    assert struct.unpack('<6I', read(pages, 24)) == (3, 4, 2, 1, 4, 1), "no new page: it takes Tap Tempo LED's slot"
     for site in pm.SITES:
         cave = branch_target(pm.SITES[site][0], read(pm.SITES[site][0], 4))
         code = read(cave, 64)
@@ -262,15 +360,23 @@ def test_build_puts_tap_led_color_on_the_displays_page():
         target = at + 2 + 4 + 2 * code[at + 2] + 2
         lo, hi = struct.unpack_from('<2I', code, target)
         imm = lambda w: ((w >> 16 & 0xff) | (w >> 28 & 7) << 8 | (w >> 10 & 1) << 11 | (w & 0xf) << 12)
-        assert struct.unpack('<3H', read(imm(lo) | imm(hi) << 16, 6)) == (25, 26, IDS['tap_color.color']), site
+        assert struct.unpack('<3H', read(imm(lo) | imm(hi) << 16, 6)) == (25, IDS['tap_color.color'], pm.EMPTY_SLOT), \
+            f'{site}: Tap LED Color in Tap Tempo LED\'s slot'
     assert read(0x28e3b540, 6) == reader(e0)(0x28e3b540, 6), 'the stock table stays'
     assert_virtual(new, tc, SETTING)
 
 
 @pytest.mark.firmware
-def test_build_sends_the_tap_calls_and_the_home_paint_to_the_module(m4emu):
-    code, sym = m4emu.assemble('src/m4/tap_color.s', MODS, IDS, inc={'rainbow.inc': tc.rainbow_inc()})
+def test_build_sends_the_tap_calls_and_the_home_paint_to_the_module(m4emu, monkeypatch):
+    virt, real = {}, pm.Patch.module
+
+    def module(self, path, inc=None):          # the virtual settings engine's store, which tap_sync sets Tap LED Color through
+        virt[path] = getattr(self, 'virt_set', None)
+        return real(self, path, inc)
+
+    monkeypatch.setattr(pm.Patch, 'module', module)
     read, on = built({'HX_TAP_COLOR': '1'})
+    code, sym = m4emu.assemble('src/m4/tap_color.s', MODS, IDS, virt_set=virt['src/m4/tap_color.s'], inc={'rainbow.inc': tc.rainbow_inc()})
     assert 'tap_color' in on
     module = branch_target(tc.LED_CALLS[0], read(tc.LED_CALLS[0], 4)) - sym['tap_led']
     assert read(module, len(code)) == code
@@ -279,6 +385,14 @@ def test_build_sends_the_tap_calls_and_the_home_paint_to_the_module(m4emu):
     assert branch_target(tc.ICON_CALL, read(tc.ICON_CALL, 4)) == module + sym['tap_icon']
     stub = struct.unpack('<I', read(tc.HOME_PAINT_LIT, 4))[0] & ~1
     assert branch_target(stub + 6, read(stub + 6, 4)) == module + sym['tap_paint'], 'push, ldm, then the before handler'
+
+
+@pytest.mark.firmware
+def test_the_global_settings_repaints_are_chained_and_stay_stock_without_the_flag():
+    stock = reader(stock_e0())
+    assert stock(tc.CHANGED, 4) == tc.CHANGED_STOCK and stock(tc.PAGE, 4) == tc.PAGE_STOCK
+    read, _ = built({'HX_TAP_COLOR': '1'})
+    assert read(tc.CHANGED, 4) != tc.CHANGED_STOCK and read(tc.PAGE, 4) != tc.PAGE_STOCK
 
 
 @pytest.mark.firmware

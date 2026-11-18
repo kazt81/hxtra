@@ -38,6 +38,16 @@ The noise-gate core: which blocks use it, how they wire it and feed it, and the 
 - The blobs' writers go to the reader's existing path (named by its init records), so no member and no binding is added; Blob 0 is untouched.
 - In Block 3 right under the Metronome's kernel: 63 DM words and 151 instructions, 291 normal words of the 299 that builds without the GR meter leave.
 
+## The core's process and control functions [verified offline, disassembled]
+
+- Registry row `0x200538`: init `0x614c71`, control `0x614b8b`, process `0x8e8f2`, 4 DM words, 2 PM words.
+- Process: `M1 = 16`, then each sample reads the key with `DM(M1, I1)` (no update) and the signal with `DM(I1, 1)`, and writes `I2`. So a two-input core's inputs are adjacent buffers, the second at `I1 + 16`: the composites wire the key into the buffer after the signal (`[0, 1]`, `[1, 2]`, `[3, 4]`). Its DM block **[hypothesis]**: threshold, decay, a block count, the init's descriptor pointer.
+- Control: pids 0..3 only; `pid >> 2` non-zero returns at once, so higher pids reach no stock code.
+- Users: the Noise Gate (mono `0x6000ec`, stereo `0x600041`, linked by an `0x89` L + R key) and the Input block's `0x600014`. Input Sidechain wraps it ([features/gate-sidechain.md](../../features/gate-sidechain.md)).
+- **[verified on unit]** With Input Gate Off the Input block doesn't run `0x600014` at all: its cores get no calls (gate-sidechain-2).
+- Blob writers: all 17,132 in the stock blobs name a one-level path (`[1, slot]`); a writer to a core inside a sub-composite (`[2, 40, 6]`) never reached it (gate-sidechain-1). Init records do use two-level paths.
+- The meter `0x2390` (row `0x200378`, process `0x8da6a`, ctrl `0x610441`) reads its 16 samples at `I1` (it sets `L1 = 16`) and writes nothing. In the Input block it is members 34 (buffer 0, L) and 37 (buffer 1, R), between the jack readers `0x2a94` (members 0, 13) and the gate.
+
 ## On the unit (RAM runs noise-gate-1..6, 2026-11-14) [verified on unit]
 
 Measured over USB: input on USB 5/6 (`hx_ctl.py` load-preset, Input key 5 = 6), plucks over hiss played in, USB 1/2 recorded, a cable from Send L/R to Return L; a block is alive when Return −60 dB drops the output 60 dB.

@@ -832,6 +832,7 @@ def menu_entries(load, mods=None, env=os.environ, ids=None, cwd=None, virtual=No
     packing = setting_ids.packing() if virtual is None else virtual
     sections, stored = [], []   # (title, icon, [(ID, setting)] in page order) of each feature's category; (ID, setting) of all
     extra = {}                  # stock category -> (ID, setting) on its pages after its own
+    swaps = {}                  # stock category -> {stock ID: the ID that takes its slot}
     for m in on:
         mine = []
         for s in getattr(m, 'SETTINGS', ()):
@@ -843,6 +844,10 @@ def menu_entries(load, mods=None, env=os.environ, ids=None, cwd=None, virtual=No
             raise SystemExit(f'patch-menu: {features.name(m)}: MENU is True, False or one of {", ".join(STOCK_CATEGORIES)}')
         if isinstance(menu, str):
             extra.setdefault(STOCK_CATEGORIES[menu][0], []).extend(mine)
+            if getattr(m, 'REPLACES', None) is not None and mine:
+                swaps.setdefault(STOCK_CATEGORIES[menu][0], {})[m.REPLACES] = mine[0][0]
+        elif getattr(m, 'REPLACES', None) is not None:
+            raise SystemExit(f'patch-menu: {features.name(m)}: REPLACES needs MENU to name a stock category')
         elif menu and mine:
             sections.append((check_title(m), icon(m), mine + [(EMPTY_SLOT, None)] * (-len(mine) % 3)))
 
@@ -864,7 +869,7 @@ def menu_entries(load, mods=None, env=os.environ, ids=None, cwd=None, virtual=No
             set_limits(p, pid, s)
     virt = add_virtual(p, [(pid, s) for pid, s in stored if pid in packing], packing)
     if sections or extra:       # no feature with a page: stock categories as they are
-        add_category(p, sections, virt, extra)
+        add_category(p, sections, virt, extra, swaps)
 
     for m in on:
         if hasattr(m, 'apply'):
@@ -935,11 +940,12 @@ def add_preset_keys(p):
     return m
 
 
-def add_category(p, sections, virt=None, extra=None):
+def add_category(p, sections, virt=None, extra=None, swaps=None):
     """A Global Settings category from 6 on for each of sections ((title, icon image index, [(ID, setting)] in page order, three to a
     page)), the settings extra ({stock category: [(ID, setting)]}) adds to a stock category from its first trailing empty slot on,
-    and their value text; virt, the virtual settings' module, takes the turn and the click first."""
-    extra = extra or {}
+    but for those swaps ({stock category: {stock ID: ID}}) puts in a stock setting's slot, which leaves the menu, the others then
+    starting on the next page as they did beside it; and their value text; virt, the virtual settings' module, takes the turn and the click first."""
+    extra, swaps = extra or {}, swaps or {}
     p.expect(TEXT_FN, TEXT_FN_STOCK, 'the value-text function')
     p.expect(NAV_CMP, NAV_CMP_STOCK, 'the category navigation')
     p.expect(NAV_WRAP, NAV_WRAP_STOCK, 'the category navigation')
@@ -953,7 +959,13 @@ def add_category(p, sections, virt=None, extra=None):
         ids = list(struct.unpack(f'<{n}H', p.read(table, 2 * n)))
         while ids and ids[-1] == EMPTY_SLOT:
             ids.pop()
-        ids += [pid for pid, _ in mine]
+        for stock, pid in swaps.get(cat, {}).items():
+            if stock not in ids:
+                raise SystemExit(f'patch-menu: setting ID {stock} is not in stock category {cat}, so nothing can take its slot')
+            ids[ids.index(stock)] = pid
+        if swaps.get(cat):          # the settings added after it keep the pages they had beside the stock setting
+            ids += [EMPTY_SLOT] * (-len(ids) % 3)
+        ids += [pid for pid, _ in mine if pid not in swaps.get(cat, {}).values()]
         grown[cat] = ids + [EMPTY_SLOT] * (-len(ids) % 3)
 
     # The per-category arrays with an entry for each section, and the page counts of the stock categories that grow

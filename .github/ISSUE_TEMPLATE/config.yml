@@ -1,7 +1,7 @@
 blank_issues_enabled: true
 contact_links:
   - name: Feature guide
-    url: https://github.com/wisemandenny/hxtra/blob/main/docs/features.md
+    url: https://wisemandenny.github.io/hxtra/web/features.html
     about: How every feature works and where its settings are.
   - name: Setup page
     url: https://wisemandenny.github.io/hxtra/web/

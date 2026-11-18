@@ -362,7 +362,7 @@ def test_other_models_and_slot_lists_are_unchanged(gated):
 @pytest.mark.firmware
 def test_refuses_a_second_run(gated):
     _, new = gated
-    with pytest.raises(AssertionError, match='has the gate already'):
+    with pytest.raises(AssertionError, match='has these knobs already'):
         pg.patch_gate(new, **QUIET)
 
 

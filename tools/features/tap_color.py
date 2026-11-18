@@ -1,6 +1,7 @@
 """Tap LED Color: Global Settings > Displays picks the TAP footswitch's colour, for its ring as it blinks the tempo and for its
 switch icon and label on the Home screen, from the stock footswitch palette (src/m4/tap_color.s). External MIDI clock keeps the
-stock blue ring. Rainbow moves the ring a small step round the colour wheel at each beat, Random lights it a random colour; both with a White label. BPM's Color Tempo reads tap_now."""
+stock blue ring. Rainbow moves the ring a small step round the colour wheel at each beat, Random lights it a random colour; both with a White label. Off
+stops the blink: Tap LED Color takes the stock Tap Tempo LED's place in Displays and keeps it in step. BPM's Color Tempo reads tap_now."""
 from features import Setting
 
 FLAG = 'HX_TAP_COLOR'
@@ -9,8 +10,9 @@ ORDER = 10                          # before BPM, which reads tap_now
 MODULE, NOW = 'src/m4/tap_color.s', 'tap_now'
 SETTINGS = (     # a label's last line shows on top, as BPM's 'Size\nFont' reads Font over Size
     Setting('color', b'Color\nTap LED', (b'Red', b'DkOrange', b'LtOrange', b'Yellow', b'Green', b'Teal', b'Blue', b'Violet',
-                                         b'Pink', b'White', b'Rainbow', b'Random')),
+                                         b'Pink', b'White', b'Rainbow', b'Random', b'Off')),
 )
+REPLACES = 26                       # Tap Tempo LED: Off is Tap LED Color's Off, any colour On
 
 # The stock palette, by value: the LED driver's lit colours (0x28dd8030, 0x00BBGGRR) and the block categories' label colours
 # (0x28e2815c, 0xRRGGBB), White their gray
@@ -31,6 +33,9 @@ TEXT_CALLS = ((0x28dc7fca, 0x28dc7fc6), (0x28dc7fd4, 0x28dc7fce))  # (the call, 
 RED_TEXT = bytes.fromhex('4ff47f01')
 ICON_CALL, ICON_MOV, ICON_RED = 0x28dc8010, 0x28dc800c, bytes.fromhex('7821')    # movs r1,#0x78
 HOME_PAINT_LIT, HOME_PAINT = 0x28d96e28, 0x28dc8d39                  # the Home view's paint function, as registered
+# Global Settings' repaint of a changed slot (view, ID) and of a page (view), as after a click's reset: Off takes effect at once
+CHANGED, CHANGED_STOCK = 0x28dceb30, bytes.fromhex('70b5 1029')         # push {r4-r6, lr}; cmp r1, #0x10
+PAGE, PAGE_STOCK = 0x28dce854, bytes.fromhex('2de9 f047')               # push.w {r4-r10, lr}
 
 
 def blend(a, b, k, n):
@@ -65,3 +70,5 @@ def apply(p):
     p.expect(ICON_MOV, ICON_RED, 'the TAP switch icon')
     p.own_call(ICON_CALL, SET_IMAGE, 'the TAP switch icon', m['tap_icon'])
     p.chain_ptr(HOME_PAINT_LIT, HOME_PAINT, before=m['tap_paint'])
+    p.chain_entry(CHANGED, CHANGED_STOCK, after=m['tap_changed'])
+    p.chain_entry(PAGE, PAGE_STOCK, after=m['tap_sync_page'])

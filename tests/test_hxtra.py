@@ -325,3 +325,31 @@ def test_menu_must_name_a_stock_category():
     demo = fake('demo', MENU='Tempo', SETTINGS=(Setting('a', b'A', (b'0', b'1')),))
     with pytest.raises(SystemExit, match='MENU is True, False or one of Ins/Outs, Footswitches'):
         menu_entry0(stock_e0(), [demo], {}, dict(setting_ids.by_name(), **{'demo.a': 0xcc}))
+
+
+@pytest.mark.firmware
+def test_replaces_puts_the_first_setting_in_a_stock_slot_and_keeps_later_pages():
+    two = (Setting('a', b'A', (b'0', b'1')), Setting('b', b'B', (b'0', b'1')))
+    demo = fake('demo', MENU='Displays', REPLACES=26, SETTINGS=two)
+    ids = dict(setting_ids.by_name(), **{'demo.a': 0xcc, 'demo.b': 0xcd})
+    new, _ = menu_entry0(stock_e0(), [demo], {}, ids)
+    read = reader(new)
+    pages = struct.unpack('<I', read(pm.ARRAYS['pages'][1][0], 4))[0]
+    assert struct.unpack('<6I', read(pages, 24)) == (3, 4, 2, 1, 4, 2), 'Displays has two pages'
+    for site in pm.SITES:      # Tap Tempo LED's slot, the page's empty slot kept, the other setting on the next page
+        assert struct.unpack('<6H', read(page_table(read, 5, site), 12)) == (25, 0xcc, pm.EMPTY_SLOT, 0xcd, pm.EMPTY_SLOT,
+                                                                              pm.EMPTY_SLOT), site
+
+
+@pytest.mark.firmware
+def test_replaces_needs_a_stock_setting_of_that_category():
+    demo = fake('demo', MENU='Displays', REPLACES=27, SETTINGS=(Setting('a', b'A', (b'0', b'1')),))
+    with pytest.raises(SystemExit, match='setting ID 27 is not in stock category 5'):
+        menu_entry0(stock_e0(), [demo], {}, dict(setting_ids.by_name(), **{'demo.a': 0xcc}))
+
+
+@pytest.mark.firmware
+def test_replaces_needs_a_stock_category():
+    demo = fake('demo', MENU=True, REPLACES=26, SETTINGS=(Setting('a', b'A', (b'0', b'1')),))
+    with pytest.raises(SystemExit, match='REPLACES needs MENU to name a stock category'):
+        menu_entry0(stock_e0(), [demo], {}, dict(setting_ids.by_name(), **{'demo.a': 0xcc}))
