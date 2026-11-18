@@ -44,7 +44,7 @@ If an install ever stops at the splash screen, hold Page Right while powering on
 
 <img src="docs/assets/icons/install.svg" width="40" height="40" align="absmiddle" alt=""> **[Install from your browser](https://wisemandenny.github.io/hxtra/web/)**
 
-The setup page builds HXtra locally from your own firmware file, right in your browser. Nothing is uploaded, and there's no software to set up on your computer.
+The setup page builds HXtra locally from your own firmware file, right in your browser. Your firmware file never leaves your computer, and there's no software to set up.
 
 &nbsp;
 
@@ -57,6 +57,8 @@ The setup page builds HXtra locally from your own firmware file, right in your b
 <p align="center"><a href="https://wisemandenny.github.io/hxtra/web/"><img src="docs/assets/install-hxtra.svg" alt="Install HXtra" width="60%"></a></p>
 
 ## Features
+
+HXtra's settings and block knobs have teal labels, so you can tell them from the stock ones at a glance.
 
 <sub>*Demos were recorded from a real HX Stomp's screen, along with its audio and button presses, then overlaid on a simulated HX Stomp.*</sub>
 
@@ -102,7 +104,7 @@ The setup page builds HXtra locally from your own firmware file, right in your b
 
 ### <img src="docs/assets/icons/gr-meter.svg" width="28" height="28" align="top" alt=""> Compressor Gain Reduction Meter
 
-*New settings on all compressors except 3-Band Compressor*
+*New settings on the Deluxe, LA Studio, Kinky, Ampeg Opto, Rochester and Red Squeeze compressors*
 
 - **Mtr Size** (Off, S, M, L, XL): the meter's thickness. Each size is an additional 5px; off disables the meter.
 - **Mtr Pos** (Middle, Top, Left, Bottom, Right): Location of the meter on the Home screen and on the compressor's edit screen. Middle takes the place of the line across the middle, and disables breathing line.
@@ -184,13 +186,18 @@ The meter also shows while you edit the compressor, so you can dial in Threshold
 
 *Global Settings › Ins/Outs, page 3*
 
-- **Path A Out** (Main L/R, Send/USB, USB Only, Main+Snd): Send/USB sends path A's output to the computer on USB 3/4 instead of to Main L/R, so you hear your tone through your DAW, with its plugins, instead of straight from the HX Stomp. Main and the phones then play only what the computer sends back on USB 1/2. On the HX Stomp, USB 3/4 and the Send jacks are one output, so with Send/USB the Send jacks carry the same sound, and any Send or FX Loop block in the preset adds its send to it: don't use Send/USB with an FX Loop in the preset (the output would feed back through the loop). **USB Only** sends it to the computer alone: the Send jacks stay silent, for path A and for every Send and FX Loop block too, so nothing can feed back. **Main+Snd** keeps path A on Main L/R and sends the same sound to the Send jacks and USB 3/4 at 0 dB, with no split and no block used: don't use it with an FX Loop either.
+- **Path A Out**: where path A's output goes, in every preset.
+  - **Main L/R**: as stock.
+  - **Send/USB**: to your computer on USB 3/4, so you monitor through your DAW. Main and the phones play what the computer sends back. The Send jacks get it too.
+  - **USB Only**: to your computer only; the Send jacks stay silent.
+  - **Main+Snd**: Main L/R as usual, plus a copy to the Send jacks and USB 3/4.
+- Don't use Send/USB or Main+Snd in a preset with an FX Loop block: it feeds back.
 
 ### <img src="docs/assets/icons/real-names.svg" width="28" height="28" align="top" alt=""> Real Block Names
 
 *No settings*
 
-- Renames all blocks to match the gear they were based on: e.g. Deez One Mod becomes Boss DS-1 Mod.
+- Renames blocks to the gear they were based on: e.g. Deez One Mod becomes Boss DS-1 Mod.
 
 <a href="https://wisemandenny.github.io/hxtra/web/features.html#real-block-names"><img src="docs/assets/icons/watch-demo.svg" width="124" height="28" alt="Watch demo"></a>
 
@@ -199,7 +206,15 @@ The meter also shows while you edit the compressor, so you can dial in Threshold
 *Gate, Threshold and Decay knobs on the FX Loop and Return blocks*
 
 - A noise gate on what comes back from the loop, like the Input block's, so a noisy pedal in the loop no longer takes a Noise Gate block.
-- Each FX Loop and Return block then uses about 0.2% (mono) or 0.4% (stereo) more DSP.
+- Each FX Loop and Return block then counts 0.2% (mono) or 0.4% (stereo) more toward the DSP limit.
+
+### <img src="docs/assets/icons/gate-sidechain.svg" width="28" height="28" align="top" alt=""> Noise Gate Input Sidechain
+
+*Input Sidechain knob on the Noise Gate block*
+
+- On, the Noise Gate opens and closes on your guitar as it comes in, so a gate after a high-gain drive follows the clean guitar.
+- Each Noise Gate block then counts 0.1% (mono) or 0.2% (stereo) more toward the DSP limit.
+- *Experimental:* tested with recorded signals, not yet with a played instrument, so it may need tuning. It works only with a cable in the HX Stomp's guitar input.
 
 ### <img src="docs/assets/icons/nam.svg" width="28" height="28" align="top" alt=""> NAM A2 Lite
 
@@ -262,7 +277,7 @@ Every feature's M4 code runs on an emulated Cortex-M4 ([unicorn](https://www.uni
 <td valign="top">
 
 ### <img src="docs/assets/icons/dev-mirror.svg" width="28" height="28" align="top" alt=""> Screen mirror and demo videos
-A developer build streams the HX Stomp's screen over USB, and `tools/hx_mirror.py` records it with every control event and renders the demo videos in this README.
+A developer build streams the HX Stomp's screen over USB, and `tools/hx_mirror.py` records it with every control event and renders the demo videos on the [feature tour](https://wisemandenny.github.io/hxtra/web/features.html).
 
 &nbsp;
 
@@ -327,7 +342,16 @@ One person chose every feature and decided how each should look, feel and behave
 <td valign="top">
 
 ### <img src="docs/assets/icons/faq-dsp.svg" width="28" height="28" align="top" alt=""> Does HXtra use up extra DSP?
-**No.** DSP usage is only marginally affected by the compressor gain reduction meter and the metronome block. If you notice any audio crackling, disable those features.
+HXtra itself doesn't: it runs on the processor that drives the screen and footswitches. A few features put code on the DSP and use a little:
+
+- **Compressor Gain Reduction Meter**, on the compressors that have it
+- **Metronome**, while the block is in a preset
+- **FX Loop Noise Gate**, on each FX Loop and Return block
+- **Noise Gate Input Sidechain**, on each Noise Gate block
+- **USB & Send Routing**, to move path A's output
+- **NAM A2 Lite** blocks, like any amp block
+
+If you hear crackling, leave those out on the setup page.
 
 &nbsp;
 
@@ -335,7 +359,7 @@ One person chose every feature and decided how each should look, feel and behave
 <td valign="top">
 
 ### <img src="docs/assets/icons/faq-choose.svg" width="28" height="28" align="top" alt=""> Can I choose which features I get?
-Partly. On the setup page you pick the **DSP features**: how many NAM A2 Lite blocks (3, 2, 1 or none), the gain reduction meter, the Metronome and the FX Loop gate. They share the HX Stomp's spare DSP memory, so the page shows what's left as you tick, and fewer NAM blocks leave room for more of the others. Real block names is a box too. Every other feature is always in; to leave one of those out, [build it yourself](docs/building.md).
+Partly. On the setup page you pick the **DSP features**: how many NAM A2 Lite blocks (3, 2, 1 or none), the gain reduction meter, the Metronome, the FX Loop gate, USB & Send Routing and Input Sidechain. They share the HX Stomp's spare DSP memory, so the page shows what's left as you tick, and fewer NAM blocks leave room for more of the others. Real block names is a box too. Every other feature is always in; to leave one of those out, [build it yourself](docs/building.md).
 
 &nbsp;
 
@@ -377,6 +401,7 @@ Partly. On the setup page you pick the **DSP features**: how many NAM A2 Lite bl
 
 - With the breathing line on, the BPM beat dot sometimes draws half lit.
 - Tapping the tempo doesn't yet move the Metronome's beat onto your taps.
+- A preset made before 1.2 (on stock firmware or an earlier HXtra) that is close to the DSP limit may open empty. With FX Loop Noise Gate in your build, each FX Loop and Return block counts 0.2% more (0.4% stereo); with Input Sidechain, each Noise Gate block counts 0.1% more (0.2% stereo). To fix it, remove a block from the preset on stock firmware, or untick those features on the setup page.
 
 Found something else? [Open an issue](https://github.com/wisemandenny/hxtra/issues/new/choose).
 

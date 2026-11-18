@@ -115,6 +115,7 @@
   </header>
 
   <section id="overview">
+    <p data-i18n="overview.labels">HXtra's settings and block knobs have teal labels, so you can tell them from the stock ones at a glance.</p>
     <div class="tbl"><table>
     <thead>
     <tr>
@@ -141,7 +142,7 @@
     <td><a href="#gr-meter" data-i18n="gr-meter.name">Compressor Gain Reduction Meter</a></td>
     <td data-i18n="gr-meter.desc">Shows how hard a compressor is working, on the Home screen and in its Edit view, so you can dial in Threshold, Ratio, Attack and Release while you play.</td>
     <td data-i18n="gr-meter.floc">Home screen and the compressor's Edit view</td>
-    <td data-i18n="gr-meter.where">The compressor's Mtr Size, Mtr Pos and Mtr Dir knobs, on every compressor but the 3-Band Comp</td>
+    <td data-i18n="gr-meter.where">The compressor's Mtr Size, Mtr Pos and Mtr Dir knobs, on the Deluxe, LA Studio, Kinky, Ampeg Opto, Rochester and Red Squeeze compressors</td>
     </tr>
     <tr>
     <td><a href="#dsp-usage-display" data-i18n="dsp-usage-display.name">DSP Usage Display</a></td>
@@ -192,6 +193,12 @@
     <td data-i18n="nam-a2-lite.where">The block's knobs</td>
     </tr>
     <tr>
+    <td><a href="#gate-sidechain" data-i18n="gate-sidechain.name">Noise Gate Input Sidechain</a></td>
+    <td data-i18n="gate-sidechain.desc">An Input Sidechain knob on the Noise Gate block: on, its gate opens and closes on your guitar as it comes in, so a gate after a high-gain drive follows the clean guitar.</td>
+    <td data-i18n="gate-sidechain.floc">The Noise Gate block, mono and stereo</td>
+    <td data-i18n="gate-sidechain.where">The block's Input Sidechain knob</td>
+    </tr>
+    <tr>
     <td><a href="#preset-led-color" data-i18n="preset-led-color.name">Preset Mode LED Color</a></td>
     <td data-i18n="preset-led-color.desc">In Preset footswitch mode, each preset's own colour, kept when you save the preset: its ring and Home screen icon are lit in it while it is selected, and dimmed while it is not.</td>
     <td data-i18n="preset-led-color.floc">The preset footswitches, in Preset footswitch mode</td>
@@ -199,13 +206,13 @@
     </tr>
     <tr>
     <td><a href="#real-block-names" data-i18n="real-block-names.name">Real Block Names</a></td>
-    <td data-i18n="real-block-names.desc">Renames all blocks to match the gear they were based on: e.g. Deez One Mod becomes Boss DS-1 Mod.</td>
+    <td data-i18n="real-block-names.desc">Renames blocks to the gear they were based on: e.g. Deez One Mod becomes Boss DS-1 Mod.</td>
     <td data-i18n="real-block-names.floc">Model browser and Edit view</td>
     <td>-</td>
     </tr>
     <tr>
     <td><a href="#tap-command" data-i18n="tap-command.name">Tap Command</a></td>
-    <td data-i18n="tap-command.desc">Tap tempo only in the presets that want it: a Tap command in the Command Center, saved with the preset, turns FS1–FS5 into a tap tempo switch whose ring blinks the tempo.</td>
+    <td data-i18n="tap-command.desc">Tap tempo only in the presets that want it: a Tap command in the Command Center, saved with the preset, turns FS1–FS5 into a tap tempo switch; on FS1–FS3 its ring blinks the tempo.</td>
     <td data-i18n="tap-command.floc">Menu &gt; Command Center, on an FS slot</td>
     <td>-</td>
     </tr>
@@ -244,7 +251,7 @@
       <p data-i18n="bpm.p1">The Home screen shows the tempo at its top left, and a beat dot beside the preset number that lights with the TAP footswitch's ring, red on a tap.</p>
   <ul>
   <li data-i18n="bpm.li1"><strong>The tempo</strong> is the one the HX Stomp is using, the global or the preset's as Tempo Select says, as a whole number. It shows <code>X</code> after it while the tempo comes from MIDI clock (the tempo screen's Extrnl), and <code>--</code> with no tempo.</li>
-  <li data-i18n="bpm.li2"><strong>The dot</strong> keeps the beat in every footswitch mode, and with Tap Tempo LED off too: the ring then stays dark while the dot blinks.</li>
+  <li data-i18n="bpm.li2"><strong>The dot</strong> keeps the beat in every footswitch mode, and with Tap LED Color on Off too: the ring then stays dark while the dot blinks.</li>
     </ul>
       <div class="settings">
         <h3 data-i18n="settings">Settings</h3>
@@ -336,7 +343,7 @@
   </ul>
       <div class="settings">
         <h3 data-i18n="settings">Settings</h3>
-        <p class="where" data-i18n="gr-meter.where">The compressor's Mtr Size, Mtr Pos and Mtr Dir knobs, on every compressor but the 3-Band Comp</p>
+        <p class="where" data-i18n="gr-meter.where">The compressor's Mtr Size, Mtr Pos and Mtr Dir knobs, on the Deluxe, LA Studio, Kinky, Ampeg Opto, Rochester and Red Squeeze compressors</p>
         <div class="tbl"><table>
         <thead>
         <tr>
@@ -349,7 +356,7 @@
         <tr>
         <td><strong>Mtr Size</strong></td>
         <td><strong>Off</strong>, S, M, L, XL</td>
-        <td data-i18n="gr-meter.what1">The meter's thickness: 5, 10, 15 or 20 pixels. A preset saved with an older build's Mtr Thk opens at S for 1 px, M for 2, L for 3 and XL for 4 or more.</td>
+        <td data-i18n="gr-meter.what1">The meter's thickness: 5, 10, 15 or 20 pixels. A preset saved with an older build's Mtr Thk draws the meter at S for 1 px, M for 2, L for 3 and XL for 4 or more.</td>
         </tr>
         <tr>
         <td><strong>Mtr Pos</strong></td>
@@ -413,7 +420,7 @@
       <div class="demos">
         <figure><img src="https://github.com/user-attachments/assets/7decba81-b026-4fb5-95f9-6c8899b2e47c" width="480" height="360" alt="The tuner: Activate set to Press, so one press opens it, then Lock On and its knobs no longer change" data-i18n-alt="tuner-settings.alt1" loading="lazy"></figure>
       </div>
-      <p data-i18n="tuner-settings.p1">With <code>HX_TUNER=1</code>, the tuner's own settings get a page of their own, third: page right past Trails, Offsets and String 6. The string pages (Strings 5–3, then 2 and 1) follow it: few players use the per-string offsets, so the page comes before them. Its knobs set them as the stock pages' knobs do: turn to change, press to go back to the default.</p>
+      <p data-i18n="tuner-settings.p1">The tuner's own settings get a page of their own, third: page right past Trails, Offsets and String 6. The string pages (Strings 5–3, then 2 and 1) follow it: few players use the per-string offsets, so the page comes before them. Its knobs set them as the stock pages' knobs do: turn to change, press to go back to the default.</p>
       <div class="settings">
         <h3 data-i18n="settings">Settings</h3>
         <p class="where" data-i18n="tuner-settings.where">The tuner's settings, page 3 (page right past Trails, Offsets and String 6)</p>
@@ -438,7 +445,6 @@
         </tr>
         </tbody>
         </table></div>
-        <p data-i18n="tuner-settings.p2">Both keep their values (setting IDs 29 and 104) from builds that had them in Global Settings &gt; HXtra.</p>
       </div>
     </section>
 
@@ -481,7 +487,7 @@
       <h2><img class="ico" src="../docs/assets/icons/fx-gate.svg" width="28" height="28" alt=""><span data-i18n="fx-loop-gate.name">FX Loop Noise Gate</span></h2>
       <p data-i18n="fx-loop-gate.p1">A noise gate built into the FX Loop and Return blocks, as the Input block has one, so a noisy pedal in the loop doesn't take a Noise Gate block of its own (<a href="https://github.com/wisemandenny/hxtra/issues/69">#69</a>). It gates what comes back from the loop, before the block's Return level and Mix; the dry signal and the Send are not gated.</p>
   <ul>
-  <li data-i18n="fx-loop-gate.li1"><strong>DSP:</strong> each FX Loop and Return block costs about 0.2% more (0.4% stereo), whether its gate is on or off. A preset already at the limit with one of these blocks may not load.</li>
+  <li data-i18n="fx-loop-gate.li1"><strong>DSP:</strong> each FX Loop and Return block counts 0.2% more toward the DSP limit (0.4% stereo), whether its gate is on or off. A preset already at the limit with one of these blocks may not load.</li>
   <li data-i18n="fx-loop-gate.li2"><strong>Stereo blocks</strong> gate each side on its own, not linked.</li>
   <li data-i18n="fx-loop-gate.li3"><strong>Presets</strong> saved with the gate keep its knobs. Opening such a preset on stock firmware, or in HX Edit, is not tested yet.</li>
   </ul>
@@ -631,7 +637,7 @@
   <ul>
   <li data-i18n="nam-a2-lite.li1"><strong>Where:</strong> Amp &gt; NAM, a block with ten knobs and a tone stack. It sits on Xenomorph Fuzz Mono's preset ID 555 (that stock model is removed), so HX Edit keeps NAM blocks, and presets made with either build open with the other.</li>
   <li data-i18n="nam-a2-lite.li2"><strong>Older presets:</strong> presets saved with an earlier NAM build (preset IDs 147 and 148) don't open NAM A2 Lite in this one: re-add the block in those presets.</li>
-  <li data-i18n="nam-a2-lite.li3"><strong>How many blocks:</strong> up to 3 play at once, each its own capture; a further one passes its input through. Fewer leave room for more of the other DSP features: 3 blocks leave room for the Metronome and the FX Loop gate, 2 for those and the GR meter. With <code>build.py</code>, <code>HX_NAM_SLOTS</code> sets it; unset, it's the most that leave room for the DSP features you turned on.</li>
+  <li data-i18n="nam-a2-lite.li3"><strong>How many blocks:</strong> up to 3 play at once, each its own capture; a further one passes its input through. Fewer leave room for more of the other DSP features: 3 blocks leave room for the Metronome and the FX Loop gate, or for USB &amp; Send Routing or Input Sidechain alone; 2 for all five. With <code>build.py</code>, <code>HX_NAM_SLOTS</code> sets it; unset, it's the most that leave room for the DSP features you turned on.</li>
   <li data-i18n="nam-a2-lite.li4"><strong>Captures:</strong> none are included. You bring your own <code>.nam</code> files, and their licences are up to their authors.</li>
   </ul>
   <p data-i18n="nam-a2-lite.p2">Upstream's <a href="https://github.com/wisemandenny/hxtra/blob/main/CHANGELOG.md">CHANGELOG.md</a> has the NAM changes.</p>
@@ -644,9 +650,40 @@
       </div>
     </section>
 
+    <section class="card feat" id="gate-sidechain">
+      <h2><img class="ico" src="../docs/assets/icons/gate-sidechain.svg" width="28" height="28" alt=""><span data-i18n="gate-sidechain.name">Noise Gate Input Sidechain</span></h2>
+      <p data-i18n="gate-sidechain.p1">The Noise Gate block can take its key from the input instead of from its own signal (<a href="https://github.com/wisemandenny/hxtra/issues/131">#131</a>). With Input Sidechain on, the gate opens and closes on what the Input block's gate hears (your guitar before any block, left and right summed) while it still gates the signal reaching it. A gate after a high-gain drive then follows the clean guitar: it closes when you stop playing, and the drive's own hiss no longer holds it open.</p>
+  <ul>
+  <li data-i18n="gate-sidechain.exp"><strong>Experimental:</strong> tested with recorded signals, not yet with a played instrument, so it may need tuning. It works only with a cable in the HX Stomp's guitar input.</li>
+  <li data-i18n="gate-sidechain.li1"><strong>DSP:</strong> each Noise Gate block counts 0.1% more toward the DSP limit (0.2% stereo), whether Input Sidechain is on or off. A preset already at the limit with a Noise Gate may not load.</li>
+  <li data-i18n="gate-sidechain.li2"><strong>Threshold</strong> is then compared with the input's level, so set it as you would the Input block's gate. The Input block's own Input Gate can be on or off.</li>
+  <li data-i18n="gate-sidechain.li3"><strong>Presets</strong> saved with Input Sidechain keep the knob. HX Edit doesn't show it, as it has its own list of each block's knobs; opening such a preset on stock firmware is not tested yet.</li>
+  </ul>
+      <div class="settings">
+        <h3 data-i18n="settings">Settings</h3>
+        <p class="where" data-i18n="gate-sidechain.where">The block's Input Sidechain knob</p>
+        <div class="tbl"><table>
+        <thead>
+        <tr>
+        <th data-i18n="th.knob">Knob</th>
+        <th data-i18n="th.values">Values</th>
+        <th data-i18n="th.what">What it does</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+        <td><strong>Input Sidechain</strong></td>
+        <td><strong>Off</strong>, On</td>
+        <td data-i18n="gate-sidechain.what1">On, the gate follows the input instead of the signal reaching the block. Off, the block works as on stock firmware.</td>
+        </tr>
+        </tbody>
+        </table></div>
+      </div>
+    </section>
+
     <section class="card feat" id="preset-led-color">
       <h2><img class="ico" src="../docs/assets/icons/preset-color.svg" width="28" height="28" alt=""><span data-i18n="preset-led-color.name">Preset Mode LED Color</span></h2>
-      <p data-i18n="preset-led-color.p1">In Preset footswitch mode the HX Stomp lights the current preset's ring red, with a red switch icon on the Home screen, and leaves the other two presets' rings off. HXtra gives each preset a colour of its own, from the same palette as Tap LED color.</p>
+      <p data-i18n="preset-led-color.p1">In Preset footswitch mode the HX Stomp lights the current preset's ring red, with a red switch icon on the Home screen, and leaves the other two presets' rings off. HXtra gives each preset a colour of its own, from the same palette as Tap LED Color.</p>
   <ul>
   <li data-i18n="preset-led-color.li1"><strong>This Preset</strong> (Global Settings &gt; Displays, page 2) sets the current preset's colour. Save the preset to keep it: the colour is stored in the preset itself, so it goes with the preset when you move, export or restore it.</li>
   <li data-i18n="preset-led-color.li2"><strong>Selected</strong>, a preset's ring and icon are lit in its colour. <strong>Not selected</strong>, a preset with a colour shows it dimmed (the shade the HX Stomp uses for a bypassed block of that colour), so you can see which footswitch holds which preset.</li>
@@ -702,7 +739,7 @@
       <h2><img class="ico" src="../docs/assets/icons/tap-command.svg" width="28" height="28" alt=""><span data-i18n="tap-command.name">Tap Command</span></h2>
       <p data-i18n="tap-command.p1">On a stock HX Stomp, tap tempo is a global footswitch function: FS3's TAP/TUNER, or FS4/FS5 set to TAP, in every preset. HXtra adds a <strong>Tap</strong> command to the Command Center, which is saved with each preset, so a footswitch taps the tempo only in the presets where you put it.</p>
   <ul>
-  <li data-i18n="tap-command.li1"><strong>Setting it up:</strong> the footswitch has to be a Stomp switch. FS1 and FS2 always are; for FS3, FS4 or FS5 set its function to Stomp in Global Settings &gt; Footswitches. Then, in the preset, open Menu &gt; Command Center, select the footswitch's slot and turn Command to <strong>Tap</strong> (after Hotkey). Save the preset to keep it.</li>
+  <li data-i18n="tap-command.li1"><strong>Setting it up:</strong> the footswitch has to be a Stomp switch, so use Stomp footswitch mode, where FS1 and FS2 always are; for FS3, FS4 or FS5 set its function to Stomp in Global Settings &gt; Footswitches. Then, in the preset, open Menu &gt; Command Center, select the footswitch's slot and turn Command to <strong>Tap</strong> (after Hotkey). Save the preset to keep it.</li>
   <li data-i18n="tap-command.li2"><strong>Pressing it</strong> taps the tempo exactly as the TAP footswitch does. Holding it doesn't tap.</li>
   <li data-i18n="tap-command.li3"><strong>Its ring</strong> (FS1–FS3) blinks the tempo as the TAP ring does, in Tap LED Color's colour when that feature is in your build. Tap LED Color's Off stops it blinking (in a build without Tap LED Color, the stock Tap Tempo LED does). FS4 and FS5 have no ring.</li>
   <li data-i18n="tap-command.li4"><strong>Changing snapshots</strong> never taps.</li>
@@ -843,7 +880,7 @@ var LANGS = {
     "gr-meter.name": "Medidor de reducción de ganancia del compresor",
     "gr-meter.desc": "Muestra cuánto está trabajando un compresor, en la pantalla de inicio y en su vista Edit, para que ajustes Threshold, Ratio, Attack y Release mientras tocas.",
     "gr-meter.floc": "Pantalla de inicio y vista Edit del compresor",
-    "gr-meter.where": "Las perillas Mtr Size, Mtr Pos y Mtr Dir del compresor, en todos los compresores salvo el 3-Band Comp",
+    "gr-meter.where": "Las perillas Mtr Size, Mtr Pos y Mtr Dir del compresor, en los compresores Deluxe, LA Studio, Kinky, Ampeg Opto, Rochester y Red Squeeze",
     "dsp-usage-display.name": "Indicador de uso de DSP",
     "dsp-usage-display.desc": "Muestra la parte del DSP que usa cada bloque, en los bloques de la vista Edit y en el navegador de modelos, y el total en la esquina superior derecha.",
     "dsp-usage-display.floc": "Vista Edit y navegador de modelos",
@@ -875,15 +912,19 @@ var LANGS = {
     "nam-a2-lite.desc": "Reproduce capturas de Neural Amp Modeler en el propio DSP del HX Stomp, hasta tres a la vez; la página de instalación convierte tus archivos .nam.",
     "nam-a2-lite.floc": "Navegador de modelos: Amp &gt; NAM",
     "nam-a2-lite.where": "Las perillas del bloque",
+    "gate-sidechain.name": "Input Sidechain de Noise Gate",
+    "gate-sidechain.desc": "Una perilla Input Sidechain en el bloque Noise Gate: activada, la puerta se abre y se cierra con la guitarra tal como entra, así que una puerta después de una distorsión de mucha ganancia sigue a la guitarra limpia.",
+    "gate-sidechain.floc": "El bloque Noise Gate, mono y estéreo",
+    "gate-sidechain.where": "La perilla Input Sidechain del bloque",
     "preset-led-color.name": "Color del LED en modo Preset",
     "preset-led-color.desc": "En el modo de footswitch Preset, un color propio para cada preset, que se conserva al guardarlo: su anillo y su icono en la pantalla de inicio se encienden con él mientras está seleccionado, y atenuados cuando no.",
     "preset-led-color.floc": "Los footswitches de preset, en el modo de footswitch Preset",
     "preset-led-color.where": "Global Settings &gt; Displays, página 2",
     "real-block-names.name": "Nombres reales de los bloques",
-    "real-block-names.desc": "Cambia el nombre de todos los bloques por el del equipo en que se basan: p. ej., Deez One Mod pasa a ser Boss DS-1 Mod.",
+    "real-block-names.desc": "Cambia el nombre de los bloques por el del equipo en que se basan: p. ej., Deez One Mod pasa a ser Boss DS-1 Mod.",
     "real-block-names.floc": "Navegador de modelos y vista Edit",
     "tap-command.name": "Comando Tap",
-    "tap-command.desc": "Tap tempo solo en los presets que lo necesitan: un comando Tap en el Command Center, guardado con el preset, convierte FS1–FS5 en un interruptor de tap tempo cuyo anillo parpadea con el tempo.",
+    "tap-command.desc": "Tap tempo solo en los presets que lo necesitan: un comando Tap en el Command Center, guardado con el preset, convierte FS1–FS5 en un interruptor de tap tempo; en FS1–FS3 su anillo parpadea con el tempo.",
     "tap-command.floc": "Menu &gt; Command Center, en una ranura FS",
     "tap-led-color.name": "Color del LED de TAP",
     "tap-led-color.desc": "El color del anillo LED parpadeante del footswitch TAP, y del icono y la etiqueta TAP/TUNER en la pantalla de inicio. Rainbow recorre el arcoíris en cada pulso; Random elige un color nuevo en cada pulso.",
@@ -898,12 +939,13 @@ var LANGS = {
     "virtual-footswitches.floc": "Bypass Assign &gt; MIDI In de un bloque, o Controller Assign",
     "virtual-footswitches.where": "Global Settings &gt; Footswitches, páginas 4 y 5",
     "overview.name": "Demos",
+    "overview.labels": "Los ajustes y las perillas de bloque de HXtra tienen etiquetas de color verde azulado, para distinguirlos de los de serie de un vistazo.",
     "demos.note": "Las demos se grabaron de la pantalla de un HX Stomp real, junto con su audio y las pulsaciones de los botones, y luego se superpusieron sobre un HX Stomp simulado.",
     "bpm.alt1": "Pulsando TAP: el tempo y su punto de pulso lo siguen",
     "bpm.alt2": "Global Settings, BPM Display: Font Size, Color y Dot Position",
     "bpm.p1": "La pantalla de inicio muestra el tempo arriba a la izquierda y, junto al número de preset, un punto de pulso que se enciende con el anillo del footswitch TAP, en rojo al pulsarlo.",
     "bpm.li1": "<strong>El tempo</strong> es el que usa el HX Stomp, el global o el del preset según indique Tempo Select, como número entero. Lleva una <code>X</code> detrás mientras el tempo viene del reloj MIDI (Extrnl en la pantalla de tempo), y muestra <code>--</code> si no hay tempo.",
-    "bpm.li2": "<strong>El punto</strong> marca el pulso en todos los modos de footswitch, también con Tap Tempo LED en Off: el anillo queda apagado mientras el punto parpadea.",
+    "bpm.li2": "<strong>El punto</strong> marca el pulso en todos los modos de footswitch, también con Tap LED Color en Off: el anillo queda apagado mientras el punto parpadea.",
     "settings": "Ajustes",
     "th.setting": "Ajuste",
     "th.values": "Valores",
@@ -924,7 +966,7 @@ var LANGS = {
     "gr-meter.li2": "<strong>Vista Edit:</strong> mientras uno de estos compresores está seleccionado, el medidor aparece también en su vista Edit, en el mismo lugar y tamaño, para que puedas ajustar el compresor mientras tocas. Sus luces encendidas tapan lo que hay debajo (el nombre del preset en Top, los nombres de las perillas en Bottom); las apagadas lo dejan ver. Con dos compresores con medidor en un preset, ambas vistas Edit muestran el último en el que se ajustó Mtr Size.",
     "gr-meter.li3": "<strong>Con NAM:</strong> el código DSP del medidor ocupa el espacio del tercer bloque de NAM A2 Lite, así que una versión con él tiene como máximo dos bloques NAM.",
     "th.knob": "Perilla",
-    "gr-meter.what1": "El grosor del medidor: 5, 10, 15 o 20 píxeles. Un preset guardado con el Mtr Thk de una versión anterior se abre en S con 1 px, M con 2, L con 3 y XL con 4 o más.",
+    "gr-meter.what1": "El grosor del medidor: 5, 10, 15 o 20 píxeles. Un preset guardado con el Mtr Thk de una versión anterior dibuja el medidor en S con 1 px, M con 2, L con 3 y XL con 4 o más.",
     "gr-meter.what2": "Dónde se enciende el medidor en la pantalla de inicio y en la vista Edit. Middle ocupa el lugar de la línea que cruza el centro.",
     "gr-meter.what3": "Normal llena de izquierda a derecha o de arriba abajo; Reverse, al revés.",
     "dsp-usage-display.alt1": "Recorriendo amplis de bajo: el total de DSP anticipa cada modelo y luego el bloque añadido muestra su parte",
@@ -935,10 +977,9 @@ var LANGS = {
     "dsp-usage-display.what2": "Las partes en los bloques de la vista Edit.",
     "dsp-usage-display.what3": "El total en la esquina superior derecha. <strong>Small</strong> lo dibuja con los dígitos de 3x5 del medidor a 2x, más o menos la mitad de la altura del título, en la misma esquina, así que un nombre largo aún puede chocar con él. <strong>Large</strong> lo dibuja con la fuente del título, como antes de estos ajustes. <strong>Off</strong> no dibuja nada ahí, así que no tapa un nombre de preset ni un título de bloque largos.",
     "tuner-settings.alt1": "El afinador: Activate en Press, así que una pulsación lo abre; luego Lock en On, y sus perillas ya no cambian nada",
-    "tuner-settings.p1": "Con <code>HX_TUNER=1</code>, los ajustes propios del afinador tienen su propia página, la tercera: página a la derecha tras Trails, Offsets y String 6. Las páginas de cuerdas (Strings 5–3, luego 2 y 1) van detrás: pocos usan los offsets por cuerda, así que esta página va antes. Sus perillas los ajustan como las de las páginas originales: gira para cambiar, pulsa para volver al valor por defecto.",
+    "tuner-settings.p1": "Los ajustes propios del afinador tienen su propia página, la tercera: página a la derecha tras Trails, Offsets y String 6. Las páginas de cuerdas (Strings 5–3, luego 2 y 1) van detrás: pocos usan los offsets por cuerda, así que esta página va antes. Sus perillas los ajustan como las de las páginas originales: gira para cambiar, pulsa para volver al valor por defecto.",
     "tuner-settings.what1": "Un footswitch asignado a TAP/Tunr normalmente marca el tempo, y al mantenerlo se abre el afinador. En <strong>Press</strong>, pulsarlo abre el afinador al instante y ya no marca el tempo. Sigue la asignación, así que funciona en cualquier footswitch que tenga TAP/Tunr.",
     "tuner-settings.what2": "On impide que cambien los demás ajustes del afinador (Output, Refrnc, Type, Trails, Offsets): se ignoran los giros de perilla y las pulsaciones de perilla que devuelven un elemento a su valor por defecto. Se puede seguir pasando de página, y las perillas de esta página siguen girando, así que Lock se puede desactivar donde se activó.",
-    "tuner-settings.p2": "Ambos conservan sus valores (IDs de ajuste 29 y 104) de las versiones que los tenían en Global Settings &gt; HXtra.",
     "long-press.alt1": "Pulsando y manteniendo FS2, manteniendo FS1 para el afinador, y luego los ajustes Hold y FS6 a FS10 Function",
     "long-press.p1": "En el modo de footswitch Stomp, cada uno de FS1–FS5 puede tener una acción Hold (Global Settings &gt; Footswitches, páginas 2 y 3: FS1 Hold Function … FS5 Hold Function). Mantener el footswitch 1 s la ejecuta; un toque sigue activando y desactivando los bloques del propio footswitch, al soltarlo en vez de al pulsarlo, porque al pulsar aún no se sabe si será una pulsación larga.",
     "long-press.li1": "<strong>Tuner</strong> abre el afinador, como al mantener TAP.",
@@ -983,11 +1024,17 @@ var LANGS = {
     "nam-a2-lite.p1": "Del proyecto original <a href=\"https://github.com/nocaseguy/hx-stomp-nam-lite\">hx-stomp-nam-lite</a>, sin cambios en este fork salvo en cómo se lee la perilla Model: capturas A2 Lite de <a href=\"https://www.neuralampmodeler.com\">Neural Amp Modeler</a> ejecutándose en el propio DSP del HX Stomp. La página de instalación convierte tus archivos <code>.nam</code> en User IR que lee el bloque.",
     "nam-a2-lite.li1": "<strong>Dónde:</strong> Amp &gt; NAM, un bloque con diez perillas y una sección de tono. Ocupa el ID de preset 555 de Xenomorph Fuzz Mono (ese modelo original se elimina), así que HX Edit conserva los bloques NAM, y los presets hechos con cualquiera de las dos versiones se abren con la otra.",
     "nam-a2-lite.li2": "<strong>Presets antiguos:</strong> los presets guardados con una versión anterior de NAM (IDs de preset 147 y 148) no abren NAM A2 Lite en esta: vuelve a añadir el bloque en esos presets.",
-    "nam-a2-lite.li3": "<strong>Cuántos bloques:</strong> hasta 3 suenan a la vez, cada uno con su propia captura; uno más deja pasar su entrada sin cambios. Con menos bloques queda sitio para más de las otras funciones de DSP: 3 bloques dejan sitio para el metrónomo y la puerta del FX Loop, 2 para esos y el medidor de reducción de ganancia. Con <code>build.py</code>, lo fija <code>HX_NAM_SLOTS</code>; si no está definido, es el máximo que deja sitio para las funciones de DSP que activaste.",
+    "nam-a2-lite.li3": "<strong>Cuántos bloques:</strong> hasta 3 suenan a la vez, cada uno con su propia captura; uno más deja pasar su entrada sin cambios. Con menos bloques queda sitio para más de las otras funciones de DSP: 3 bloques dejan sitio para el metrónomo y la puerta del FX Loop, o solo para USB &amp; Send Routing o Input Sidechain; 2, para las cinco. Con <code>build.py</code>, lo fija <code>HX_NAM_SLOTS</code>; si no está definido, es el máximo que deja sitio para las funciones de DSP que activaste.",
     "nam-a2-lite.li4": "<strong>Capturas:</strong> no se incluye ninguna. Tú aportas tus propios archivos <code>.nam</code>, y sus licencias dependen de sus autores.",
     "nam-a2-lite.p2": "El <a href=\"https://github.com/wisemandenny/hxtra/blob/main/CHANGELOG.md\">CHANGELOG.md</a> del proyecto original recoge los cambios de NAM.",
     "nam-a2-lite.li5": "<strong>Model</strong> se lee como el número de ranura, 4 en vez de 4.0, en el HX Stomp. Un valor entre ranuras (desde un controlador MIDI) se lee como la ranura que suena. El HX Stomp XL sigue mostrando 4.0.",
-    "preset-led-color.p1": "En el modo de footswitch Preset, el HX Stomp enciende en rojo el anillo del preset actual, con un icono de interruptor rojo en la pantalla de inicio, y deja apagados los anillos de los otros dos presets. HXtra da a cada preset un color propio, de la misma paleta que el color del LED de TAP.",
+    "gate-sidechain.p1": "El bloque Noise Gate puede tomar su clave de la entrada en lugar de su propia señal (<a href=\"https://github.com/wisemandenny/hxtra/issues/131\">#131</a>). Con Input Sidechain activado, la puerta se abre y se cierra según lo que oye la puerta del bloque Input (tu guitarra antes de cualquier bloque, izquierda y derecha sumadas), pero sigue actuando sobre la señal que le llega. Una puerta después de una distorsión de mucha ganancia sigue entonces a la guitarra limpia: se cierra cuando dejas de tocar, y el soplido de la distorsión ya no la mantiene abierta.",
+    "gate-sidechain.exp": "<strong>Experimental:</strong> probado con señales grabadas, aún no con un instrumento tocado, así que puede necesitar ajustes. Solo funciona con un cable en la entrada de guitarra del HX Stomp.",
+    "gate-sidechain.li1": "<strong>DSP:</strong> cada bloque Noise Gate cuesta un 0.1% más (0.2% en estéreo), tenga Input Sidechain activado o no. Puede que un preset que ya está en el límite con un Noise Gate no cargue.",
+    "gate-sidechain.li2": "<strong>Threshold</strong> se compara entonces con el nivel de la entrada, así que ajústalo como la puerta del bloque Input. La puerta propia del bloque Input (Input Gate) puede estar activada o no.",
+    "gate-sidechain.li3": "<strong>Los presets</strong> guardados con Input Sidechain conservan la perilla. HX Edit no la muestra, porque tiene su propia lista de perillas de cada bloque; aún no se ha probado abrir uno de esos presets con el firmware original.",
+    "gate-sidechain.what1": "Activado, la puerta sigue a la entrada en lugar de a la señal que llega al bloque. En Off, el bloque funciona como con el firmware original.",
+    "preset-led-color.p1": "En el modo de footswitch Preset, el HX Stomp enciende en rojo el anillo del preset actual, con un icono de interruptor rojo en la pantalla de inicio, y deja apagados los anillos de los otros dos presets. HXtra da a cada preset un color propio, de la misma paleta que Tap LED Color.",
     "preset-led-color.li1": "<strong>This Preset</strong> (Global Settings &gt; Displays, página 2) fija el color del preset actual. Guarda el preset para conservarlo: el color se almacena en el propio preset, así que va con él cuando lo mueves, exportas o restauras.",
     "preset-led-color.li2": "<strong>Seleccionado</strong>, el anillo y el icono de un preset se encienden con su color. <strong>No seleccionado</strong>, un preset con color lo muestra atenuado (el tono que usa el HX Stomp para un bloque en bypass de ese color), para que veas qué footswitch tiene cada preset.",
     "preset-led-color.li3": "<strong>Un preset sin color</strong> se enciende con el color de <strong>Preset LED</strong> (rojo por defecto, como en el original) mientras está seleccionado, y queda apagado cuando no.",
@@ -1000,7 +1047,7 @@ var LANGS = {
     "real-block-names.li1": "<strong>Qué conserva su nombre:</strong> los originales de Line 6, los bloques de utilidad y los títulos que ya son reales.",
     "real-block-names.li2": "<strong>Los presets</strong> mantienen los mismos IDs de modelo, así que un preset es igual con o sin nombres reales, y se abre con el firmware original como siempre.",
     "tap-command.p1": "En un HX Stomp original, el tap tempo es una función global de footswitch: el TAP/TUNER de FS3, o FS4/FS5 ajustados a TAP, en todos los presets. HXtra añade un comando <strong>Tap</strong> al Command Center, que se guarda con cada preset, así que un footswitch marca el tempo solo en los presets donde lo pongas.",
-    "tap-command.li1": "<strong>Configuración:</strong> el footswitch tiene que ser un interruptor Stomp. FS1 y FS2 siempre lo son; para FS3, FS4 o FS5, ajusta su función a Stomp en Global Settings &gt; Footswitches. Luego, en el preset, abre Menu &gt; Command Center, selecciona la ranura del footswitch y gira Command hasta <strong>Tap</strong> (después de Hotkey). Guarda el preset para conservarlo.",
+    "tap-command.li1": "<strong>Configuración:</strong> el footswitch tiene que ser un interruptor Stomp, así que usa el modo de footswitch Stomp, en el que FS1 y FS2 siempre lo son; para FS3, FS4 o FS5, ajusta su función a Stomp en Global Settings &gt; Footswitches. Luego, en el preset, abre Menu &gt; Command Center, selecciona la ranura del footswitch y gira Command hasta <strong>Tap</strong> (después de Hotkey). Guarda el preset para conservarlo.",
     "tap-command.li2": "<strong>Al pulsarlo</strong> marca el tempo exactamente como el footswitch TAP. Mantenerlo pulsado no marca el tempo.",
     "tap-command.li3": "<strong>Su anillo</strong> (FS1–FS3) parpadea con el tempo como el anillo de TAP, en el color de Tap LED Color si esa función está en tu build. Off en Tap LED Color detiene el parpadeo (en un build sin Tap LED Color, lo hace el Tap Tempo LED original). FS4 y FS5 no tienen anillo.",
     "tap-command.li4": "<strong>Cambiar de snapshot</strong> nunca marca el tempo.",
@@ -1052,7 +1099,7 @@ var LANGS = {
     "gr-meter.name": "Medidor de redução de ganho do compressor",
     "gr-meter.desc": "Mostra o quanto um compressor está trabalhando, na tela inicial e na tela Edit dele, para você ajustar Threshold, Ratio, Attack e Release enquanto toca.",
     "gr-meter.floc": "Tela inicial e tela Edit do compressor",
-    "gr-meter.where": "Os knobs Mtr Size, Mtr Pos e Mtr Dir do compressor, em todos os compressores menos o 3-Band Comp",
+    "gr-meter.where": "Os knobs Mtr Size, Mtr Pos e Mtr Dir do compressor, nos compressores Deluxe, LA Studio, Kinky, Ampeg Opto, Rochester e Red Squeeze",
     "dsp-usage-display.name": "Medidor de uso de DSP",
     "dsp-usage-display.desc": "Mostra a parte do DSP que cada bloco usa, nos blocos da tela Edit e no navegador de modelos, e o total no canto superior direito.",
     "dsp-usage-display.floc": "Tela Edit e navegador de modelos",
@@ -1084,15 +1131,19 @@ var LANGS = {
     "nam-a2-lite.desc": "Toca capturas do Neural Amp Modeler no próprio DSP do HX Stomp, até três ao mesmo tempo; a página de instalação converte seus arquivos .nam.",
     "nam-a2-lite.floc": "Navegador de modelos: Amp &gt; NAM",
     "nam-a2-lite.where": "Os knobs do bloco",
+    "gate-sidechain.name": "Input Sidechain do Noise Gate",
+    "gate-sidechain.desc": "Um controle Input Sidechain no bloco Noise Gate: ligado, o gate abre e fecha conforme a guitarra na entrada, então um gate depois de uma distorção de alto ganho segue a guitarra limpa.",
+    "gate-sidechain.floc": "O bloco Noise Gate, mono e estéreo",
+    "gate-sidechain.where": "O controle Input Sidechain do bloco",
     "preset-led-color.name": "Cor do LED no modo Preset",
     "preset-led-color.desc": "No modo de footswitch Preset, cada preset tem sua própria cor, mantida quando você salva o preset: o anel e o ícone dele na tela inicial acendem nessa cor enquanto ele está selecionado e ficam esmaecidos quando não está.",
     "preset-led-color.floc": "Os footswitches de preset, no modo de footswitch Preset",
     "preset-led-color.where": "Global Settings &gt; Displays, página 2",
     "real-block-names.name": "Nomes reais dos blocos",
-    "real-block-names.desc": "Renomeia todos os blocos com o nome do equipamento em que se basearam: p. ex., Deez One Mod vira Boss DS-1 Mod.",
+    "real-block-names.desc": "Renomeia os blocos com o nome do equipamento em que se basearam: p. ex., Deez One Mod vira Boss DS-1 Mod.",
     "real-block-names.floc": "Navegador de modelos e tela Edit",
     "tap-command.name": "Comando Tap",
-    "tap-command.desc": "Tap tempo só nos presets que precisam: um comando Tap no Command Center, salvo com o preset, transforma FS1–FS5 em um botão de tap tempo cujo anel pisca no andamento.",
+    "tap-command.desc": "Tap tempo só nos presets que precisam: um comando Tap no Command Center, salvo com o preset, transforma FS1–FS5 em um botão de tap tempo; em FS1–FS3 o anel pisca no andamento.",
     "tap-command.floc": "Menu &gt; Command Center, em um slot FS",
     "tap-led-color.name": "Cor do LED do TAP",
     "tap-led-color.desc": "A cor do anel de LED piscante do footswitch TAP e do ícone e do rótulo do TAP/TUNER na tela inicial. Rainbow percorre o arco-íris a cada batida; Random escolhe uma cor nova a cada batida.",
@@ -1107,12 +1158,13 @@ var LANGS = {
     "virtual-footswitches.floc": "Bypass Assign &gt; MIDI In de um bloco, ou Controller Assign",
     "virtual-footswitches.where": "Global Settings &gt; Footswitches, páginas 4 e 5",
     "overview.name": "Demonstrações",
+    "overview.labels": "Os ajustes e os knobs de bloco do HXtra têm rótulos verde-azulados, para você distingui-los dos originais num relance.",
     "demos.note": "As demonstrações foram gravadas da tela de um HX Stomp real, junto com o áudio e os botões pressionados, e depois sobrepostas a um HX Stomp simulado.",
     "bpm.alt1": "Batendo o TAP: o andamento e o ponto de batida acompanham",
     "bpm.alt2": "Global Settings, BPM Display: Font Size, Color e Dot Position",
     "bpm.p1": "A tela inicial mostra o andamento no canto superior esquerdo e, ao lado do número do preset, um ponto de batida que acende junto com o anel do footswitch TAP e fica vermelho quando você bate o TAP.",
     "bpm.li1": "<strong>O andamento</strong> é o que o HX Stomp está usando, o global ou o do preset, conforme Tempo Select, como número inteiro. Ele mostra <code>X</code> depois do número enquanto o andamento vem do MIDI clock (Extrnl na tela de andamento) e <code>--</code> quando não há andamento.",
-    "bpm.li2": "<strong>O ponto</strong> marca a batida em todos os modos de footswitch, e também com Tap Tempo LED desligado: aí o anel fica apagado enquanto o ponto pisca.",
+    "bpm.li2": "<strong>O ponto</strong> marca a batida em todos os modos de footswitch, e também com Tap LED Color desligado: aí o anel fica apagado enquanto o ponto pisca.",
     "settings": "Ajustes",
     "th.setting": "Ajuste",
     "th.values": "Valores",
@@ -1133,7 +1185,7 @@ var LANGS = {
     "gr-meter.li2": "<strong>Tela Edit:</strong> enquanto um desses compressores está selecionado, o medidor aparece também na tela Edit dele, no mesmo lugar e tamanho, para você ajustar o compressor enquanto toca. As luzes acesas cobrem o que está embaixo delas (o nome do preset em Top, os nomes dos knobs em Bottom); as apagadas deixam aparecer. Com dois compressores com medidor num preset, as duas telas Edit mostram aquele cujo Mtr Size foi ajustado por último.",
     "gr-meter.li3": "<strong>Com NAM:</strong> o código de DSP do medidor ocupa o espaço do terceiro bloco do NAM A2 Lite, então uma versão com ele tem no máximo dois blocos NAM.",
     "th.knob": "Knob",
-    "gr-meter.what1": "A espessura do medidor: 5, 10, 15 ou 20 pixels. Um preset salvo com o Mtr Thk de uma versão anterior abre em S para 1 px, M para 2, L para 3 e XL para 4 ou mais.",
+    "gr-meter.what1": "A espessura do medidor: 5, 10, 15 ou 20 pixels. Um preset salvo com o Mtr Thk de uma versão anterior desenha o medidor em S para 1 px, M para 2, L para 3 e XL para 4 ou mais.",
     "gr-meter.what2": "Onde o medidor acende na tela inicial e na tela Edit. Middle ocupa o lugar da linha no meio da tela.",
     "gr-meter.what3": "Normal preenche da esquerda para a direita ou de cima para baixo; Reverse, no sentido contrário.",
     "dsp-usage-display.alt1": "Navegando pelos amplificadores de baixo: o total de DSP mostra a prévia de cada modelo, depois o bloco adicionado mostra a sua parte",
@@ -1144,10 +1196,9 @@ var LANGS = {
     "dsp-usage-display.what2": "As partes nos blocos da tela Edit.",
     "dsp-usage-display.what3": "O total no canto superior direito. <strong>Small</strong> o desenha com os dígitos 3x5 do medidor em 2x, cerca de metade da altura do título, no mesmo canto, então um nome longo ainda pode encostar nele. <strong>Large</strong> o desenha na fonte do título, como antes destes ajustes. <strong>Off</strong> não desenha nada ali, para que um nome de preset ou título de bloco longo não fique coberto.",
     "tuner-settings.alt1": "O afinador: Activate em Press, então um toque o abre; depois Lock em On, e os knobs dele não mudam mais",
-    "tuner-settings.p1": "Com <code>HX_TUNER=1</code>, estes ajustes do afinador ganham uma página só deles, a terceira: avance uma página depois de Trails, Offsets e String 6. As páginas das cordas (Strings 5–3, depois 2 e 1) vêm em seguida: poucos guitarristas usam os offsets por corda, então esta página vem antes delas. Os knobs funcionam como nas páginas originais: gire para mudar, pressione para voltar ao padrão.",
+    "tuner-settings.p1": "Estes ajustes do afinador ganham uma página só deles, a terceira: avance uma página depois de Trails, Offsets e String 6. As páginas das cordas (Strings 5–3, depois 2 e 1) vêm em seguida: poucos guitarristas usam os offsets por corda, então esta página vem antes delas. Os knobs funcionam como nas páginas originais: gire para mudar, pressione para voltar ao padrão.",
     "tuner-settings.what1": "Um footswitch com TAP/Tunr normalmente marca o andamento, e segurá-lo abre o afinador. Em <strong>Press</strong>, pressioná-lo abre o afinador na hora e o andamento deixa de ser marcado. Segue a atribuição, então funciona em qualquer footswitch que tenha TAP/Tunr.",
     "tuner-settings.what2": "On impede que os outros ajustes do afinador (Output, Refrnc, Type, Trails, Offsets) mudem: giros de knob e os toques no knob que voltam um item ao padrão são ignorados. A troca de página continua funcionando, e os knobs desta página continuam girando, então dá para desligar o Lock onde ele foi ligado.",
-    "tuner-settings.p2": "Os dois mantêm seus valores (IDs de ajuste 29 e 104) das versões que os tinham em Global Settings &gt; HXtra.",
     "long-press.alt1": "Tocando e segurando FS2, segurando FS1 para o afinador, depois os ajustes de Hold e de Function do FS6 ao FS10",
     "long-press.p1": "No modo de footswitch Stomp, cada um de FS1–FS5 pode ter uma ação de Hold (Global Settings &gt; Footswitches, páginas 2 e 3: FS1 Hold Function … FS5 Hold Function). Segurar o footswitch por 1 s a executa; um toque ainda liga e desliga os blocos do próprio footswitch, mas ao soltar em vez de ao pressionar, já que no momento da pressão ainda não dá para saber se ele vai ser segurado.",
     "long-press.li1": "<strong>Tuner</strong> abre o afinador, como segurar o TAP.",
@@ -1156,7 +1207,7 @@ var LANGS = {
     "long-press.li4": "Um footswitch com Hold em <strong>Off</strong>, um footswitch momentâneo e os modos de footswitch Preset e Snapshot funcionam como no original.",
     "long-press.what1": "O que segurar esse footswitch por 1 s faz. FS4 e FS5 são footswitches externos. Por padrão, segurar FS1 aciona FS6, e assim por diante até FS5 e FS10.",
     "fx-loop-gate.p1": "Um noise gate embutido nos blocos FX Loop e Return, como o do bloco Input, para que um pedal ruidoso no loop não precise de um bloco Noise Gate só para ele (<a href=\"https://github.com/wisemandenny/hxtra/issues/69\">#69</a>). Ele age sobre o que volta do loop, antes do Return level e do Mix do bloco; o sinal seco e o Send não passam pelo gate.",
-    "fx-loop-gate.li1": "<strong>DSP:</strong> cada bloco FX Loop e Return custa cerca de 0,2% a mais (0,4% em estéreo), com o gate ligado ou desligado. Um preset já no limite com um desses blocos pode não carregar.",
+    "fx-loop-gate.li1": "<strong>DSP:</strong> cada bloco FX Loop e Return custa 0,2% a mais (0,4% em estéreo), com o gate ligado ou desligado. Um preset já no limite com um desses blocos pode não carregar.",
     "fx-loop-gate.li2": "<strong>Blocos estéreo</strong> aplicam o gate em cada lado separadamente, sem vínculo entre eles.",
     "fx-loop-gate.li3": "<strong>Presets</strong> salvos com o gate guardam os knobs dele. Abrir um desses presets no firmware original, ou no HX Edit, ainda não foi testado.",
     "fx-loop-gate.what1": "Liga o gate. Em Off, o bloco soa como no firmware original.",
@@ -1192,10 +1243,16 @@ var LANGS = {
     "nam-a2-lite.p1": "Do projeto original <a href=\"https://github.com/nocaseguy/hx-stomp-nam-lite\">hx-stomp-nam-lite</a>, sem mudanças neste fork, exceto pela forma como o knob Model é exibido: capturas A2 Lite do <a href=\"https://www.neuralampmodeler.com\">Neural Amp Modeler</a> rodando no próprio DSP do HX Stomp. A página de instalação converte seus arquivos <code>.nam</code> em User IRs que o bloco lê.",
     "nam-a2-lite.li1": "<strong>Onde:</strong> Amp &gt; NAM, um bloco com dez knobs e um tone stack. Ele ocupa o ID de preset 555 do Xenomorph Fuzz Mono (esse modelo original foi removido), então o HX Edit mantém os blocos NAM, e presets feitos com qualquer uma das duas versões abrem na outra.",
     "nam-a2-lite.li2": "<strong>Presets antigos:</strong> presets salvos com uma versão anterior do NAM (IDs de preset 147 e 148) não abrem o NAM A2 Lite nesta: adicione o bloco de novo nesses presets.",
-    "nam-a2-lite.li3": "<strong>Quantos blocos:</strong> até 3 tocam ao mesmo tempo, cada um com a sua captura; um bloco a mais deixa a entrada passar direto. Menos blocos deixam espaço para mais das outras funções de DSP: 3 blocos deixam espaço para o metrônomo e o gate do FX Loop; 2, para esses e o medidor de redução de ganho. Com <code>build.py</code>, quem define é <code>HX_NAM_SLOTS</code>; sem ele, vale o máximo que ainda deixa espaço para as funções de DSP que você ativou.",
+    "nam-a2-lite.li3": "<strong>Quantos blocos:</strong> até 3 tocam ao mesmo tempo, cada um com a sua captura; um bloco a mais deixa a entrada passar direto. Menos blocos deixam espaço para mais das outras funções de DSP: 3 blocos deixam espaço para o metrônomo e o gate do FX Loop, ou só para o USB &amp; Send Routing ou o Input Sidechain; 2, para as cinco. Com <code>build.py</code>, quem define é <code>HX_NAM_SLOTS</code>; sem ele, vale o máximo que ainda deixa espaço para as funções de DSP que você ativou.",
     "nam-a2-lite.li4": "<strong>Capturas:</strong> nenhuma vem incluída. Você traz seus próprios arquivos <code>.nam</code>, e as licenças deles cabem aos autores.",
     "nam-a2-lite.p2": "O <a href=\"https://github.com/wisemandenny/hxtra/blob/main/CHANGELOG.md\">CHANGELOG.md</a> do projeto original traz as mudanças do NAM.",
     "nam-a2-lite.li5": "<strong>Model</strong> mostra o número do slot, 4 em vez de 4.0, no HX Stomp. Um valor entre slots (vindo de um controlador MIDI) mostra o slot que toca. O HX Stomp XL continua mostrando 4.0.",
+    "gate-sidechain.p1": "O bloco Noise Gate pode tirar sua chave da entrada em vez do próprio sinal (<a href=\"https://github.com/wisemandenny/hxtra/issues/131\">#131</a>). Com Input Sidechain ligado, o gate abre e fecha conforme o que o gate do bloco Input ouve (sua guitarra antes de qualquer bloco, esquerda e direita somadas), mas continua atuando no sinal que chega a ele. Um gate depois de uma distorção de alto ganho passa a seguir a guitarra limpa: fecha quando você para de tocar, e o chiado da distorção não o mantém mais aberto.",
+    "gate-sidechain.exp": "<strong>Experimental:</strong> testado com sinais gravados, ainda não com um instrumento tocado, então pode precisar de ajustes. Só funciona com um cabo na entrada de guitarra do HX Stomp.",
+    "gate-sidechain.li1": "<strong>DSP:</strong> cada bloco Noise Gate custa 0.1% a mais (0.2% em estéreo), com Input Sidechain ligado ou não. Um preset que já está no limite com um Noise Gate pode não carregar.",
+    "gate-sidechain.li2": "<strong>Threshold</strong> passa a ser comparado com o nível da entrada, então ajuste-o como o gate do bloco Input. O Input Gate do próprio bloco Input pode estar ligado ou desligado.",
+    "gate-sidechain.li3": "<strong>Os presets</strong> salvos com Input Sidechain mantêm o controle. O HX Edit não o mostra, pois tem sua própria lista de controles de cada bloco; abrir um desses presets no firmware original ainda não foi testado.",
+    "gate-sidechain.what1": "Ligado, o gate segue a entrada em vez do sinal que chega ao bloco. Em Off, o bloco funciona como no firmware original.",
     "preset-led-color.p1": "No modo de footswitch Preset, o HX Stomp acende em vermelho o anel do preset atual, com um ícone de footswitch vermelho na tela inicial, e deixa apagados os anéis dos outros dois presets. O HXtra dá a cada preset uma cor própria, da mesma paleta do Tap LED Color.",
     "preset-led-color.li1": "<strong>This Preset</strong> (Global Settings &gt; Displays, página 2) define a cor do preset atual. Salve o preset para mantê-la: a cor fica guardada no próprio preset, então vai junto quando você o move, exporta ou restaura.",
     "preset-led-color.li2": "<strong>Selecionado</strong>, o anel e o ícone de um preset acendem na cor dele. <strong>Não selecionado</strong>, um preset com cor a mostra esmaecida (o tom que o HX Stomp usa para um bloco em bypass dessa cor), para você ver qual footswitch tem qual preset.",
@@ -1209,7 +1266,7 @@ var LANGS = {
     "real-block-names.li1": "<strong>O que mantém o nome:</strong> os modelos originais da Line 6, os blocos utilitários e os títulos que já são reais.",
     "real-block-names.li2": "<strong>Presets</strong> mantêm os mesmos IDs de modelo, então um preset é igual com ou sem nomes reais e abre no firmware original normalmente.",
     "tap-command.p1": "Num HX Stomp original, o tap tempo é uma função global de footswitch: o TAP/TUNER do FS3, ou FS4/FS5 configurados como TAP, em todos os presets. O HXtra adiciona um comando <strong>Tap</strong> ao Command Center, que é salvo com cada preset, então um footswitch marca o andamento só nos presets em que você o colocar.",
-    "tap-command.li1": "<strong>Configuração:</strong> o footswitch precisa ser um botão Stomp. FS1 e FS2 sempre são; para FS3, FS4 ou FS5, configure a função dele como Stomp em Global Settings &gt; Footswitches. Depois, no preset, abra Menu &gt; Command Center, selecione o slot do footswitch e gire Command até <strong>Tap</strong> (depois de Hotkey). Salve o preset para mantê-lo.",
+    "tap-command.li1": "<strong>Configuração:</strong> o footswitch precisa ser um botão Stomp, então use o modo de footswitch Stomp, em que FS1 e FS2 sempre são; para FS3, FS4 ou FS5, configure a função dele como Stomp em Global Settings &gt; Footswitches. Depois, no preset, abra Menu &gt; Command Center, selecione o slot do footswitch e gire Command até <strong>Tap</strong> (depois de Hotkey). Salve o preset para mantê-lo.",
     "tap-command.li2": "<strong>Pressioná-lo</strong> marca o andamento exatamente como o footswitch TAP. Segurá-lo não marca o andamento.",
     "tap-command.li3": "<strong>O anel dele</strong> (FS1–FS3) pisca no andamento como o anel do TAP, na cor do Tap LED Color quando esse recurso está na sua build. Off em Tap LED Color para o piscar (numa build sem Tap LED Color, quem faz isso é o Tap Tempo LED original). FS4 e FS5 não têm anel.",
     "tap-command.li4": "<strong>Trocar de snapshot</strong> nunca marca o andamento.",
@@ -1261,7 +1318,7 @@ var LANGS = {
     "gr-meter.name": "Indicateur de réduction de gain du compresseur",
     "gr-meter.desc": "Montre à quel point un compresseur travaille, sur l'écran d'accueil et dans sa vue Edit, pour régler Threshold, Ratio, Attack et Release tout en jouant.",
     "gr-meter.floc": "Écran d'accueil et vue Edit du compresseur",
-    "gr-meter.where": "Les potentiomètres Mtr Size, Mtr Pos et Mtr Dir du compresseur, sur tous les compresseurs sauf le 3-Band Comp",
+    "gr-meter.where": "Les potentiomètres Mtr Size, Mtr Pos et Mtr Dir du compresseur, sur les compresseurs Deluxe, LA Studio, Kinky, Ampeg Opto, Rochester et Red Squeeze",
     "dsp-usage-display.name": "Affichage de l'utilisation DSP",
     "dsp-usage-display.desc": "Affiche la part du DSP de chaque bloc sur les blocs de la vue Edit et dans le navigateur de modèles, et le total dans le coin supérieur droit.",
     "dsp-usage-display.floc": "Vue Edit et navigateur de modèles",
@@ -1293,15 +1350,19 @@ var LANGS = {
     "nam-a2-lite.desc": "Joue des captures Neural Amp Modeler sur le DSP du HX Stomp lui-même, jusqu'à trois à la fois ; la page d'installation convertit vos fichiers .nam.",
     "nam-a2-lite.floc": "Navigateur de modèles : Amp &gt; NAM",
     "nam-a2-lite.where": "Les potentiomètres du bloc",
+    "gate-sidechain.name": "Input Sidechain du Noise Gate",
+    "gate-sidechain.desc": "Un réglage Input Sidechain dans le bloc Noise Gate : activé, le gate s'ouvre et se ferme selon la guitare telle qu'elle entre, si bien qu'un gate placé après une saturation à fort gain suit la guitare claire.",
+    "gate-sidechain.floc": "Le bloc Noise Gate, mono et stéréo",
+    "gate-sidechain.where": "Le réglage Input Sidechain du bloc",
     "preset-led-color.name": "Couleur des LED en mode Preset",
     "preset-led-color.desc": "En mode de footswitch Preset, une couleur propre à chaque preset, conservée quand vous enregistrez le preset : son anneau et son icône sur l'écran d'accueil s'allument dans cette couleur quand il est sélectionné, et s'atténuent quand il ne l'est pas.",
     "preset-led-color.floc": "Les footswitchs de preset, en mode de footswitch Preset",
     "preset-led-color.where": "Global Settings &gt; Displays, page 2",
     "real-block-names.name": "Vrais noms des blocs",
-    "real-block-names.desc": "Renomme tous les blocs d'après le matériel dont ils s'inspirent : p. ex. Deez One Mod devient Boss DS-1 Mod.",
+    "real-block-names.desc": "Renomme les blocs d'après le matériel dont ils s'inspirent : p. ex. Deez One Mod devient Boss DS-1 Mod.",
     "real-block-names.floc": "Navigateur de modèles et vue Edit",
     "tap-command.name": "Commande Tap",
-    "tap-command.desc": "Le tap tempo seulement dans les presets qui en ont besoin : une commande Tap dans le Command Center, enregistrée avec le preset, fait de FS1–FS5 un footswitch de tap tempo dont l'anneau clignote au tempo.",
+    "tap-command.desc": "Le tap tempo seulement dans les presets qui en ont besoin : une commande Tap dans le Command Center, enregistrée avec le preset, fait de FS1–FS5 un footswitch de tap tempo ; sur FS1–FS3, son anneau clignote au tempo.",
     "tap-command.floc": "Menu &gt; Command Center, sur un emplacement FS",
     "tap-led-color.name": "Couleur de la LED TAP",
     "tap-led-color.desc": "La couleur de l'anneau LED clignotant du footswitch TAP, ainsi que de l'icône et de l'étiquette TAP/TUNER sur l'écran d'accueil. Rainbow avance d'un pas dans l'arc-en-ciel à chaque temps ; Random choisit une nouvelle couleur à chaque temps.",
@@ -1316,12 +1377,13 @@ var LANGS = {
     "virtual-footswitches.floc": "Bypass Assign &gt; MIDI In d'un bloc, ou Controller Assign",
     "virtual-footswitches.where": "Global Settings &gt; Footswitches, pages 4 et 5",
     "overview.name": "Démos",
+    "overview.labels": "Les réglages et les potentiomètres de bloc de HXtra ont des libellés bleu sarcelle, pour les distinguer d'un coup d'œil de ceux d'origine.",
     "demos.note": "Les démos ont été enregistrées depuis l'écran d'un vrai HX Stomp, avec son audio et les appuis sur ses boutons, puis superposées à un HX Stomp simulé.",
     "bpm.alt1": "Appuis sur TAP : le tempo et son point de pulsation suivent",
     "bpm.alt2": "Global Settings, BPM Display : Font Size, Color et Dot Position",
     "bpm.p1": "L'écran d'accueil affiche le tempo en haut à gauche, et un point de pulsation à côté du numéro de preset, qui s'allume avec l'anneau du footswitch TAP, en rouge quand vous tapez.",
     "bpm.li1": "<strong>Le tempo</strong> est celui qu'utilise le HX Stomp, le global ou celui du preset selon Tempo Select, en nombre entier. Il est suivi de <code>X</code> quand le tempo vient de l'horloge MIDI (Extrnl sur l'écran du tempo), et remplacé par <code>--</code> en l'absence de tempo.",
-    "bpm.li2": "<strong>Le point</strong> bat la mesure dans tous les modes de footswitch, même avec Tap Tempo LED sur Off : l'anneau reste alors éteint pendant que le point clignote.",
+    "bpm.li2": "<strong>Le point</strong> bat la mesure dans tous les modes de footswitch, même avec Tap LED Color sur Off : l'anneau reste alors éteint pendant que le point clignote.",
     "settings": "Réglages",
     "th.setting": "Réglage",
     "th.values": "Valeurs",
@@ -1342,7 +1404,7 @@ var LANGS = {
     "gr-meter.li2": "<strong>Vue Edit :</strong> quand l'un de ces compresseurs est sélectionné, l'indicateur s'affiche aussi dans sa vue Edit, au même endroit et à la même taille, pour régler le compresseur tout en jouant. Ses voyants allumés recouvrent ce qui est dessous (le nom du preset en Top, les noms des potentiomètres en Bottom) ; les voyants éteints le laissent visible. Avec deux compresseurs à indicateur dans un preset, les deux vues Edit montrent celui dont le Mtr Size a été réglé en dernier.",
     "gr-meter.li3": "<strong>Avec NAM :</strong> le code DSP de l'indicateur prend la place du troisième bloc de NAM A2 Lite : une version qui l'inclut a donc au plus deux blocs NAM.",
     "th.knob": "Bouton",
-    "gr-meter.what1": "L'épaisseur de l'indicateur : 5, 10, 15 ou 20 pixels. Un preset enregistré avec le Mtr Thk d'une ancienne version s'ouvre sur S pour 1 px, M pour 2, L pour 3 et XL pour 4 ou plus.",
+    "gr-meter.what1": "L'épaisseur de l'indicateur : 5, 10, 15 ou 20 pixels. Un preset enregistré avec le Mtr Thk d'une ancienne version dessine l'indicateur en S pour 1 px, M pour 2, L pour 3 et XL pour 4 ou plus.",
     "gr-meter.what2": "L'endroit de l'écran d'accueil et de la vue Edit où l'indicateur s'allume. Middle prend la place de la ligne qui traverse le milieu.",
     "gr-meter.what3": "Normal remplit de gauche à droite ou de haut en bas ; Reverse dans l'autre sens.",
     "dsp-usage-display.alt1": "Parcours des amplis basse : le total DSP prévisualise chaque modèle, puis le bloc ajouté affiche sa part",
@@ -1353,10 +1415,9 @@ var LANGS = {
     "dsp-usage-display.what2": "Les parts sur les blocs de la vue Edit.",
     "dsp-usage-display.what3": "Le total dans le coin supérieur droit. <strong>Small</strong> l'affiche avec les chiffres 3x5 de l'indicateur agrandis 2x, environ la moitié de la hauteur du titre, dans le même coin : un nom long peut donc encore le chevaucher. <strong>Large</strong> l'affiche dans la police du titre, comme avant ces réglages. <strong>Off</strong> n'y affiche rien : un long nom de preset ou titre de bloc n'est donc pas recouvert.",
     "tuner-settings.alt1": "L'accordeur : Activate sur Press, un seul appui l'ouvre, puis Lock sur On et ses potentiomètres ne changent plus",
-    "tuner-settings.p1": "Avec <code>HX_TUNER=1</code>, les réglages propres à l'accordeur ont leur propre page, la troisième : page suivante après Trails, Offsets et String 6. Les pages des cordes (Strings 5–3, puis 2 et 1) viennent après : peu de musiciens utilisent les offsets par corde, cette page passe donc avant elles. Ses potentiomètres règlent les valeurs comme ceux des pages d'origine : tournez pour changer, appuyez pour revenir à la valeur par défaut.",
+    "tuner-settings.p1": "Les réglages propres à l'accordeur ont leur propre page, la troisième : page suivante après Trails, Offsets et String 6. Les pages des cordes (Strings 5–3, puis 2 et 1) viennent après : peu de musiciens utilisent les offsets par corde, cette page passe donc avant elles. Ses potentiomètres règlent les valeurs comme ceux des pages d'origine : tournez pour changer, appuyez pour revenir à la valeur par défaut.",
     "tuner-settings.what1": "Un footswitch assigné à TAP/Tunr bat normalement le tempo, et le maintenir ouvre l'accordeur. Sur <strong>Press</strong>, un appui ouvre l'accordeur aussitôt et le tempo n'est plus battu. Le réglage suit l'assignation : il fonctionne sur n'importe quel footswitch assigné à TAP/Tunr.",
     "tuner-settings.what2": "On empêche les autres réglages de l'accordeur (Output, Refrnc, Type, Trails, Offsets) de changer : les rotations de potentiomètre et les appuis qui remettent un élément à sa valeur par défaut sont ignorés. Le changement de page fonctionne toujours, et les potentiomètres de cette page tournent toujours : Lock peut donc être désactivé là où il a été activé.",
-    "tuner-settings.p2": "Les deux gardent leurs valeurs (identifiants de réglage 29 et 104) des versions qui les plaçaient dans Global Settings &gt; HXtra.",
     "long-press.alt1": "Tap puis maintien sur FS2, maintien sur FS1 pour l'accordeur, puis les réglages Hold et FS6 à FS10 Function",
     "long-press.p1": "En mode de footswitch Stomp, chacun des FS1–FS5 peut avoir une action Hold (Global Settings &gt; Footswitches, pages 2 et 3 : FS1 Hold Function … FS5 Hold Function). Maintenir le footswitch 1 s la déclenche ; un appui bref active ou désactive toujours les blocs du footswitch, mais au relâchement plutôt qu'à l'appui, car au moment de l'appui on ne sait pas encore s'il deviendra un maintien.",
     "long-press.li1": "<strong>Tuner</strong> ouvre l'accordeur, comme le maintien de TAP.",
@@ -1365,7 +1426,7 @@ var LANGS = {
     "long-press.li4": "Un footswitch avec Hold sur <strong>Off</strong>, un footswitch momentané, ainsi que les modes de footswitch Preset et Snapshot fonctionnent comme d'origine.",
     "long-press.what1": "Ce que fait le maintien de ce footswitch pendant 1 s. FS4 et FS5 sont des footswitchs externes. Par défaut, maintenir FS1 actionne FS6, et ainsi de suite jusqu'à FS5 et FS10.",
     "fx-loop-gate.p1": "Un noise gate intégré aux blocs FX Loop et Return, comme celui du bloc Input : une pédale bruyante dans la boucle n'a plus besoin de son propre bloc Noise Gate (<a href=\"https://github.com/wisemandenny/hxtra/issues/69\">#69</a>). Il agit sur ce qui revient de la boucle, avant le niveau Return et le Mix du bloc ; le signal sec et le Send ne passent pas par le gate.",
-    "fx-loop-gate.li1": "<strong>DSP :</strong> chaque bloc FX Loop et Return coûte environ 0,2 % de plus (0,4 % en stéréo), que son gate soit activé ou non. Un preset déjà à la limite avec l'un de ces blocs peut ne pas se charger.",
+    "fx-loop-gate.li1": "<strong>DSP :</strong> chaque bloc FX Loop et Return coûte 0,2 % de plus (0,4 % en stéréo), que son gate soit activé ou non. Un preset déjà à la limite avec l'un de ces blocs peut ne pas se charger.",
     "fx-loop-gate.li2": "<strong>Les blocs stéréo</strong> traitent chaque côté séparément, sans les lier.",
     "fx-loop-gate.li3": "<strong>Les presets</strong> enregistrés avec le gate conservent ses potentiomètres. L'ouverture d'un tel preset sur le firmware d'origine, ou dans HX Edit, n'a pas encore été testée.",
     "fx-loop-gate.what1": "Active le gate. Sur Off, le bloc sonne comme sur le firmware d'origine.",
@@ -1401,10 +1462,16 @@ var LANGS = {
     "nam-a2-lite.p1": "Repris du projet amont <a href=\"https://github.com/nocaseguy/hx-stomp-nam-lite\">hx-stomp-nam-lite</a>, inchangé dans ce fork sauf pour l'affichage du potentiomètre Model : des captures <a href=\"https://www.neuralampmodeler.com\">Neural Amp Modeler</a> A2 Lite qui tournent sur le DSP du HX Stomp lui-même. La page d'installation convertit vos fichiers <code>.nam</code> en User IR que le bloc lit.",
     "nam-a2-lite.li1": "<strong>Où :</strong> Amp &gt; NAM, un bloc à dix potentiomètres avec un tone stack. Il occupe l'ID de preset 555 de Xenomorph Fuzz Mono (ce modèle d'origine est retiré) : HX Edit conserve donc les blocs NAM, et les presets créés avec l'une ou l'autre version s'ouvrent avec l'autre.",
     "nam-a2-lite.li2": "<strong>Anciens presets :</strong> les presets enregistrés avec une version NAM antérieure (ID de preset 147 et 148) n'ouvrent pas NAM A2 Lite dans celle-ci : ajoutez de nouveau le bloc dans ces presets.",
-    "nam-a2-lite.li3": "<strong>Combien de blocs :</strong> jusqu'à 3 jouent en même temps, chacun avec sa propre capture ; un bloc de plus laisse passer son entrée telle quelle. Moins de blocs laissent plus de place aux autres fonctions DSP : 3 blocs laissent de la place au métronome et au gate de la boucle d'effets, 2 à ceux-ci et à l'indicateur de réduction de gain. Avec <code>build.py</code>, c'est <code>HX_NAM_SLOTS</code> qui le règle ; s'il n'est pas défini, c'est le maximum qui laisse de la place aux fonctions DSP activées.",
+    "nam-a2-lite.li3": "<strong>Combien de blocs :</strong> jusqu'à 3 jouent en même temps, chacun avec sa propre capture ; un bloc de plus laisse passer son entrée telle quelle. Moins de blocs laissent plus de place aux autres fonctions DSP : 3 blocs laissent de la place au métronome et au gate de la boucle d'effets, ou à USB &amp; Send Routing ou Input Sidechain seul ; 2 aux cinq. Avec <code>build.py</code>, c'est <code>HX_NAM_SLOTS</code> qui le règle ; s'il n'est pas défini, c'est le maximum qui laisse de la place aux fonctions DSP activées.",
     "nam-a2-lite.li4": "<strong>Captures :</strong> aucune n'est incluse. Vous apportez vos propres fichiers <code>.nam</code>, et leurs licences relèvent de leurs auteurs.",
     "nam-a2-lite.p2": "Le <a href=\"https://github.com/wisemandenny/hxtra/blob/main/CHANGELOG.md\">CHANGELOG.md</a> du projet amont détaille les changements de NAM.",
     "nam-a2-lite.li5": "<strong>Model</strong> s'affiche comme le numéro d'emplacement, 4 plutôt que 4.0, sur le HX Stomp. Une valeur entre deux emplacements (venant d'un contrôleur MIDI) s'affiche comme l'emplacement qui joue. Le HX Stomp XL affiche toujours 4.0.",
+    "gate-sidechain.p1": "Le bloc Noise Gate peut prendre sa clé sur l'entrée plutôt que sur son propre signal (<a href=\"https://github.com/wisemandenny/hxtra/issues/131\">#131</a>). Avec Input Sidechain activé, le gate s'ouvre et se ferme selon ce qu'entend le gate du bloc Input (ta guitare avant tout bloc, gauche et droite additionnées), tout en agissant sur le signal qui lui arrive. Un gate placé après une saturation à fort gain suit alors la guitare claire : il se ferme dès que tu arrêtes de jouer, et le souffle de la saturation ne le garde plus ouvert.",
+    "gate-sidechain.exp": "<strong>Expérimental :</strong> testé avec des signaux enregistrés, pas encore avec un instrument joué, il peut donc demander des réglages. Ne fonctionne qu'avec un câble dans l'entrée guitare du HX Stomp.",
+    "gate-sidechain.li1": "<strong>DSP :</strong> chaque bloc Noise Gate coûte 0.1 % de plus (0.2 % en stéréo), qu'Input Sidechain soit activé ou non. Un preset déjà à la limite avec un Noise Gate risque de ne pas se charger.",
+    "gate-sidechain.li2": "<strong>Threshold</strong> est alors comparé au niveau de l'entrée : règle-le comme le gate du bloc Input. L'Input Gate du bloc Input peut être activé ou non.",
+    "gate-sidechain.li3": "<strong>Les presets</strong> enregistrés avec Input Sidechain gardent le réglage. HX Edit ne l'affiche pas, car il a sa propre liste des réglages de chaque bloc ; ouvrir un tel preset avec le firmware d'origine n'est pas encore testé.",
+    "gate-sidechain.what1": "Activé, le gate suit l'entrée plutôt que le signal qui arrive au bloc. Sur Off, le bloc fonctionne comme avec le firmware d'origine.",
     "preset-led-color.p1": "En mode de footswitch Preset, le HX Stomp allume en rouge l'anneau du preset en cours, avec une icône de footswitch rouge sur l'écran d'accueil, et laisse éteints les anneaux des deux autres presets. HXtra donne à chaque preset sa propre couleur, issue de la même palette que Tap LED Color.",
     "preset-led-color.li1": "<strong>This Preset</strong> (Global Settings &gt; Displays, page 2) règle la couleur du preset en cours. Enregistrez le preset pour la conserver : la couleur est stockée dans le preset lui-même, elle le suit donc quand vous le déplacez, l'exportez ou le restaurez.",
     "preset-led-color.li2": "<strong>Sélectionné</strong>, l'anneau et l'icône d'un preset s'allument dans sa couleur. <strong>Non sélectionné</strong>, un preset qui a une couleur l'affiche atténuée (la nuance que le HX Stomp utilise pour un bloc désactivé de cette couleur) : vous voyez ainsi quel footswitch porte quel preset.",
@@ -1418,7 +1485,7 @@ var LANGS = {
     "real-block-names.li1": "<strong>Ce qui garde son nom :</strong> les créations originales de Line 6, les blocs utilitaires et les titres déjà réels.",
     "real-block-names.li2": "<strong>Les presets</strong> gardent les mêmes ID de modèle : un preset est donc identique avec ou sans les vrais noms, et s'ouvre normalement sur le firmware d'origine.",
     "tap-command.p1": "Sur un HX Stomp d'origine, le tap tempo est une fonction globale de footswitch : le TAP/TUNER de FS3, ou FS4/FS5 réglés sur TAP, dans tous les presets. HXtra ajoute une commande <strong>Tap</strong> au Command Center, qui est enregistré avec chaque preset : un footswitch ne tape le tempo que dans les presets où vous l'avez mise.",
-    "tap-command.li1": "<strong>Mise en place :</strong> le footswitch doit être un footswitch Stomp. FS1 et FS2 le sont toujours ; pour FS3, FS4 ou FS5, réglez sa fonction sur Stomp dans Global Settings &gt; Footswitches. Ensuite, dans le preset, ouvrez Menu &gt; Command Center, sélectionnez l'emplacement du footswitch et tournez Command jusqu'à <strong>Tap</strong> (après Hotkey). Enregistrez le preset pour la garder.",
+    "tap-command.li1": "<strong>Mise en place :</strong> le footswitch doit être un footswitch Stomp : utilisez donc le mode de footswitch Stomp, où FS1 et FS2 le sont toujours ; pour FS3, FS4 ou FS5, réglez sa fonction sur Stomp dans Global Settings &gt; Footswitches. Ensuite, dans le preset, ouvrez Menu &gt; Command Center, sélectionnez l'emplacement du footswitch et tournez Command jusqu'à <strong>Tap</strong> (après Hotkey). Enregistrez le preset pour la garder.",
     "tap-command.li2": "<strong>Un appui</strong> tape le tempo exactement comme le footswitch TAP. Le maintenir enfoncé ne tape pas le tempo.",
     "tap-command.li3": "<strong>Son anneau</strong> (FS1–FS3) clignote au tempo comme l'anneau de TAP, dans la couleur de Tap LED Color si cette fonction est dans votre build. Off dans Tap LED Color arrête le clignotement (dans un build sans Tap LED Color, c'est le Tap Tempo LED d'origine). FS4 et FS5 n'ont pas d'anneau.",
     "tap-command.li4": "<strong>Changer de snapshot</strong> ne tape jamais le tempo.",
@@ -1470,7 +1537,7 @@ var LANGS = {
     "gr-meter.name": "Gain-Reduction-Anzeige für Kompressoren",
     "gr-meter.desc": "Zeigt, wie stark ein Kompressor arbeitet, auf dem Home-Bildschirm und in seiner Edit-Ansicht, damit du Threshold, Ratio, Attack und Release beim Spielen einstellen kannst.",
     "gr-meter.floc": "Home-Bildschirm und die Edit-Ansicht des Kompressors",
-    "gr-meter.where": "Die Regler Mtr Size, Mtr Pos und Mtr Dir des Kompressors, bei jedem Kompressor außer dem 3-Band Comp",
+    "gr-meter.where": "Die Regler Mtr Size, Mtr Pos und Mtr Dir des Kompressors, bei den Kompressoren Deluxe, LA Studio, Kinky, Ampeg Opto, Rochester und Red Squeeze",
     "dsp-usage-display.name": "DSP-Anzeige",
     "dsp-usage-display.desc": "Zeigt den DSP-Anteil jedes Blocks auf den Blöcken der Edit-Ansicht und im Modell-Browser, dazu die Summe oben rechts.",
     "dsp-usage-display.floc": "Edit-Ansicht und Modell-Browser",
@@ -1502,15 +1569,19 @@ var LANGS = {
     "nam-a2-lite.desc": "Spielt Captures von Neural Amp Modeler auf dem eigenen DSP des HX Stomp, bis zu drei gleichzeitig; die Einrichtungsseite wandelt deine .nam-Dateien um.",
     "nam-a2-lite.floc": "Modell-Browser: Amp &gt; NAM",
     "nam-a2-lite.where": "Die Regler des Blocks",
+    "gate-sidechain.name": "Noise Gate Input Sidechain",
+    "gate-sidechain.desc": "Ein Regler Input Sidechain im Noise-Gate-Block: eingeschaltet öffnet und schließt das Gate nach der Gitarre, wie sie hereinkommt, sodass ein Gate hinter einer High-Gain-Verzerrung der cleanen Gitarre folgt.",
+    "gate-sidechain.floc": "Der Noise-Gate-Block, mono und stereo",
+    "gate-sidechain.where": "Der Regler Input Sidechain des Blocks",
     "preset-led-color.name": "LED-Farbe im Preset-Modus",
     "preset-led-color.desc": "Im Fußschaltermodus Preset hat jedes Preset eine eigene Farbe, die beim Speichern des Presets erhalten bleibt: Sein Ring und sein Symbol auf dem Home-Bildschirm leuchten darin, solange es ausgewählt ist, und gedimmt, solange nicht.",
     "preset-led-color.floc": "Die Preset-Fußschalter im Fußschaltermodus Preset",
     "preset-led-color.where": "Global Settings &gt; Displays, Seite 2",
     "real-block-names.name": "Echte Blocknamen",
-    "real-block-names.desc": "Benennt alle Blöcke nach dem Gerät um, auf dem sie basieren: z. B. wird aus Deez One Mod Boss DS-1 Mod.",
+    "real-block-names.desc": "Benennt Blöcke nach dem Gerät um, auf dem sie basieren: z. B. wird aus Deez One Mod Boss DS-1 Mod.",
     "real-block-names.floc": "Modell-Browser und Edit-Ansicht",
     "tap-command.name": "Tap-Befehl",
-    "tap-command.desc": "Tap Tempo nur in den Presets, die es brauchen: Ein Tap-Befehl im Command Center, mit dem Preset gespeichert, macht FS1–FS5 zu einem Tap-Tempo-Schalter, dessen Ring im Tempo blinkt.",
+    "tap-command.desc": "Tap Tempo nur in den Presets, die es brauchen: Ein Tap-Befehl im Command Center, mit dem Preset gespeichert, macht FS1–FS5 zu einem Tap-Tempo-Schalter; bei FS1–FS3 blinkt sein Ring im Tempo.",
     "tap-command.floc": "Menu &gt; Command Center, auf einem FS-Platz",
     "tap-led-color.name": "Farbe der TAP-LED",
     "tap-led-color.desc": "Die Farbe des blinkenden LED-Rings des TAP-Fußschalters sowie von Symbol und Beschriftung von TAP/TUNER auf dem Home-Bildschirm. Rainbow wandert bei jedem Schlag durch den Regenbogen; Random wählt bei jedem Schlag eine neue Farbe.",
@@ -1525,12 +1596,13 @@ var LANGS = {
     "virtual-footswitches.floc": "Bypass Assign &gt; MIDI In eines Blocks oder Controller Assign",
     "virtual-footswitches.where": "Global Settings &gt; Footswitches, Seiten 4 und 5",
     "overview.name": "Demos",
+    "overview.labels": "Die Einstellungen und Block-Regler von HXtra haben petrolfarbene Beschriftungen, damit du sie auf einen Blick von den originalen unterscheidest.",
     "demos.note": "Die Demos wurden vom Bildschirm eines echten HX Stomp aufgenommen, samt Audio und Tastendrücken, und dann über einen simulierten HX Stomp gelegt.",
     "bpm.alt1": "TAP antippen: Das Tempo und sein Beat-Punkt folgen",
     "bpm.alt2": "Global Settings, BPM Display: Font Size, Color und Dot Position",
     "bpm.p1": "Der Home-Bildschirm zeigt oben links das Tempo und neben der Preset-Nummer einen Beat-Punkt, der mit dem Ring des TAP-Fußschalters aufleuchtet, rot bei einem Tap.",
     "bpm.li1": "<strong>Das Tempo</strong> ist das, mit dem der HX Stomp gerade arbeitet, das globale oder das des Presets, je nach Tempo Select, als ganze Zahl. Dahinter steht <code>X</code>, solange das Tempo von der MIDI-Clock kommt (Extrnl im Tempo-Bildschirm), und <code>--</code>, wenn es kein Tempo gibt.",
-    "bpm.li2": "<strong>Der Punkt</strong> hält den Takt in jedem Fußschaltermodus, auch bei Tap Tempo LED auf Off: Der Ring bleibt dann dunkel, während der Punkt blinkt.",
+    "bpm.li2": "<strong>Der Punkt</strong> hält den Takt in jedem Fußschaltermodus, auch bei Tap LED Color auf Off: Der Ring bleibt dann dunkel, während der Punkt blinkt.",
     "settings": "Einstellungen",
     "th.setting": "Einstellung",
     "th.values": "Werte",
@@ -1551,7 +1623,7 @@ var LANGS = {
     "gr-meter.li2": "<strong>Edit-Ansicht:</strong> Solange einer dieser Kompressoren ausgewählt ist, erscheint die Anzeige auch in seiner Edit-Ansicht, an derselben Stelle und in derselben Größe, sodass du den Kompressor beim Spielen einstellen kannst. Ihre leuchtenden Segmente verdecken, was darunter liegt (bei Top den Preset-Namen, bei Bottom die Reglernamen); unbeleuchtete lassen es sichtbar. Mit zwei Kompressoren mit Anzeige in einem Preset zeigen beide Edit-Ansichten den, dessen Mtr Size zuletzt eingestellt wurde.",
     "gr-meter.li3": "<strong>Mit NAM:</strong> Der DSP-Code der Anzeige belegt den Platz des dritten Blocks von NAM A2 Lite, daher hat ein Build damit höchstens zwei NAM-Blöcke.",
     "th.knob": "Regler",
-    "gr-meter.what1": "Die Dicke der Anzeige: 5, 10, 15 oder 20 Pixel. Ein Preset, das mit Mtr Thk eines älteren Builds gespeichert wurde, öffnet mit S bei 1 px, M bei 2, L bei 3 und XL bei 4 oder mehr.",
+    "gr-meter.what1": "Die Dicke der Anzeige: 5, 10, 15 oder 20 Pixel. Ein Preset, das mit Mtr Thk eines älteren Builds gespeichert wurde, zeichnet die Anzeige mit S bei 1 px, M bei 2, L bei 3 und XL bei 4 oder mehr.",
     "gr-meter.what2": "Wo auf dem Home-Bildschirm und in der Edit-Ansicht die Anzeige leuchtet. Middle ersetzt die Linie quer durch die Mitte.",
     "gr-meter.what3": "Normal füllt von links nach rechts bzw. von oben nach unten; Reverse andersherum.",
     "dsp-usage-display.alt1": "Bass-Amps durchsuchen: Die DSP-Summe zeigt jedes Modell vorab, dann zeigt der hinzugefügte Block seinen Anteil",
@@ -1562,10 +1634,9 @@ var LANGS = {
     "dsp-usage-display.what2": "Die Anteile auf den Blöcken der Edit-Ansicht.",
     "dsp-usage-display.what3": "Die Summe oben rechts. <strong>Small</strong> zeichnet sie in den 3x5-Ziffern der Anzeige mit 2x, etwa halb so hoch wie der Titel, in derselben Ecke, sodass ein langer Name trotzdem hineinlaufen kann. <strong>Large</strong> zeichnet sie in der Schrift des Titels, wie vor diesen Einstellungen. <strong>Off</strong> zeichnet dort nichts, damit ein langer Preset-Name oder Blocktitel nicht verdeckt wird.",
     "tuner-settings.alt1": "Der Tuner: Activate auf Press, sodass ein Druck ihn öffnet, dann Lock auf On, und seine Regler ändern nichts mehr",
-    "tuner-settings.p1": "Mit <code>HX_TUNER=1</code> bekommen die Einstellungen des Tuners eine eigene Seite, die dritte: nach rechts weiterblättern, an Trails, Offsets und String 6 vorbei. Die Saiten-Seiten (Strings 5–3, dann 2 und 1) folgen danach: Nur wenige nutzen die Offsets pro Saite, deshalb kommt die Seite vor ihnen. Ihre Regler funktionieren wie die der Originalseiten: drehen zum Ändern, drücken für den Standardwert.",
+    "tuner-settings.p1": "Die Einstellungen des Tuners bekommen eine eigene Seite, die dritte: nach rechts weiterblättern, an Trails, Offsets und String 6 vorbei. Die Saiten-Seiten (Strings 5–3, dann 2 und 1) folgen danach: Nur wenige nutzen die Offsets pro Saite, deshalb kommt die Seite vor ihnen. Ihre Regler funktionieren wie die der Originalseiten: drehen zum Ändern, drücken für den Standardwert.",
     "tuner-settings.what1": "Ein Fußschalter mit TAP/Tunr tappt normalerweise das Tempo, und Halten öffnet den Tuner. Auf <strong>Press</strong> öffnet ein Druck sofort den Tuner, und es wird kein Tempo mehr getappt. Die Einstellung folgt der Zuweisung und wirkt also auf jedem Fußschalter mit TAP/Tunr.",
     "tuner-settings.what2": "On verhindert, dass sich die übrigen Einstellungen des Tuners (Output, Refrnc, Type, Trails, Offsets) ändern: Reglerdrehungen und Reglerdrücke, die einen Wert auf den Standard zurücksetzen, werden ignoriert. Blättern funktioniert weiterhin, und die Regler dieser Seite lassen sich weiter drehen, sodass Lock dort wieder ausgeschaltet werden kann, wo es eingeschaltet wurde.",
-    "tuner-settings.p2": "Beide übernehmen ihre Werte (Einstellungs-IDs 29 und 104) aus Builds, in denen sie unter Global Settings &gt; HXtra lagen.",
     "long-press.alt1": "FS2 antippen und halten, FS1 für den Tuner halten, dann die Einstellungen Hold und FS6 bis FS10 Function",
     "long-press.p1": "Im Fußschaltermodus Stomp kann jeder von FS1–FS5 eine Hold-Aktion haben (Global Settings &gt; Footswitches, Seiten 2 und 3: FS1 Hold Function … FS5 Hold Function). Hältst du den Schalter 1 s lang, wird sie ausgeführt; ein kurzes Antippen schaltet weiterhin die eigenen Blöcke des Schalters, aber beim Loslassen statt beim Drücken, denn beim Drücken steht noch nicht fest, ob daraus ein Halten wird.",
     "long-press.li1": "<strong>Tuner</strong> öffnet den Tuner, wie das Halten von TAP.",
@@ -1574,7 +1645,7 @@ var LANGS = {
     "long-press.li4": "Ein Schalter mit Hold auf <strong>Off</strong>, ein Schalter im Momentary-Betrieb sowie die Fußschaltermodi Preset und Snapshot funktionieren wie im Original.",
     "long-press.what1": "Was das Halten dieses Fußschalters für 1 s bewirkt. FS4 und FS5 sind externe Schalter. Standardmäßig hält FS1 FS6 und so weiter bis FS5 und FS10.",
     "fx-loop-gate.p1": "Ein Noise Gate, eingebaut in die Blöcke FX Loop und Return, wie es auch der Input-Block hat, damit ein rauschendes Pedal im Loop keinen eigenen Noise-Gate-Block braucht (<a href=\"https://github.com/wisemandenny/hxtra/issues/69\">#69</a>). Es wirkt auf das, was aus dem Loop zurückkommt, vor Return-Pegel und Mix des Blocks; das trockene Signal und der Send werden nicht gegated.",
-    "fx-loop-gate.li1": "<strong>DSP:</strong> Jeder FX-Loop- und Return-Block kostet etwa 0,2 % mehr (0,4 % in Stereo), ob sein Gate an oder aus ist. Ein Preset, das mit einem dieser Blöcke schon am Limit ist, lädt eventuell nicht.",
+    "fx-loop-gate.li1": "<strong>DSP:</strong> Jeder FX-Loop- und Return-Block kostet 0,2 % mehr (0,4 % in Stereo), ob sein Gate an oder aus ist. Ein Preset, das mit einem dieser Blöcke schon am Limit ist, lädt eventuell nicht.",
     "fx-loop-gate.li2": "<strong>Stereo-Blöcke</strong> gaten jede Seite für sich, nicht gekoppelt.",
     "fx-loop-gate.li3": "<strong>Presets</strong>, die mit dem Gate gespeichert wurden, behalten dessen Regler. Wie sich ein solches Preset mit Original-Firmware oder in HX Edit öffnet, ist noch nicht getestet.",
     "fx-loop-gate.what1": "Schaltet das Gate ein. Auf Off klingt der Block wie mit Original-Firmware.",
@@ -1610,10 +1681,16 @@ var LANGS = {
     "nam-a2-lite.p1": "Aus dem Upstream-Projekt <a href=\"https://github.com/nocaseguy/hx-stomp-nam-lite\">hx-stomp-nam-lite</a>, in diesem Fork unverändert bis auf die Anzeige des Model-Reglers: Captures von <a href=\"https://www.neuralampmodeler.com\">Neural Amp Modeler</a> A2 Lite, die auf dem eigenen DSP des HX Stomp laufen. Die Einrichtungsseite wandelt deine <code>.nam</code>-Dateien in User IRs um, die der Block liest.",
     "nam-a2-lite.li1": "<strong>Wo:</strong> Amp &gt; NAM, ein Block mit zehn Reglern und einer Klangregelung. Er belegt die Preset-ID 555 von Xenomorph Fuzz Mono (dieses Originalmodell entfällt), daher behält HX Edit NAM-Blöcke, und Presets, die mit einem der beiden Builds erstellt wurden, öffnen sich auch mit dem anderen.",
     "nam-a2-lite.li2": "<strong>Ältere Presets:</strong> Presets, die mit einem früheren NAM-Build gespeichert wurden (Preset-IDs 147 und 148), öffnen in diesem Build kein NAM A2 Lite: Füg den Block in diesen Presets neu hinzu.",
-    "nam-a2-lite.li3": "<strong>Wie viele Blöcke:</strong> Bis zu 3 spielen gleichzeitig, jeder mit eigenem Capture; ein weiterer lässt sein Eingangssignal unverändert durch. Weniger Blöcke lassen mehr Platz für die anderen DSP-Funktionen: 3 Blöcke lassen Platz für das Metronom und das FX-Loop-Gate, 2 für diese und die Gain-Reduction-Anzeige. Mit <code>build.py</code> legt <code>HX_NAM_SLOTS</code> das fest; ohne Angabe ist es die höchste Zahl, die Platz für die eingeschalteten DSP-Funktionen lässt.",
+    "nam-a2-lite.li3": "<strong>Wie viele Blöcke:</strong> Bis zu 3 spielen gleichzeitig, jeder mit eigenem Capture; ein weiterer lässt sein Eingangssignal unverändert durch. Weniger Blöcke lassen mehr Platz für die anderen DSP-Funktionen: 3 Blöcke lassen Platz für das Metronom und das FX-Loop-Gate oder für USB &amp; Send Routing oder Input Sidechain allein, 2 für alle fünf. Mit <code>build.py</code> legt <code>HX_NAM_SLOTS</code> das fest; ohne Angabe ist es die höchste Zahl, die Platz für die eingeschalteten DSP-Funktionen lässt.",
     "nam-a2-lite.li4": "<strong>Captures:</strong> Es sind keine enthalten. Du bringst deine eigenen <code>.nam</code>-Dateien mit, und über ihre Lizenzen entscheiden ihre Urheber.",
     "nam-a2-lite.p2": "Das <a href=\"https://github.com/wisemandenny/hxtra/blob/main/CHANGELOG.md\">CHANGELOG.md</a> des Upstream-Projekts enthält die NAM-Änderungen.",
     "nam-a2-lite.li5": "<strong>Model</strong> zeigt auf dem HX Stomp die Slot-Nummer, 4 statt 4.0. Ein Wert zwischen zwei Slots (von einem MIDI-Controller) zeigt den Slot, der spielt. Der HX Stomp XL zeigt weiterhin 4.0.",
+    "gate-sidechain.p1": "Der Noise-Gate-Block kann sein Steuersignal vom Eingang statt von seinem eigenen Signal nehmen (<a href=\"https://github.com/wisemandenny/hxtra/issues/131\">#131</a>). Mit Input Sidechain an öffnet und schließt das Gate nach dem, was das Gate des Input-Blocks hört (deine Gitarre vor jedem Block, links und rechts summiert), bearbeitet aber weiter das Signal, das bei ihm ankommt. Ein Gate hinter einer High-Gain-Verzerrung folgt dann der cleanen Gitarre: Es schließt, sobald du aufhörst zu spielen, und das Rauschen der Verzerrung hält es nicht mehr offen.",
+    "gate-sidechain.exp": "<strong>Experimentell:</strong> mit aufgenommenen Signalen getestet, noch nicht mit einem gespielten Instrument, braucht also eventuell Feinschliff. Funktioniert nur mit einem Kabel im Gitarreneingang des HX Stomp.",
+    "gate-sidechain.li1": "<strong>DSP:</strong> Jeder Noise-Gate-Block kostet 0.1 % mehr (0.2 % in Stereo), ob Input Sidechain an ist oder nicht. Ein Preset, das mit einem Noise Gate schon am Limit ist, lädt dann vielleicht nicht.",
+    "gate-sidechain.li2": "<strong>Threshold</strong> wird dann mit dem Pegel am Eingang verglichen; stell ihn also ein wie beim Gate des Input-Blocks. Das Input Gate des Input-Blocks selbst kann an oder aus sein.",
+    "gate-sidechain.li3": "<strong>Presets</strong>, die mit Input Sidechain gespeichert sind, behalten den Regler. HX Edit zeigt ihn nicht an, da es eine eigene Liste der Regler jedes Blocks hat; ein solches Preset mit der Original-Firmware zu öffnen, ist noch nicht getestet.",
+    "gate-sidechain.what1": "An folgt das Gate dem Eingang statt dem Signal, das beim Block ankommt. Auf Off arbeitet der Block wie mit der Original-Firmware.",
     "preset-led-color.p1": "Im Fußschaltermodus Preset lässt der HX Stomp den Ring des aktuellen Presets rot leuchten, mit einem roten Schaltersymbol auf dem Home-Bildschirm, und die Ringe der beiden anderen Presets bleiben aus. HXtra gibt jedem Preset eine eigene Farbe, aus derselben Palette wie Tap LED Color.",
     "preset-led-color.li1": "<strong>This Preset</strong> (Global Settings &gt; Displays, Seite 2) legt die Farbe des aktuellen Presets fest. Speichere das Preset, um sie zu behalten: Die Farbe steckt im Preset selbst und geht also mit, wenn du es verschiebst, exportierst oder wiederherstellst.",
     "preset-led-color.li2": "<strong>Ausgewählt</strong> leuchten Ring und Symbol eines Presets in seiner Farbe. <strong>Nicht ausgewählt</strong> zeigt ein Preset mit Farbe diese gedimmt (in dem Ton, den der HX Stomp für einen Block dieser Farbe im Bypass nutzt), sodass du siehst, welcher Fußschalter welches Preset hat.",
@@ -1627,7 +1704,7 @@ var LANGS = {
     "real-block-names.li1": "<strong>Was seinen Namen behält:</strong> Line-6-Originale, Utility-Blöcke und Titel, die schon echt sind.",
     "real-block-names.li2": "<strong>Presets</strong> behalten dieselben Modell-IDs, ein Preset ist also mit oder ohne echte Namen dasselbe und öffnet sich wie gewohnt mit Original-Firmware.",
     "tap-command.p1": "Auf einem originalen HX Stomp ist Tap Tempo eine globale Fußschalter-Funktion: TAP/TUNER auf FS3 oder FS4/FS5 auf TAP gestellt, in jedem Preset. HXtra fügt dem Command Center einen <strong>Tap</strong>-Befehl hinzu, und das Command Center wird mit jedem Preset gespeichert: Ein Fußschalter tappt das Tempo also nur in den Presets, in die du ihn legst.",
-    "tap-command.li1": "<strong>Einrichten:</strong> Der Fußschalter muss ein Stomp-Schalter sein. FS1 und FS2 sind es immer; für FS3, FS4 oder FS5 stellst du seine Funktion in Global Settings &gt; Footswitches auf Stomp. Dann öffnest du im Preset Menu &gt; Command Center, wählst den Platz des Fußschalters und drehst Command auf <strong>Tap</strong> (nach Hotkey). Speichere das Preset, um ihn zu behalten.",
+    "tap-command.li1": "<strong>Einrichten:</strong> Der Fußschalter muss ein Stomp-Schalter sein, also nutze den Fußschaltermodus Stomp, in dem FS1 und FS2 es immer sind; für FS3, FS4 oder FS5 stellst du seine Funktion in Global Settings &gt; Footswitches auf Stomp. Dann öffnest du im Preset Menu &gt; Command Center, wählst den Platz des Fußschalters und drehst Command auf <strong>Tap</strong> (nach Hotkey). Speichere das Preset, um ihn zu behalten.",
     "tap-command.li2": "<strong>Ein Druck</strong> tappt das Tempo genau wie der TAP-Fußschalter. Gedrückt halten tappt nicht.",
     "tap-command.li3": "<strong>Sein Ring</strong> (FS1–FS3) blinkt im Tempo wie der TAP-Ring, in der Farbe von Tap LED Color, wenn diese Funktion in deinem Build ist. Off in Tap LED Color stoppt das Blinken (in einem Build ohne Tap LED Color tut das die originale Einstellung Tap Tempo LED). FS4 und FS5 haben keinen Ring.",
     "tap-command.li4": "<strong>Ein Snapshot-Wechsel</strong> tappt nie.",
@@ -1679,7 +1756,7 @@ var LANGS = {
     "gr-meter.name": "Indicatore di riduzione del guadagno del compressore",
     "gr-meter.desc": "Mostra quanto lavora un compressore, nella schermata Home e nella sua vista Edit, così puoi regolare Threshold, Ratio, Attack e Release mentre suoni.",
     "gr-meter.floc": "Schermata Home e vista Edit del compressore",
-    "gr-meter.where": "Le manopole Mtr Size, Mtr Pos e Mtr Dir del compressore, su tutti i compressori tranne il 3-Band Comp",
+    "gr-meter.where": "Le manopole Mtr Size, Mtr Pos e Mtr Dir del compressore, sui compressori Deluxe, LA Studio, Kinky, Ampeg Opto, Rochester e Red Squeeze",
     "dsp-usage-display.name": "Indicatore di uso del DSP",
     "dsp-usage-display.desc": "Mostra la quota di DSP di ogni blocco sui blocchi della vista Edit e nel browser dei modelli, e il totale nell'angolo in alto a destra.",
     "dsp-usage-display.floc": "Vista Edit e browser dei modelli",
@@ -1711,15 +1788,19 @@ var LANGS = {
     "nam-a2-lite.desc": "Suona catture Neural Amp Modeler sul DSP dell'HX Stomp stesso, fino a tre alla volta; la pagina di installazione converte i tuoi file .nam.",
     "nam-a2-lite.floc": "Browser dei modelli: Amp &gt; NAM",
     "nam-a2-lite.where": "Le manopole del blocco",
+    "gate-sidechain.name": "Input Sidechain del Noise Gate",
+    "gate-sidechain.desc": "Un controllo Input Sidechain nel blocco Noise Gate: attivo, il gate si apre e si chiude seguendo la chitarra così come entra, così un gate dopo una distorsione ad alto gain segue la chitarra pulita.",
+    "gate-sidechain.floc": "Il blocco Noise Gate, mono e stereo",
+    "gate-sidechain.where": "Il controllo Input Sidechain del blocco",
     "preset-led-color.name": "Colore LED in modalità Preset",
     "preset-led-color.desc": "In modalità footswitch Preset, ogni preset ha un colore suo, conservato quando salvi il preset: il suo anello e la sua icona nella schermata Home sono accesi in quel colore quando è selezionato, e attenuati quando non lo è.",
     "preset-led-color.floc": "I footswitch dei preset, in modalità footswitch Preset",
     "preset-led-color.where": "Global Settings &gt; Displays, pagina 2",
     "real-block-names.name": "Nomi reali dei blocchi",
-    "real-block-names.desc": "Rinomina tutti i blocchi con il nome dell'apparecchio a cui si ispirano: ad es. Deez One Mod diventa Boss DS-1 Mod.",
+    "real-block-names.desc": "Rinomina i blocchi con il nome dell'apparecchio a cui si ispirano: ad es. Deez One Mod diventa Boss DS-1 Mod.",
     "real-block-names.floc": "Browser dei modelli e vista Edit",
     "tap-command.name": "Comando Tap",
-    "tap-command.desc": "Il tap tempo solo nei preset che lo vogliono: un comando Tap nel Command Center, salvato con il preset, trasforma FS1–FS5 in un footswitch di tap tempo il cui anello lampeggia a tempo.",
+    "tap-command.desc": "Il tap tempo solo nei preset che lo vogliono: un comando Tap nel Command Center, salvato con il preset, trasforma FS1–FS5 in un footswitch di tap tempo; su FS1–FS3 il suo anello lampeggia a tempo.",
     "tap-command.floc": "Menu &gt; Command Center, su uno slot FS",
     "tap-led-color.name": "Colore LED di TAP",
     "tap-led-color.desc": "Il colore dell'anello LED lampeggiante del footswitch TAP, e dell'icona e dell'etichetta di TAP/TUNER nella schermata Home. Rainbow percorre l'arcobaleno a ogni battito; Random sceglie un colore nuovo a ogni battito.",
@@ -1734,12 +1815,13 @@ var LANGS = {
     "virtual-footswitches.floc": "Bypass Assign &gt; MIDI In di un blocco, o Controller Assign",
     "virtual-footswitches.where": "Global Settings &gt; Footswitches, pagine 4 e 5",
     "overview.name": "Demo",
+    "overview.labels": "Le impostazioni e le manopole di blocco di HXtra hanno etichette color verde acqua, così le distingui a colpo d'occhio da quelle originali.",
     "demos.note": "Le demo sono state registrate dallo schermo di un vero HX Stomp, insieme al suo audio e alle pressioni dei pulsanti, poi sovrapposte a un HX Stomp simulato.",
     "bpm.alt1": "Battendo TAP: il tempo e il suo punto del battito seguono",
     "bpm.alt2": "Global Settings, BPM Display: Font Size, Color e Dot Position",
     "bpm.p1": "La schermata Home mostra il tempo in alto a sinistra e, accanto al numero del preset, un punto del battito che si accende con l'anello del footswitch TAP, rosso a ogni tap.",
     "bpm.li1": "<strong>Il tempo</strong> è quello che l'HX Stomp sta usando, globale o del preset secondo Tempo Select, come numero intero. Dopo il numero mostra <code>X</code> quando il tempo arriva dal MIDI clock (Extrnl nella schermata del tempo) e <code>--</code> se non c'è tempo.",
-    "bpm.li2": "<strong>Il punto</strong> segue il battito in ogni modalità footswitch, anche con Tap Tempo LED su Off: l'anello allora resta spento mentre il punto lampeggia.",
+    "bpm.li2": "<strong>Il punto</strong> segue il battito in ogni modalità footswitch, anche con Tap LED Color su Off: l'anello allora resta spento mentre il punto lampeggia.",
     "settings": "Impostazioni",
     "th.setting": "Impostazione",
     "th.values": "Valori",
@@ -1760,7 +1842,7 @@ var LANGS = {
     "gr-meter.li2": "<strong>Vista Edit:</strong> quando uno di questi compressori è selezionato, l'indicatore appare anche nella sua vista Edit, nella stessa posizione e dimensione, così puoi regolare il compressore mentre suoni. Le sue luci accese coprono ciò che c'è sotto (il nome del preset con Top, i nomi delle manopole con Bottom); quelle spente lo lasciano visibile. Con due compressori con indicatore in un preset, entrambe le viste Edit mostrano quello il cui Mtr Size è stato impostato per ultimo.",
     "gr-meter.li3": "<strong>Con NAM:</strong> il codice DSP dell'indicatore occupa lo spazio del terzo blocco di NAM A2 Lite, quindi una build che lo include ha al massimo due blocchi NAM.",
     "th.knob": "Manopola",
-    "gr-meter.what1": "Lo spessore dell'indicatore: 5, 10, 15 o 20 pixel. Un preset salvato con il Mtr Thk di una build precedente si apre su S per 1 px, M per 2, L per 3 e XL per 4 o più.",
+    "gr-meter.what1": "Lo spessore dell'indicatore: 5, 10, 15 o 20 pixel. Un preset salvato con il Mtr Thk di una build precedente disegna l'indicatore in S per 1 px, M per 2, L per 3 e XL per 4 o più.",
     "gr-meter.what2": "Dove si accende l'indicatore nella schermata Home e nella vista Edit. Middle prende il posto della linea al centro.",
     "gr-meter.what3": "Normal si riempie da sinistra a destra o dall'alto in basso; Reverse nel verso opposto.",
     "dsp-usage-display.alt1": "Sfogliando gli ampli per basso: il totale DSP mostra in anteprima ogni modello, poi il blocco aggiunto mostra la sua quota",
@@ -1771,10 +1853,9 @@ var LANGS = {
     "dsp-usage-display.what2": "Le quote sui blocchi della vista Edit.",
     "dsp-usage-display.what3": "Il totale nell'angolo in alto a destra. <strong>Small</strong> lo disegna con le cifre 3x5 dell'indicatore a 2x, circa metà dell'altezza del titolo, nello stesso angolo, quindi un nome lungo può ancora sovrapporsi. <strong>Large</strong> lo disegna con il font del titolo, come prima di queste impostazioni. <strong>Off</strong> non disegna nulla lì, così un nome di preset o un titolo di blocco lungo non viene coperto.",
     "tuner-settings.alt1": "L'accordatore: Activate su Press, così una pressione lo apre, poi Lock su On e le sue manopole non cambiano più",
-    "tuner-settings.p1": "Con <code>HX_TUNER=1</code>, le impostazioni dell'accordatore hanno una pagina tutta loro, la terza: la pagina a destra dopo Trails, Offsets e String 6. Le pagine delle corde (Strings 5–3, poi 2 e 1) vengono dopo: pochi chitarristi usano gli offset per corda, quindi questa pagina viene prima. Le sue manopole funzionano come quelle delle pagine originali: gira per cambiare, premi per tornare al valore di default.",
+    "tuner-settings.p1": "Le impostazioni dell'accordatore hanno una pagina tutta loro, la terza: la pagina a destra dopo Trails, Offsets e String 6. Le pagine delle corde (Strings 5–3, poi 2 e 1) vengono dopo: pochi chitarristi usano gli offset per corda, quindi questa pagina viene prima. Le sue manopole funzionano come quelle delle pagine originali: gira per cambiare, premi per tornare al valore di default.",
     "tuner-settings.what1": "Un footswitch assegnato a TAP/Tunr normalmente batte il tempo, e tenendolo premuto si apre l'accordatore. Su <strong>Press</strong>, premerlo apre subito l'accordatore e il tempo non viene più battuto. Segue l'assegnazione, quindi funziona su qualunque footswitch abbia TAP/Tunr.",
     "tuner-settings.what2": "On impedisce alle altre impostazioni dell'accordatore (Output, Refrnc, Type, Trails, Offsets) di cambiare: le rotazioni delle manopole e le pressioni che riportano una voce al default vengono ignorate. Si può ancora cambiare pagina, e le manopole di questa pagina girano ancora, quindi Lock si può disattivare da dove lo si è attivato.",
-    "tuner-settings.p2": "Entrambe mantengono i loro valori (ID impostazione 29 e 104) dalle build che le avevano in Global Settings &gt; HXtra.",
     "long-press.alt1": "Tocco e pressione lunga su FS2, FS1 tenuto premuto per l'accordatore, poi le impostazioni Hold e da FS6 a FS10 Function",
     "long-press.p1": "In modalità footswitch Stomp, ciascuno di FS1–FS5 può avere un'azione Hold (Global Settings &gt; Footswitches, pagine 2 e 3: FS1 Hold Function … FS5 Hold Function). Tenere premuto il footswitch per 1 s la esegue; un tocco attiva/disattiva ancora i blocchi del footswitch, al rilascio invece che alla pressione, perché alla pressione non si sa ancora se diventerà una pressione lunga.",
     "long-press.li1": "<strong>Tuner</strong> apre l'accordatore, come tenere premuto TAP.",
@@ -1783,7 +1864,7 @@ var LANGS = {
     "long-press.li4": "Un footswitch con Hold su <strong>Off</strong>, un footswitch momentaneo e le modalità footswitch Preset e Snapshot funzionano come in origine.",
     "long-press.what1": "Cosa fa tenere premuto quel footswitch per 1 s. FS4 e FS5 sono interruttori esterni. Di default FS1 aziona FS6, e così via fino a FS5 e FS10.",
     "fx-loop-gate.p1": "Un noise gate integrato nei blocchi FX Loop e Return, come quello del blocco Input, così un pedale rumoroso nel loop non richiede un blocco Noise Gate a parte (<a href=\"https://github.com/wisemandenny/hxtra/issues/69\">#69</a>). Agisce su ciò che torna dal loop, prima del livello Return e del Mix del blocco; il segnale dry e il Send non passano dal gate.",
-    "fx-loop-gate.li1": "<strong>DSP:</strong> ogni blocco FX Loop e Return costa circa lo 0.2% in più (0.4% in stereo), che il gate sia acceso o spento. Un preset già al limite con uno di questi blocchi potrebbe non caricarsi.",
+    "fx-loop-gate.li1": "<strong>DSP:</strong> ogni blocco FX Loop e Return costa lo 0.2% in più (0.4% in stereo), che il gate sia acceso o spento. Un preset già al limite con uno di questi blocchi potrebbe non caricarsi.",
     "fx-loop-gate.li2": "<strong>I blocchi stereo</strong> applicano il gate a ciascun lato separatamente, senza collegarli.",
     "fx-loop-gate.li3": "<strong>I preset</strong> salvati con il gate ne conservano le manopole. L'apertura di un preset del genere con il firmware originale, o in HX Edit, non è ancora stata testata.",
     "fx-loop-gate.what1": "Attiva il gate. Su Off, il blocco suona come con il firmware originale.",
@@ -1819,10 +1900,16 @@ var LANGS = {
     "nam-a2-lite.p1": "Dal progetto originale <a href=\"https://github.com/nocaseguy/hx-stomp-nam-lite\">hx-stomp-nam-lite</a>, invariato in questo fork salvo per come si legge la manopola Model: catture <a href=\"https://www.neuralampmodeler.com\">Neural Amp Modeler</a> A2 Lite che girano sul DSP dell'HX Stomp stesso. La pagina di installazione converte i tuoi file <code>.nam</code> in User IR che il blocco legge.",
     "nam-a2-lite.li1": "<strong>Dove:</strong> Amp &gt; NAM, un blocco con dieci manopole e un tone stack. Occupa l'ID preset 555 di Xenomorph Fuzz Mono (quel modello originale è rimosso), quindi HX Edit conserva i blocchi NAM, e i preset creati con l'una o l'altra build si aprono con l'altra.",
     "nam-a2-lite.li2": "<strong>Preset più vecchi:</strong> i preset salvati con una build NAM precedente (ID preset 147 e 148) non aprono NAM A2 Lite in questa: aggiungi di nuovo il blocco in quei preset.",
-    "nam-a2-lite.li3": "<strong>Quanti blocchi:</strong> fino a 3 suonano insieme, ognuno con la propria cattura; uno in più lascia passare il segnale in ingresso così com'è. Meno blocchi lasciano spazio alle altre funzioni DSP: 3 blocchi lasciano spazio al Metronomo e al gate dell'FX Loop, 2 a questi e all'indicatore GR. Con <code>build.py</code> lo imposta <code>HX_NAM_SLOTS</code>; se non è impostato, vale il massimo che lascia spazio alle funzioni DSP che hai attivato.",
+    "nam-a2-lite.li3": "<strong>Quanti blocchi:</strong> fino a 3 suonano insieme, ognuno con la propria cattura; uno in più lascia passare il segnale in ingresso così com'è. Meno blocchi lasciano spazio alle altre funzioni DSP: 3 blocchi lasciano spazio al Metronomo e al gate dell'FX Loop, o al solo USB &amp; Send Routing o Input Sidechain; 2 a tutte e cinque. Con <code>build.py</code> lo imposta <code>HX_NAM_SLOTS</code>; se non è impostato, vale il massimo che lascia spazio alle funzioni DSP che hai attivato.",
     "nam-a2-lite.li4": "<strong>Catture:</strong> non ne è inclusa nessuna. Porti i tuoi file <code>.nam</code>, e le loro licenze dipendono dai rispettivi autori.",
     "nam-a2-lite.p2": "Il <a href=\"https://github.com/wisemandenny/hxtra/blob/main/CHANGELOG.md\">CHANGELOG.md</a> del progetto originale riporta le modifiche a NAM.",
     "nam-a2-lite.li5": "<strong>Model</strong> si legge come numero dello slot, 4 anziché 4.0, sull'HX Stomp. Un valore tra due slot (da un controller MIDI) si legge come lo slot che suona. L'HX Stomp XL mostra ancora 4.0.",
+    "gate-sidechain.p1": "Il blocco Noise Gate può prendere la chiave dall'ingresso invece che dal proprio segnale (<a href=\"https://github.com/wisemandenny/hxtra/issues/131\">#131</a>). Con Input Sidechain attivo, il gate si apre e si chiude seguendo ciò che sente il gate del blocco Input (la chitarra prima di qualsiasi blocco, sinistro e destro sommati), ma continua ad agire sul segnale che gli arriva. Un gate dopo una distorsione ad alto gain segue così la chitarra pulita: si chiude appena smetti di suonare, e il fruscio della distorsione non lo tiene più aperto.",
+    "gate-sidechain.exp": "<strong>Sperimentale:</strong> provato con segnali registrati, non ancora con uno strumento suonato, quindi potrebbe richiedere qualche ritocco. Funziona solo con un cavo nell'ingresso chitarra dell'HX Stomp.",
+    "gate-sidechain.li1": "<strong>DSP:</strong> ogni blocco Noise Gate costa lo 0.1% in più (0.2% in stereo), con Input Sidechain attivo o no. Un preset già al limite con un Noise Gate potrebbe non caricarsi.",
+    "gate-sidechain.li2": "<strong>Threshold</strong> viene allora confrontato con il livello dell'ingresso: regolalo come il gate del blocco Input. L'Input Gate del blocco Input può essere attivo o no.",
+    "gate-sidechain.li3": "<strong>I preset</strong> salvati con Input Sidechain mantengono il controllo. HX Edit non lo mostra, perché ha un proprio elenco dei controlli di ogni blocco; aprire uno di questi preset con il firmware originale non è ancora stato provato.",
+    "gate-sidechain.what1": "Attivo, il gate segue l'ingresso invece del segnale che arriva al blocco. Su Off, il blocco funziona come con il firmware originale.",
     "preset-led-color.p1": "In modalità footswitch Preset l'HX Stomp accende in rosso l'anello del preset corrente, con un'icona dell'interruttore rossa nella schermata Home, e lascia spenti gli anelli degli altri due preset. HXtra dà a ogni preset un colore suo, dalla stessa tavolozza di Tap LED Color.",
     "preset-led-color.li1": "<strong>This Preset</strong> (Global Settings &gt; Displays, pagina 2) imposta il colore del preset corrente. Salva il preset per conservarlo: il colore è memorizzato nel preset stesso, quindi lo segue quando lo sposti, lo esporti o lo ripristini.",
     "preset-led-color.li2": "<strong>Selezionato</strong>, l'anello e l'icona di un preset sono accesi nel suo colore. <strong>Non selezionato</strong>, un preset con un colore lo mostra attenuato (la tonalità che l'HX Stomp usa per un blocco in bypass di quel colore), così vedi quale footswitch richiama quale preset.",
@@ -1836,7 +1923,7 @@ var LANGS = {
     "real-block-names.li1": "<strong>Cosa mantiene il suo nome:</strong> gli originali Line 6, i blocchi di utilità e i titoli che sono già reali.",
     "real-block-names.li2": "<strong>I preset</strong> mantengono gli stessi ID modello, quindi un preset è identico con o senza nomi reali, e si apre sul firmware originale come al solito.",
     "tap-command.p1": "Su un HX Stomp originale il tap tempo è una funzione globale dei footswitch: il TAP/TUNER di FS3, o FS4/FS5 impostati su TAP, in ogni preset. HXtra aggiunge un comando <strong>Tap</strong> al Command Center, che viene salvato con ogni preset, così un footswitch batte il tempo solo nei preset in cui lo metti.",
-    "tap-command.li1": "<strong>Impostazione:</strong> il footswitch deve essere un interruttore Stomp. FS1 e FS2 lo sono sempre; per FS3, FS4 o FS5 imposta la sua funzione su Stomp in Global Settings &gt; Footswitches. Poi, nel preset, apri Menu &gt; Command Center, seleziona lo slot del footswitch e gira Command fino a <strong>Tap</strong> (dopo Hotkey). Salva il preset per conservarlo.",
+    "tap-command.li1": "<strong>Impostazione:</strong> il footswitch deve essere un interruttore Stomp, quindi usa la modalità footswitch Stomp, in cui FS1 e FS2 lo sono sempre; per FS3, FS4 o FS5 imposta la sua funzione su Stomp in Global Settings &gt; Footswitches. Poi, nel preset, apri Menu &gt; Command Center, seleziona lo slot del footswitch e gira Command fino a <strong>Tap</strong> (dopo Hotkey). Salva il preset per conservarlo.",
     "tap-command.li2": "<strong>Premerlo</strong> batte il tempo esattamente come il footswitch TAP. Tenerlo premuto non batte il tempo.",
     "tap-command.li3": "<strong>Il suo anello</strong> (FS1–FS3) lampeggia a tempo come l'anello di TAP, nel colore di Tap LED Color se quella funzione è nella tua build. Off in Tap LED Color ferma il lampeggio (in una build senza Tap LED Color lo fa il Tap Tempo LED originale). FS4 e FS5 non hanno anello.",
     "tap-command.li4": "<strong>Cambiare snapshot</strong> non batte mai il tempo.",
@@ -1888,7 +1975,7 @@ var LANGS = {
     "gr-meter.name": "コンプレッサーのゲインリダクション・メーター",
     "gr-meter.desc": "コンプレッサーのかかり具合をホーム画面とその Edit 画面に表示するので、演奏しながら Threshold、Ratio、Attack、Release を追い込めます。",
     "gr-meter.floc": "ホーム画面と、コンプレッサーの Edit 画面",
-    "gr-meter.where": "コンプレッサーの Mtr Size、Mtr Pos、Mtr Dir ノブ（3-Band Comp 以外のすべてのコンプレッサー）",
+    "gr-meter.where": "コンプレッサーの Mtr Size、Mtr Pos、Mtr Dir ノブ（Deluxe、LA Studio、Kinky、Ampeg Opto、Rochester、Red Squeeze の各コンプレッサー）",
     "dsp-usage-display.name": "DSP 使用率表示",
     "dsp-usage-display.desc": "Edit 画面の各ブロックとモデルブラウザに各ブロックの DSP 使用率を、右上隅に合計を表示します。",
     "dsp-usage-display.floc": "Edit 画面とモデルブラウザ",
@@ -1920,15 +2007,19 @@ var LANGS = {
     "nam-a2-lite.desc": "Neural Amp Modeler のキャプチャーを HX Stomp 本体の DSP で最大 3 つ同時に鳴らします。.nam ファイルはセットアップページで変換します。",
     "nam-a2-lite.floc": "モデルブラウザ：Amp &gt; NAM",
     "nam-a2-lite.where": "ブロックのノブ",
+    "gate-sidechain.name": "Noise Gate の Input Sidechain",
+    "gate-sidechain.desc": "Noise Gate ブロックに Input Sidechain ノブを追加：On にすると、ゲートは入力されたままのギターで開閉するので、ハイゲインの歪みの後のゲートがクリーンなギターに追従します。",
+    "gate-sidechain.floc": "Noise Gate ブロック（モノ・ステレオ）",
+    "gate-sidechain.where": "ブロックの Input Sidechain ノブ",
     "preset-led-color.name": "Preset モードの LED カラー",
     "preset-led-color.desc": "Preset フットスイッチ・モードで、プリセットごとに独自の色を付けられ、色はプリセットの保存時に一緒に保存されます。選択中はリングとホーム画面のアイコンがその色で点灯し、選択していないときは暗く点灯します。",
     "preset-led-color.floc": "プリセット・フットスイッチ（Preset フットスイッチ・モード時）",
     "preset-led-color.where": "Global Settings &gt; Displays、2 ページ目",
     "real-block-names.name": "ブロックの実機名",
-    "real-block-names.desc": "すべてのブロックの名前を、元になった実機の名前に変えます。例：Deez One Mod は Boss DS-1 Mod になります。",
+    "real-block-names.desc": "ブロックの名前を、元になった実機の名前に変えます。例：Deez One Mod は Boss DS-1 Mod になります。",
     "real-block-names.floc": "モデルブラウザと Edit 画面",
     "tap-command.name": "Tap コマンド",
-    "tap-command.desc": "タップテンポを必要なプリセットだけに：Command Center の Tap コマンドはプリセットと一緒に保存され、FS1–FS5 をリングがテンポに合わせて点滅するタップテンポスイッチにします。",
+    "tap-command.desc": "タップテンポを必要なプリセットだけに：Command Center の Tap コマンドはプリセットと一緒に保存され、FS1–FS5 をタップテンポスイッチにします。FS1–FS3 ではリングがテンポに合わせて点滅します。",
     "tap-command.floc": "Menu &gt; Command Center の FS スロット",
     "tap-led-color.name": "TAP LED カラー",
     "tap-led-color.desc": "TAP フットスイッチの点滅する LED リングと、ホーム画面の TAP/TUNER のアイコンとラベルの色です。Rainbow は拍ごとに虹の色を順に進み、Random は拍ごとに新しい色を選びます。",
@@ -1943,12 +2034,13 @@ var LANGS = {
     "virtual-footswitches.floc": "ブロックの Bypass Assign &gt; MIDI In、または Controller Assign",
     "virtual-footswitches.where": "Global Settings &gt; Footswitches、4 ページ目と 5 ページ目",
     "overview.name": "デモ",
+    "overview.labels": "HXtra の設定とブロックのノブはラベルがティール色になるので、標準のものと一目で見分けられます。",
     "demos.note": "デモは実機の HX Stomp の画面を、音声やボタン操作とともに録画し、シミュレーションした HX Stomp に重ねたものです。",
     "bpm.alt1": "TAP をタップ：テンポとビート・ドットが追従します",
     "bpm.alt2": "Global Settings、BPM Display：Font Size、Color、Dot Position",
     "bpm.p1": "ホーム画面の左上にテンポを、プリセット番号の横にビート・ドットを表示します。ドットは TAP フットスイッチのリングと一緒に点灯し、タップした瞬間は赤くなります。",
     "bpm.li1": "<strong>テンポ</strong>は HX Stomp が使っているテンポ（Tempo Select の設定に従い、グローバルまたはプリセットのテンポ）を整数で表示します。MIDI クロックからテンポを受けているとき（テンポ画面の Extrnl）は後ろに <code>X</code> が付き、テンポがないときは <code>--</code> と表示されます。",
-    "bpm.li2": "<strong>ドット</strong>はどのフットスイッチ・モードでも、Tap Tempo LED が Off のときでも拍を刻みます。その場合、リングは消灯したままドットだけが点滅します。",
+    "bpm.li2": "<strong>ドット</strong>はどのフットスイッチ・モードでも、Tap LED Color が Off のときでも拍を刻みます。その場合、リングは消灯したままドットだけが点滅します。",
     "settings": "設定",
     "th.setting": "設定項目",
     "th.values": "値",
@@ -1969,7 +2061,7 @@ var LANGS = {
     "gr-meter.li2": "<strong>Edit 画面：</strong>これらのコンプレッサーを選択している間は、その Edit 画面にも同じ位置・同じサイズでメーターが表示されるので、演奏しながらコンプレッサーを調整できます。点灯しているライトはその下にあるもの（Top ではプリセット名、Bottom ではノブ名）を覆い、消灯しているライトの下はそのまま見えます。1 つのプリセットにメーター付きのコンプレッサーが 2 つあると、どちらの Edit 画面にも、最後に Mtr Size を設定した方のメーターが表示されます。",
     "gr-meter.li3": "<strong>NAM との併用：</strong>メーターの DSP コードが NAM A2 Lite の 3 つ目のブロックの領域を使うため、メーターを含むビルドでは NAM ブロックは最大 2 つです。",
     "th.knob": "ノブ",
-    "gr-meter.what1": "メーターの太さ：5、10、15、20 ピクセル。古いビルドの Mtr Thk で保存したプリセットは、1 px なら S、2 なら M、3 なら L、4 以上なら XL で開きます。",
+    "gr-meter.what1": "メーターの太さ：5、10、15、20 ピクセル。古いビルドの Mtr Thk で保存したプリセットは、1 px なら S、2 なら M、3 なら L、4 以上なら XL でメーターを描きます。",
     "gr-meter.what2": "ホーム画面と Edit 画面のどこでメーターを点灯させるか。Middle は中央を横切るラインの位置に表示します。",
     "gr-meter.what3": "Normal は左から右、または上から下へ伸び、Reverse はその逆です。",
     "dsp-usage-display.alt1": "ベースアンプをブラウズ中：DSP の合計で各モデルを事前に確認し、追加したブロックには使用率が表示されます",
@@ -1980,10 +2072,9 @@ var LANGS = {
     "dsp-usage-display.what2": "Edit 画面のブロック上の使用率。",
     "dsp-usage-display.what3": "右上隅の合計。<strong>Small</strong> はメーターの 3x5 の数字を 2 倍で、タイトルの約半分の高さで同じ隅に描くので、長い名前とは重なることがあります。<strong>Large</strong> はこれらの設定ができる前と同じく、タイトルのフォントで描きます。<strong>Off</strong> は何も描かないので、長いプリセット名やブロックのタイトルが隠れません。",
     "tuner-settings.alt1": "チューナー：Activate を Press にして 1 回押すだけで開き、続いて Lock を On にするとノブを回しても変わらなくなります",
-    "tuner-settings.p1": "<code>HX_TUNER=1</code> でビルドすると、チューナー自身の設定に専用のページが 3 ページ目として追加されます。Trails、Offsets、String 6 のページから右へ送った先です。弦ごとのページ（Strings 5–3、続いて 2 と 1）はその後に続きます。弦ごとのオフセットを使う人は少ないため、このページを先にしています。ノブは純正ページのノブと同じように使えます。回すと変更、押すと初期値に戻ります。",
+    "tuner-settings.p1": "チューナー自身の設定に専用のページが 3 ページ目として追加されます。Trails、Offsets、String 6 のページから右へ送った先です。弦ごとのページ（Strings 5–3、続いて 2 と 1）はその後に続きます。弦ごとのオフセットを使う人は少ないため、このページを先にしています。ノブは純正ページのノブと同じように使えます。回すと変更、押すと初期値に戻ります。",
     "tuner-settings.what1": "TAP/Tunr を割り当てたフットスイッチは、通常はテンポをタップし、長押しでチューナーを開きます。<strong>Press</strong> にすると、押した瞬間にチューナーが開き、テンポはタップされなくなります。割り当てに従うので、TAP/Tunr を割り当てたどのフットスイッチでも機能します。",
     "tuner-settings.what2": "On にすると、チューナーのほかの設定（Output、Refrnc、Type、Trails、Offsets）が変わらなくなります。ノブを回す操作と、項目を初期値に戻すノブ押しは無視されます。ページ送りはでき、このページのノブも回せるので、Lock をオンにした場所でオフに戻せます。",
-    "tuner-settings.p2": "どちらも、Global Settings &gt; HXtra にこれらの設定があったビルドの値（設定 ID 29 と 104）を引き継ぎます。",
     "long-press.alt1": "FS2 をタップしてから長押し、FS1 の長押しでチューナー、続いて Hold と FS6〜FS10 の Function 設定",
     "long-press.p1": "Stomp フットスイッチ・モードでは、FS1–FS5 のそれぞれに Hold の動作を設定できます（Global Settings &gt; Footswitches、2 ページ目と 3 ページ目：FS1 Hold Function … FS5 Hold Function）。スイッチを 1 s 押し続けるとその動作をします。タップすると従来どおりそのスイッチのブロックが切り替わりますが、押した時点ではまだ長押しになるか分からないため、切り替わるのは押したときではなく離したときになります。",
     "long-press.li1": "<strong>Tuner</strong> は TAP の長押しと同じく、チューナーを開きます。",
@@ -1992,7 +2083,7 @@ var LANGS = {
     "long-press.li4": "Hold が <strong>Off</strong> のスイッチ、モーメンタリーのスイッチ、Preset と Snapshot のフットスイッチ・モードは純正どおりに動作します。",
     "long-press.what1": "そのフットスイッチを 1 s 押し続けたときの動作。FS4 と FS5 は外部スイッチです。初期設定では FS1 の長押しで FS6、以下同様に FS5 で FS10 になります。",
     "fx-loop-gate.p1": "Input ブロックと同じように、FX Loop と Return ブロックにノイズゲートを内蔵します。ループ内のノイズの多いペダルのために専用の Noise Gate ブロックを使わずに済みます（<a href=\"https://github.com/wisemandenny/hxtra/issues/69\">#69</a>）。ゲートはループから戻る信号に、ブロックの Return レベルと Mix の前でかかります。ドライ信号と Send にはかかりません。",
-    "fx-loop-gate.li1": "<strong>DSP：</strong>FX Loop と Return ブロックは、ゲートのオン・オフにかかわらず、それぞれ約 0.2%（ステレオは 0.4%）多く DSP を使います。これらのブロックを含み、すでに上限に近いプリセットは読み込めないことがあります。",
+    "fx-loop-gate.li1": "<strong>DSP：</strong>FX Loop と Return ブロックは、ゲートのオン・オフにかかわらず、それぞれ0.2%（ステレオは 0.4%）多く DSP を使います。これらのブロックを含み、すでに上限に近いプリセットは読み込めないことがあります。",
     "fx-loop-gate.li2": "<strong>ステレオ・ブロック</strong>は左右を連動させず、それぞれ個別にゲートします。",
     "fx-loop-gate.li3": "ゲートとともに保存した<strong>プリセット</strong>は、そのノブの値を保持します。そのようなプリセットを純正ファームウェアや HX Edit で開いた場合の動作は、まだテストしていません。",
     "fx-loop-gate.what1": "ゲートをオンにします。Off では純正ファームウェアと同じ音になります。",
@@ -2028,10 +2119,16 @@ var LANGS = {
     "nam-a2-lite.p1": "アップストリームの <a href=\"https://github.com/nocaseguy/hx-stomp-nam-lite\">hx-stomp-nam-lite</a> から取り込んだもので、このフォークでは Model ノブの表示以外は変更していません。<a href=\"https://www.neuralampmodeler.com\">Neural Amp Modeler</a> の A2 Lite キャプチャーを HX Stomp 本体の DSP で動かします。セットアップページで <code>.nam</code> ファイルを、ブロックが読み込む User IR に変換します。",
     "nam-a2-lite.li1": "<strong>場所：</strong>Amp &gt; NAM。10 個のノブとトーンスタックを持つブロックです。Xenomorph Fuzz Mono のプリセット ID 555 を使っている（この純正モデルは削除されます）ため、HX Edit でも NAM ブロックは残り、どちらのビルドで作ったプリセットももう一方で開けます。",
     "nam-a2-lite.li2": "<strong>古いプリセット：</strong>以前の NAM ビルド（プリセット ID 147 と 148）で保存したプリセットは、このビルドでは NAM A2 Lite として開きません。それらのプリセットではブロックを追加し直してください。",
-    "nam-a2-lite.li3": "<strong>ブロック数：</strong>最大 3 つを同時に鳴らせ、それぞれ別のキャプチャーを使えます。それ以上のブロックは入力をそのまま通します。ブロックを少なくするほど、ほかの DSP 機能に余裕ができます。3 ブロックならメトロノームと FX Loop ゲート、2 ブロックならそれに加えて GR メーターも入ります。<code>build.py</code> では <code>HX_NAM_SLOTS</code> で設定します。未設定の場合は、オンにした DSP 機能が収まる範囲での最大数になります。",
+    "nam-a2-lite.li3": "<strong>ブロック数：</strong>最大 3 つを同時に鳴らせ、それぞれ別のキャプチャーを使えます。それ以上のブロックは入力をそのまま通します。ブロックを少なくするほど、ほかの DSP 機能に余裕ができます。3 ブロックならメトロノームと FX Loop ゲート、または USB &amp; Send Routing か Input Sidechain のどちらか 1 つだけが入り、2 ブロックなら 5 つすべてが入ります。<code>build.py</code> では <code>HX_NAM_SLOTS</code> で設定します。未設定の場合は、オンにした DSP 機能が収まる範囲での最大数になります。",
     "nam-a2-lite.li4": "<strong>キャプチャー：</strong>同梱していません。ご自身の <code>.nam</code> ファイルを用意してください。ライセンスは各作者の定めに従います。",
     "nam-a2-lite.p2": "NAM の変更点はアップストリームの <a href=\"https://github.com/wisemandenny/hxtra/blob/main/CHANGELOG.md\">CHANGELOG.md</a> にあります。",
     "nam-a2-lite.li5": "HX Stomp では <strong>Model</strong> がスロット番号として、4.0 ではなく 4 と表示されます。（MIDI コントローラーからの）スロット間の値は、実際に鳴るスロットとして表示されます。HX Stomp XL では従来どおり 4.0 と表示されます。",
+    "gate-sidechain.p1": "Noise Gate ブロックは、自分の信号ではなく入力をキーにできます（<a href=\"https://github.com/wisemandenny/hxtra/issues/131\">#131</a>）。Input Sidechain を On にすると、ゲートは Input ブロックのゲートが聞く信号（どのブロックも通る前のギター、L と R の合計）で開閉し、ゲートをかけるのはブロックに届いた信号のままです。ハイゲインの歪みの後のゲートがクリーンなギターに追従し、弾くのをやめると閉じ、歪み自体のノイズで開いたままになることがなくなります。",
+    "gate-sidechain.exp": "<strong>試験的機能：</strong>録音した信号でテスト済みですが、実際に演奏した楽器ではまだ試していないため、調整が必要になるかもしれません。HX Stomp のギター入力にケーブルが挿さっているときだけ動作します。",
+    "gate-sidechain.li1": "<strong>DSP：</strong>Input Sidechain の On／Off にかかわらず、Noise Gate ブロックはそれぞれ0.1%（ステレオは 0.2%）多く使います。Noise Gate を含んで上限に達しているプリセットは読み込めないことがあります。",
+    "gate-sidechain.li2": "<strong>Threshold</strong> は入力のレベルと比べられるので、Input ブロックのゲートと同じように設定してください。Input ブロック自体の Input Gate は On でも Off でもかまいません。",
+    "gate-sidechain.li3": "Input Sidechain を使って保存した<strong>プリセット</strong>はノブの設定を保持します。HX Edit は各ブロックのノブの一覧を独自に持っているため、このノブを表示しません。そのプリセットを純正ファームウェアで開くことはまだテストしていません。",
+    "gate-sidechain.what1": "On でゲートはブロックに届く信号ではなく入力に追従します。Off では純正ファームウェアと同じように動作します。",
     "preset-led-color.p1": "Preset フットスイッチ・モードでは、HX Stomp は現在のプリセットのリングを赤く点灯し、ホーム画面に赤いスイッチ・アイコンを表示して、ほかの 2 つのプリセットのリングは消灯します。HXtra では、Tap LED Color と同じパレットから、プリセットごとに独自の色を付けられます。",
     "preset-led-color.li1": "<strong>This Preset</strong>（Global Settings &gt; Displays、2 ページ目）で現在のプリセットの色を設定します。色を残すにはプリセットを保存してください。色はプリセット自体に保存されるので、移動、エクスポート、復元してもプリセットと一緒に引き継がれます。",
     "preset-led-color.li2": "<strong>選択中</strong>は、プリセットのリングとアイコンがその色で点灯します。<strong>選択していないとき</strong>は、色を付けたプリセットは暗く表示されます（その色のブロックをバイパスしたときに HX Stomp が使う色合い）。どのフットスイッチにどのプリセットがあるかがひと目で分かります。",
@@ -2045,7 +2142,7 @@ var LANGS = {
     "real-block-names.li1": "<strong>名前が変わらないもの：</strong>Line 6 オリジナルのモデル、ユーティリティ・ブロック、もともと実機名のタイトル。",
     "real-block-names.li2": "<strong>プリセット</strong>のモデル ID は変わらないので、実機名の有無にかかわらずプリセットは同じで、純正ファームウェアでも通常どおり開けます。",
     "tap-command.p1": "純正の HX Stomp では、タップテンポはフットスイッチのグローバル機能です：FS3 の TAP/TUNER、または TAP に設定した FS4/FS5 が、すべてのプリセットで使われます。HXtra は Command Center に <strong>Tap</strong> コマンドを追加します。Command Center はプリセットごとに保存されるので、フットスイッチは置いたプリセットでだけテンポをタップします。",
-    "tap-command.li1": "<strong>設定方法：</strong>フットスイッチは Stomp スイッチである必要があります。FS1 と FS2 は常に Stomp です。FS3、FS4、FS5 は Global Settings &gt; Footswitches で機能を Stomp にします。次にプリセットで Menu &gt; Command Center を開き、そのフットスイッチのスロットを選んで Command を <strong>Tap</strong>（Hotkey の次）に回します。残すにはプリセットを保存してください。",
+    "tap-command.li1": "<strong>設定方法：</strong>フットスイッチは Stomp スイッチである必要があります。Stomp フットスイッチ・モードを使ってください。このモードでは FS1 と FS2 は常に Stomp です。FS3、FS4、FS5 は Global Settings &gt; Footswitches で機能を Stomp にします。次にプリセットで Menu &gt; Command Center を開き、そのフットスイッチのスロットを選んで Command を <strong>Tap</strong>（Hotkey の次）に回します。残すにはプリセットを保存してください。",
     "tap-command.li2": "<strong>押すと</strong> TAP フットスイッチとまったく同じようにテンポをタップします。長押しではタップしません。",
     "tap-command.li3": "<strong>リング</strong>（FS1–FS3）は TAP のリングと同じようにテンポに合わせて点滅し、Tap LED Color がビルドに入っていればその色になります。Tap LED Color の Off で点滅が止まります（Tap LED Color のないビルドでは純正の Tap Tempo LED で止まります）。FS4 と FS5 にはリングがありません。",
     "tap-command.li4": "<strong>スナップショットの切り替え</strong>でタップされることはありません。",
@@ -2097,7 +2194,7 @@ var LANGS = {
     "gr-meter.name": "压缩器增益衰减表",
     "gr-meter.desc": "在主屏幕和压缩器的 Edit 界面显示压缩器的压缩程度，让你边弹边调 Threshold、Ratio、Attack 和 Release。",
     "gr-meter.floc": "主屏幕和压缩器的 Edit 界面",
-    "gr-meter.where": "压缩器的 Mtr Size、Mtr Pos 和 Mtr Dir 旋钮，除 3-Band Comp 外的每款压缩器都有",
+    "gr-meter.where": "压缩器的 Mtr Size、Mtr Pos 和 Mtr Dir 旋钮，Deluxe、LA Studio、Kinky、Ampeg Opto、Rochester 和 Red Squeeze 压缩器都有",
     "dsp-usage-display.name": "DSP 占用显示",
     "dsp-usage-display.desc": "在 Edit 界面的各模块上和模型浏览器中显示每个模块占用的 DSP 比例，并在右上角显示总量。",
     "dsp-usage-display.floc": "Edit 界面和模型浏览器",
@@ -2129,15 +2226,19 @@ var LANGS = {
     "nam-a2-lite.desc": "在 HX Stomp 自身的 DSP 上运行 Neural Amp Modeler 采样，最多同时三个；安装页面会帮你转换 .nam 文件。",
     "nam-a2-lite.floc": "模型浏览器：Amp &gt; NAM",
     "nam-a2-lite.where": "模块的旋钮",
+    "gate-sidechain.name": "Noise Gate 输入侧链",
+    "gate-sidechain.desc": "Noise Gate 模块新增 Input Sidechain 旋钮：开启后，噪声门按输入时的吉他信号开关，因此放在高增益失真之后的噪声门会跟随干净的吉他信号。",
+    "gate-sidechain.floc": "Noise Gate 模块（单声道和立体声）",
+    "gate-sidechain.where": "模块的 Input Sidechain 旋钮",
     "preset-led-color.name": "Preset 模式 LED 颜色",
     "preset-led-color.desc": "在 Preset 脚踏开关模式下，每个预设都有自己的颜色，并随预设保存：选中时它的灯环和主屏幕图标以该颜色点亮，未选中时变暗。",
     "preset-led-color.floc": "预设脚踏开关，在 Preset 脚踏开关模式下",
     "preset-led-color.where": "Global Settings &gt; Displays，第 2 页",
     "real-block-names.name": "模块的真实名称",
-    "real-block-names.desc": "将所有模块重命名为其原型设备的名称：例如 Deez One Mod 变为 Boss DS-1 Mod。",
+    "real-block-names.desc": "将模块重命名为其原型设备的名称：例如 Deez One Mod 变为 Boss DS-1 Mod。",
     "real-block-names.floc": "模型浏览器和 Edit 界面",
     "tap-command.name": "Tap 命令",
-    "tap-command.desc": "只在需要的预设里使用拍速：Command Center 中的 Tap 命令随预设保存，把 FS1–FS5 变成拍速开关，其灯环随速度闪烁。",
+    "tap-command.desc": "只在需要的预设里使用拍速：Command Center 中的 Tap 命令随预设保存，把 FS1–FS5 变成拍速开关；在 FS1–FS3 上，其灯环随速度闪烁。",
     "tap-command.floc": "Menu &gt; Command Center，FS 槽位",
     "tap-led-color.name": "TAP LED 颜色",
     "tap-led-color.desc": "TAP 脚踏开关闪烁灯环的颜色，以及主屏幕上 TAP/TUNER 图标和标签的颜色。Rainbow 每拍沿彩虹前进一步；Random 每拍随机换一种颜色。",
@@ -2152,12 +2253,13 @@ var LANGS = {
     "virtual-footswitches.floc": "模块的 Bypass Assign &gt; MIDI In，或 Controller Assign",
     "virtual-footswitches.where": "Global Settings &gt; Footswitches，第 4 和第 5 页",
     "overview.name": "演示",
+    "overview.labels": "HXtra 的设置和模块旋钮使用青绿色标签，让你一眼就能和原厂的区分开。",
     "demos.note": "演示录自真实 HX Stomp 的屏幕，连同它的声音和按键操作，再叠加到模拟的 HX Stomp 上。",
     "bpm.alt1": "踩 TAP 打拍：速度和节拍点随之变化",
     "bpm.alt2": "Global Settings 中的 BPM Display：Font Size、Color 和 Dot Position",
     "bpm.p1": "主屏幕左上角显示速度，预设编号旁有一个节拍点，与 TAP 脚踏开关的灯环同步亮起，踩下时为红色。",
     "bpm.li1": "<strong>速度</strong>即 HX Stomp 正在使用的速度，按 Tempo Select 的设置取全局速度或预设速度，显示为整数。速度来自 MIDI 时钟时（速度界面中的 Extrnl），后面显示 <code>X</code>；没有速度时显示 <code>--</code>。",
-    "bpm.li2": "<strong>节拍点</strong>在所有脚踏开关模式下都会打拍，Tap Tempo LED 关闭时也一样：此时灯环保持熄灭，只有节拍点闪烁。",
+    "bpm.li2": "<strong>节拍点</strong>在所有脚踏开关模式下都会打拍，Tap LED Color 关闭时也一样：此时灯环保持熄灭，只有节拍点闪烁。",
     "settings": "设置",
     "th.setting": "设置项",
     "th.values": "取值",
@@ -2178,7 +2280,7 @@ var LANGS = {
     "gr-meter.li2": "<strong>Edit 界面：</strong>选中这些压缩器之一时，表也会以相同的位置和大小显示在它的 Edit 界面中，让你边弹边调。亮起的灯格会盖住下面的内容（Top 时盖住预设名，Bottom 时盖住旋钮名）；未亮的灯格则让其照常显示。一个预设中有两个带表的压缩器时，两个 Edit 界面都显示最后设置 Mtr Size 的那一个。",
     "gr-meter.li3": "<strong>与 NAM 同用：</strong>表的 DSP 代码会占用 NAM A2 Lite 第三个模块的空间，因此包含它的版本最多有两个 NAM 模块。",
     "th.knob": "旋钮",
-    "gr-meter.what1": "表的粗细：5、10、15 或 20 像素。用旧版本的 Mtr Thk 保存的预设，打开时 1 px 对应 S，2 对应 M，3 对应 L，4 及以上对应 XL。",
+    "gr-meter.what1": "表的粗细：5、10、15 或 20 像素。用旧版本的 Mtr Thk 保存的预设，绘制表时 1 px 对应 S，2 对应 M，3 对应 L，4 及以上对应 XL。",
     "gr-meter.what2": "表在主屏幕和 Edit 界面上亮起的位置。Middle 取代中间那条横线。",
     "gr-meter.what3": "Normal 从左到右或从上到下填充；Reverse 方向相反。",
     "dsp-usage-display.alt1": "浏览贝斯放大器：DSP 总量会预览每个模型，添加后模块显示它的占用比例",
@@ -2189,10 +2291,9 @@ var LANGS = {
     "dsp-usage-display.what2": "Edit 界面模块上的占用比例。",
     "dsp-usage-display.what3": "右上角的总量。<strong>Small</strong> 用表的 3x5 数字放大 2 倍绘制，约为标题高度的一半，位置不变，因此较长的名称仍可能与它重叠。<strong>Large</strong> 用标题字体绘制，与加入这些设置之前相同。<strong>Off</strong> 在那里不绘制任何内容，因此不会遮住较长的预设名或模块标题。",
     "tuner-settings.alt1": "调音器：Activate 设为 Press，按一下即可打开；然后 Lock 设为 On，旋钮就不再改变设置",
-    "tuner-settings.p1": "启用 <code>HX_TUNER=1</code> 后，调音器自己的设置拥有独立的一页，排在第三：在 Trails、Offsets 和 String 6 那一页向右翻一页。各弦页面（Strings 5–3，然后是 2 和 1）排在它之后：很少有人用到各弦的偏移，所以这一页放在它们前面。它的旋钮用法与原厂页面相同：旋转更改，按下恢复默认值。",
+    "tuner-settings.p1": "调音器自己的设置拥有独立的一页，排在第三：在 Trails、Offsets 和 String 6 那一页向右翻一页。各弦页面（Strings 5–3，然后是 2 和 1）排在它之后：很少有人用到各弦的偏移，所以这一页放在它们前面。它的旋钮用法与原厂页面相同：旋转更改，按下恢复默认值。",
     "tuner-settings.what1": "分配为 TAP/Tunr 的脚踏开关通常用于敲击速度，长按则打开调音器。设为 <strong>Press</strong> 时，按下即立刻打开调音器，不再敲击速度。它跟随分配，所以对任何分配了 TAP/Tunr 的脚踏开关都有效。",
     "tuner-settings.what2": "On 会锁定调音器的其他设置（Output、Refrnc、Type、Trails、Offsets）：旋转旋钮以及按下旋钮恢复默认值的操作都会被忽略。翻页仍然可用，本页的旋钮也仍可旋转，因此可以在开启 Lock 的地方再将它关闭。",
-    "tuner-settings.p2": "两者都会沿用早先把它们放在 Global Settings &gt; HXtra 中的版本所保存的值（设置 ID 29 和 104）。",
     "long-press.alt1": "轻踩并按住 FS2，按住 FS1 打开调音器，然后是 Hold 以及 FS6 到 FS10 Function 设置",
     "long-press.p1": "在 Stomp 脚踏开关模式下，FS1–FS5 每个都可以设置一个 Hold 动作（Global Settings &gt; Footswitches，第 2 和第 3 页：FS1 Hold Function … FS5 Hold Function）。按住开关 1 s 即执行；轻踩仍会切换该开关自己的模块，但改为在松开时而不是按下时生效，因为按下时还无法判断是否会变成长按。",
     "long-press.li1": "<strong>Tuner</strong> 打开调音器，与长按 TAP 相同。",
@@ -2201,7 +2302,7 @@ var LANGS = {
     "long-press.li4": "Hold 设为 <strong>Off</strong> 的开关、瞬时开关，以及 Preset 和 Snapshot 脚踏开关模式，均与原厂相同。",
     "long-press.what1": "按住该脚踏开关 1 s 时执行的操作。FS4 和 FS5 是外接开关。默认 FS1 按住时触发 FS6，依此类推，直到 FS5 触发 FS10。",
     "fx-loop-gate.p1": "FX Loop 和 Return 模块内置噪声门，就像 Input 模块那样，因此回路中噪声较大的单块不必再单独占用一个 Noise Gate 模块（<a href=\"https://github.com/wisemandenny/hxtra/issues/69\">#69</a>）。它处理从回路返回的信号，位于模块的 Return 电平和 Mix 之前；干信号和 Send 不经过噪声门。",
-    "fx-loop-gate.li1": "<strong>DSP：</strong>无论噪声门开或关，每个 FX Loop 和 Return 模块都会多占用约 0.2%（立体声 0.4%）。已到上限且含有这类模块的预设可能无法载入。",
+    "fx-loop-gate.li1": "<strong>DSP：</strong>无论噪声门开或关，每个 FX Loop 和 Return 模块都会多占用 0.2%（立体声 0.4%）。已到上限且含有这类模块的预设可能无法载入。",
     "fx-loop-gate.li2": "<strong>立体声模块</strong>的左右两侧各自独立处理，互不联动。",
     "fx-loop-gate.li3": "<strong>预设</strong>保存时会保留噪声门的旋钮设置。在原厂固件或 HX Edit 中打开这样的预设，尚未经过测试。",
     "fx-loop-gate.what1": "开启噪声门。设为 Off 时，模块的声音与原厂固件相同。",
@@ -2237,10 +2338,16 @@ var LANGS = {
     "nam-a2-lite.p1": "来自上游项目 <a href=\"https://github.com/nocaseguy/hx-stomp-nam-lite\">hx-stomp-nam-lite</a>，本分支除 Model 旋钮的显示方式外未作改动：在 HX Stomp 自身 DSP 上运行的 <a href=\"https://www.neuralampmodeler.com\">Neural Amp Modeler</a> A2 Lite 采样。安装页面会把你的 <code>.nam</code> 文件转换为模块读取的 User IR。",
     "nam-a2-lite.li1": "<strong>位置：</strong>Amp &gt; NAM，一个带十个旋钮和音色堆栈的模块。它占用 Xenomorph Fuzz Mono 的预设 ID 555（该原厂模型已被移除），因此 HX Edit 会保留 NAM 模块，用任一版本制作的预设都能在另一版本中打开。",
     "nam-a2-lite.li2": "<strong>旧预设：</strong>用早期 NAM 版本保存的预设（预设 ID 147 和 148）在本版本中不会打开为 NAM A2 Lite：请在这些预设中重新添加该模块。",
-    "nam-a2-lite.li3": "<strong>模块数量：</strong>最多 3 个同时发声，各用自己的采样；再多出的模块会让输入直接通过。模块越少，留给其他 DSP 功能的空间越多：3 个模块时还能放下节拍器和 FX Loop 噪声门，2 个时还能再加增益衰减表。使用 <code>build.py</code> 时由 <code>HX_NAM_SLOTS</code> 设置；未设置时，取能为你开启的 DSP 功能留出空间的最大值。",
+    "nam-a2-lite.li3": "<strong>模块数量：</strong>最多 3 个同时发声，各用自己的采样；再多出的模块会让输入直接通过。模块越少，留给其他 DSP 功能的空间越多：3 个模块时还能放下节拍器和 FX Loop 噪声门，或者只放 USB &amp; Send Routing 或 Input Sidechain 其中一项；2 个时五项都能放下。使用 <code>build.py</code> 时由 <code>HX_NAM_SLOTS</code> 设置；未设置时，取能为你开启的 DSP 功能留出空间的最大值。",
     "nam-a2-lite.li4": "<strong>采样：</strong>不附带任何采样。请自备 <code>.nam</code> 文件，其许可由各自的作者决定。",
     "nam-a2-lite.p2": "上游的 <a href=\"https://github.com/wisemandenny/hxtra/blob/main/CHANGELOG.md\">CHANGELOG.md</a> 记录了 NAM 的改动。",
     "nam-a2-lite.li5": "<strong>Model</strong> 在 HX Stomp 上显示为槽位编号，是 4 而不是 4.0。介于两个槽位之间的值（来自 MIDI 控制器）显示为实际播放的槽位。HX Stomp XL 仍显示 4.0。",
+    "gate-sidechain.p1": "Noise Gate 模块可以用输入信号而不是自身信号作为触发（<a href=\"https://github.com/wisemandenny/hxtra/issues/131\">#131</a>）。开启 Input Sidechain 后，噪声门按 Input 模块的噪声门所听到的信号（经过任何模块之前的吉他信号，左右声道相加）开关，但仍作用于送到它的信号。放在高增益失真之后的噪声门因此会跟随干净的吉他信号：停止弹奏时就关闭，失真本身的底噪不再让它保持打开。",
+    "gate-sidechain.exp": "<strong>实验性功能：</strong>已用录制的信号测试，尚未用实际演奏的乐器测试，可能需要调整。仅在 HX Stomp 的吉他输入插有线缆时有效。",
+    "gate-sidechain.li1": "<strong>DSP：</strong>无论 Input Sidechain 是否开启，每个 Noise Gate 模块都会多占用 0.1%（立体声 0.2%）。已经接近上限且含有 Noise Gate 的预设可能无法加载。",
+    "gate-sidechain.li2": "<strong>Threshold</strong> 此时与输入电平比较，所以请像设置 Input 模块的噪声门那样设置它。Input 模块自身的 Input Gate 开或关均可。",
+    "gate-sidechain.li3": "使用 Input Sidechain 保存的<strong>预设</strong>会保留该旋钮。HX Edit 有自己的模块旋钮列表，因此不显示它；在原厂固件中打开这类预设尚未测试。",
+    "gate-sidechain.what1": "开启时，噪声门跟随输入信号，而不是送到模块的信号。Off 时，模块与原厂固件相同。",
     "preset-led-color.p1": "在 Preset 脚踏开关模式下，HX Stomp 把当前预设的灯环点亮为红色，主屏幕上的开关图标也是红色，另外两个预设的灯环则熄灭。HXtra 让每个预设拥有自己的颜色，调色板与 Tap LED Color 相同。",
     "preset-led-color.li1": "<strong>This Preset</strong>（Global Settings &gt; Displays，第 2 页）设置当前预设的颜色。保存预设才能保留它：颜色存储在预设本身中，因此移动、导出或恢复预设时颜色都会随之保留。",
     "preset-led-color.li2": "<strong>选中时</strong>，预设的灯环和图标以它的颜色点亮。<strong>未选中时</strong>，有颜色的预设以暗色显示（即 HX Stomp 对该颜色的旁通模块所用的色调），让你看清哪个脚踏开关对应哪个预设。",
@@ -2254,7 +2361,7 @@ var LANGS = {
     "real-block-names.li1": "<strong>保留原名的：</strong>Line 6 原创模型、工具类模块，以及本来就是真实名称的标题。",
     "real-block-names.li2": "<strong>预设</strong>的模型 ID 不变，因此无论是否使用真实名称，预设都完全相同，在原厂固件上也照常打开。",
     "tap-command.p1": "在原厂 HX Stomp 上，拍速是脚踏开关的全局功能：FS3 的 TAP/TUNER，或设为 TAP 的 FS4/FS5，在每个预设中都一样。HXtra 在 Command Center 中加入 <strong>Tap</strong> 命令，而 Command Center 随每个预设保存，所以脚踏开关只在你放置它的预设中拍速度。",
-    "tap-command.li1": "<strong>设置方法：</strong>脚踏开关必须是 Stomp 开关。FS1 和 FS2 始终是；FS3、FS4 或 FS5 需在 Global Settings &gt; Footswitches 中把功能设为 Stomp。然后在预设中打开 Menu &gt; Command Center，选择该脚踏开关的槽位，把 Command 转到 <strong>Tap</strong>（在 Hotkey 之后）。保存预设即可保留。",
+    "tap-command.li1": "<strong>设置方法：</strong>脚踏开关必须是 Stomp 开关，所以请使用 Stomp 脚踏开关模式，此模式下 FS1 和 FS2 始终是；FS3、FS4 或 FS5 需在 Global Settings &gt; Footswitches 中把功能设为 Stomp。然后在预设中打开 Menu &gt; Command Center，选择该脚踏开关的槽位，把 Command 转到 <strong>Tap</strong>（在 Hotkey 之后）。保存预设即可保留。",
     "tap-command.li2": "<strong>按下它</strong>与 TAP 脚踏开关完全一样地拍速度。按住不会拍速度。",
     "tap-command.li3": "<strong>它的灯环</strong>（FS1–FS3）像 TAP 灯环一样随速度闪烁，若你的构建包含 Tap LED Color，则使用其颜色。Tap LED Color 设为 Off 即停止闪烁（在不含 Tap LED Color 的构建中，由原厂 Tap Tempo LED 控制）。FS4 和 FS5 没有灯环。",
     "tap-command.li4": "<strong>切换快照</strong>从不会拍速度。",
@@ -2306,7 +2413,7 @@ var LANGS = {
     "gr-meter.name": "컴프레서 게인 리덕션 미터",
     "gr-meter.desc": "컴프레서가 얼마나 세게 작동하는지 홈 화면과 해당 블록의 Edit 화면에 보여 주므로, 연주하면서 Threshold, Ratio, Attack, Release를 맞출 수 있습니다.",
     "gr-meter.floc": "홈 화면과 컴프레서의 Edit 화면",
-    "gr-meter.where": "컴프레서의 Mtr Size, Mtr Pos, Mtr Dir 노브 (3-Band Comp를 제외한 모든 컴프레서)",
+    "gr-meter.where": "컴프레서의 Mtr Size, Mtr Pos, Mtr Dir 노브 (Deluxe, LA Studio, Kinky, Ampeg Opto, Rochester, Red Squeeze 컴프레서)",
     "dsp-usage-display.name": "DSP 사용량 표시",
     "dsp-usage-display.desc": "Edit 화면의 블록과 모델 브라우저에 각 블록이 차지하는 DSP 비율을, 오른쪽 위 모서리에 합계를 표시합니다.",
     "dsp-usage-display.floc": "Edit 화면과 모델 브라우저",
@@ -2338,15 +2445,19 @@ var LANGS = {
     "nam-a2-lite.desc": "Neural Amp Modeler 캡처를 HX Stomp 자체 DSP에서 최대 3개까지 동시에 재생합니다. .nam 파일은 설치 페이지에서 변환합니다.",
     "nam-a2-lite.floc": "모델 브라우저: Amp &gt; NAM",
     "nam-a2-lite.where": "블록의 노브",
+    "gate-sidechain.name": "Noise Gate 입력 사이드체인",
+    "gate-sidechain.desc": "Noise Gate 블록의 Input Sidechain 노브: 켜면 게이트가 들어오는 그대로의 기타에 따라 열리고 닫혀, 하이게인 드라이브 뒤의 게이트가 클린 기타를 따라갑니다.",
+    "gate-sidechain.floc": "Noise Gate 블록(모노, 스테레오)",
+    "gate-sidechain.where": "블록의 Input Sidechain 노브",
     "preset-led-color.name": "프리셋 모드 LED 색상",
     "preset-led-color.desc": "Preset 풋스위치 모드에서 프리셋마다 고유한 색을 지정하며, 프리셋을 저장하면 유지됩니다. 선택된 동안에는 링과 홈 화면 아이콘이 그 색으로 켜지고, 선택되지 않은 동안에는 어둡게 표시됩니다.",
     "preset-led-color.floc": "Preset 풋스위치 모드의 프리셋 풋스위치",
     "preset-led-color.where": "Global Settings &gt; Displays, 2페이지",
     "real-block-names.name": "블록의 실제 이름",
-    "real-block-names.desc": "모든 블록 이름을 원본 장비 이름으로 바꿉니다. 예: Deez One Mod는 Boss DS-1 Mod가 됩니다.",
+    "real-block-names.desc": "블록 이름을 원본 장비 이름으로 바꿉니다. 예: Deez One Mod는 Boss DS-1 Mod가 됩니다.",
     "real-block-names.floc": "모델 브라우저와 Edit 화면",
     "tap-command.name": "Tap 명령",
-    "tap-command.desc": "탭 템포를 필요한 프리셋에서만: Command Center의 Tap 명령은 프리셋과 함께 저장되며, FS1–FS5를 링이 템포에 맞춰 깜박이는 탭 템포 스위치로 만듭니다.",
+    "tap-command.desc": "탭 템포를 필요한 프리셋에서만: Command Center의 Tap 명령은 프리셋과 함께 저장되며, FS1–FS5를 탭 템포 스위치로 만듭니다. FS1–FS3에서는 링이 템포에 맞춰 깜박입니다.",
     "tap-command.floc": "Menu &gt; Command Center의 FS 슬롯",
     "tap-led-color.name": "TAP LED 색상",
     "tap-led-color.desc": "TAP 풋스위치에서 깜박이는 LED 링의 색, 그리고 홈 화면의 TAP/TUNER 아이콘과 라벨의 색입니다. Rainbow는 박자마다 무지개 색을 한 단계씩 바꾸고, Random은 박자마다 새 색을 고릅니다.",
@@ -2361,12 +2472,13 @@ var LANGS = {
     "virtual-footswitches.floc": "블록의 Bypass Assign &gt; MIDI In 또는 Controller Assign",
     "virtual-footswitches.where": "Global Settings &gt; Footswitches, 4페이지와 5페이지",
     "overview.name": "데모",
+    "overview.labels": "HXtra의 설정과 블록 노브는 레이블이 틸 색상이라 순정 항목과 한눈에 구분할 수 있습니다.",
     "demos.note": "데모는 실제 HX Stomp의 화면을 오디오, 버튼 입력과 함께 녹화한 뒤, 시뮬레이션한 HX Stomp 위에 겹쳐 만들었습니다.",
     "bpm.alt1": "TAP을 탭하면 템포와 박자 점이 따라옵니다",
     "bpm.alt2": "Global Settings, BPM Display: Font Size, Color, Dot Position",
     "bpm.p1": "홈 화면 왼쪽 위에 템포가, 프리셋 번호 옆에 박자 점이 표시됩니다. 박자 점은 TAP 풋스위치의 링과 함께 켜지며, 탭할 때는 빨간색입니다.",
     "bpm.li1": "<strong>템포</strong>는 HX Stomp가 쓰고 있는 템포로, Tempo Select에 따라 글로벌 템포나 프리셋 템포를 정수로 표시합니다. MIDI 클럭에서 템포를 받는 동안(템포 화면의 Extrnl)에는 뒤에 <code>X</code>가 붙고, 템포가 없으면 <code>--</code>로 표시됩니다.",
-    "bpm.li2": "<strong>박자 점</strong>은 모든 풋스위치 모드에서, Tap Tempo LED가 Off일 때도 박자를 표시합니다. 이때 링은 꺼져 있고 점만 깜박입니다.",
+    "bpm.li2": "<strong>박자 점</strong>은 모든 풋스위치 모드에서, Tap LED Color가 Off일 때도 박자를 표시합니다. 이때 링은 꺼져 있고 점만 깜박입니다.",
     "settings": "설정",
     "th.setting": "설정",
     "th.values": "값",
@@ -2387,7 +2499,7 @@ var LANGS = {
     "gr-meter.li2": "<strong>Edit 화면:</strong> 이 컴프레서 중 하나를 선택하면 Edit 화면에도 같은 위치, 같은 크기로 미터가 표시되므로, 연주하면서 컴프레서를 설정할 수 있습니다. 켜진 칸은 그 아래 내용(Top이면 프리셋 이름, Bottom이면 노브 이름)을 가리고, 꺼진 칸은 그대로 보이게 둡니다. 한 프리셋에 미터가 있는 컴프레서가 두 개면, 두 Edit 화면 모두 Mtr Size를 마지막으로 설정한 쪽을 보여 줍니다.",
     "gr-meter.li3": "<strong>NAM과 함께:</strong> 미터의 DSP 코드가 NAM A2 Lite의 세 번째 블록 자리를 쓰므로, 미터가 들어간 빌드에서는 NAM 블록이 최대 2개입니다.",
     "th.knob": "노브",
-    "gr-meter.what1": "미터의 두께: 5, 10, 15, 20 px. 이전 빌드의 Mtr Thk로 저장한 프리셋은 1 px이면 S, 2이면 M, 3이면 L, 4 이상이면 XL로 열립니다.",
+    "gr-meter.what1": "미터의 두께: 5, 10, 15, 20 px. 이전 빌드의 Mtr Thk로 저장한 프리셋은 1 px이면 S, 2이면 M, 3이면 L, 4 이상이면 XL로 미터를 그립니다.",
     "gr-meter.what2": "홈 화면과 Edit 화면에서 미터가 켜지는 위치. Middle은 가운데를 가로지르는 선 자리에 표시됩니다.",
     "gr-meter.what3": "Normal은 왼쪽에서 오른쪽, 위에서 아래로 채우고, Reverse는 반대로 채웁니다.",
     "dsp-usage-display.alt1": "베이스 앰프 둘러보기: DSP 합계가 각 모델을 미리 보여 주고, 추가한 블록에 비율이 표시됩니다",
@@ -2398,10 +2510,9 @@ var LANGS = {
     "dsp-usage-display.what2": "Edit 화면 블록의 비율.",
     "dsp-usage-display.what3": "오른쪽 위 모서리의 합계. <strong>Small</strong>은 미터의 3x5 숫자를 2x 크기로, 제목 높이의 절반 정도로 같은 모서리에 표시하므로 긴 이름과는 여전히 겹칠 수 있습니다. <strong>Large</strong>는 이 설정이 생기기 전처럼 제목 글꼴로 표시합니다. <strong>Off</strong>는 아무것도 표시하지 않아 긴 프리셋 이름이나 블록 제목이 가려지지 않습니다.",
     "tuner-settings.alt1": "튜너: Activate를 Press로 해 한 번 눌러 열고, Lock을 On으로 하면 노브를 돌려도 바뀌지 않습니다",
-    "tuner-settings.p1": "<code>HX_TUNER=1</code>로 빌드하면 튜너 자체 설정에 전용 페이지가 세 번째로 생깁니다. Trails, Offsets, String 6 페이지에서 오른쪽으로 넘기면 나옵니다. 줄별 페이지(Strings 5–3, 그다음 2와 1)는 그 뒤에 옵니다. 줄별 오프셋을 쓰는 사람은 드물어서 이 페이지를 앞에 두었습니다. 노브는 순정 페이지의 노브처럼 동작합니다. 돌리면 바뀌고, 누르면 기본값으로 돌아갑니다.",
+    "tuner-settings.p1": "튜너 자체 설정에 전용 페이지가 세 번째로 생깁니다. Trails, Offsets, String 6 페이지에서 오른쪽으로 넘기면 나옵니다. 줄별 페이지(Strings 5–3, 그다음 2와 1)는 그 뒤에 옵니다. 줄별 오프셋을 쓰는 사람은 드물어서 이 페이지를 앞에 두었습니다. 노브는 순정 페이지의 노브처럼 동작합니다. 돌리면 바뀌고, 누르면 기본값으로 돌아갑니다.",
     "tuner-settings.what1": "TAP/Tunr가 할당된 풋스위치는 보통 템포를 탭하고, 길게 누르면 튜너가 열립니다. <strong>Press</strong>로 하면 누르자마자 튜너가 열리고 템포는 더 이상 탭되지 않습니다. 할당을 따르므로 TAP/Tunr가 있는 풋스위치라면 어디서든 동작합니다.",
     "tuner-settings.what2": "On이면 튜너의 다른 설정(Output, Refrnc, Type, Trails, Offsets)이 바뀌지 않습니다. 노브를 돌리거나 눌러 기본값으로 되돌리는 동작이 무시됩니다. 페이지 이동은 여전히 되고 이 페이지의 노브도 돌아가므로, Lock을 켠 곳에서 다시 끌 수 있습니다.",
-    "tuner-settings.p2": "두 설정 모두 Global Settings &gt; HXtra에 있던 빌드의 값(설정 ID 29와 104)을 그대로 이어받습니다.",
     "long-press.alt1": "FS2를 탭하고 길게 누르기, FS1을 길게 눌러 튜너 열기, 그리고 Hold와 FS6–FS10 Function 설정",
     "long-press.p1": "Stomp 풋스위치 모드에서 FS1–FS5에는 각각 Hold 동작을 지정할 수 있습니다(Global Settings &gt; Footswitches, 2페이지와 3페이지: FS1 Hold Function … FS5 Hold Function). 스위치를 1 s 동안 누르고 있으면 실행되고, 짧게 탭하면 여전히 그 스위치의 블록을 켜고 끕니다. 다만 누르는 순간에는 길게 누를지 아직 알 수 없으므로, 누를 때가 아니라 뗄 때 동작합니다.",
     "long-press.li1": "<strong>Tuner</strong>는 TAP을 길게 누를 때처럼 튜너를 엽니다.",
@@ -2410,7 +2521,7 @@ var LANGS = {
     "long-press.li4": "Hold가 <strong>Off</strong>인 스위치, 모멘터리 스위치, 그리고 Preset과 Snapshot 풋스위치 모드는 순정처럼 동작합니다.",
     "long-press.what1": "그 풋스위치를 1 s 동안 누르고 있을 때의 동작. FS4와 FS5는 외부 스위치입니다. 기본값은 FS1이 FS6을 누르고, 같은 식으로 FS5는 FS10을 누릅니다.",
     "fx-loop-gate.p1": "FX Loop와 Return 블록에 Input 블록처럼 노이즈 게이트를 내장해, 루프에 노이즈가 많은 페달이 있어도 Noise Gate 블록을 따로 쓸 필요가 없습니다(<a href=\"https://github.com/wisemandenny/hxtra/issues/69\">#69</a>). 루프에서 돌아오는 신호를 블록의 Return 레벨과 Mix 앞에서 게이트하며, 드라이 신호와 Send는 게이트하지 않습니다.",
-    "fx-loop-gate.li1": "<strong>DSP:</strong> FX Loop와 Return 블록은 게이트를 켜든 끄든 각각 약 0.2%(스테레오는 0.4%) 더 씁니다. 이미 한도에 다다른 프리셋에 이 블록이 있으면 불러오지 못할 수 있습니다.",
+    "fx-loop-gate.li1": "<strong>DSP:</strong> FX Loop와 Return 블록은 게이트를 켜든 끄든 각각 0.2%(스테레오는 0.4%) 더 씁니다. 이미 한도에 다다른 프리셋에 이 블록이 있으면 불러오지 못할 수 있습니다.",
     "fx-loop-gate.li2": "<strong>스테레오 블록</strong>은 양쪽을 연동하지 않고 각각 따로 게이트합니다.",
     "fx-loop-gate.li3": "<strong>프리셋</strong>을 게이트와 함께 저장하면 노브 값이 유지됩니다. 그런 프리셋을 순정 펌웨어나 HX Edit에서 여는 것은 아직 테스트하지 않았습니다.",
     "fx-loop-gate.what1": "게이트를 켭니다. Off이면 블록은 순정 펌웨어와 똑같은 소리를 냅니다.",
@@ -2446,11 +2557,17 @@ var LANGS = {
     "nam-a2-lite.p1": "업스트림 <a href=\"https://github.com/nocaseguy/hx-stomp-nam-lite\">hx-stomp-nam-lite</a>에서 가져왔으며, 이 포크에서는 Model 노브 표시 방식 말고는 바꾸지 않았습니다. <a href=\"https://www.neuralampmodeler.com\">Neural Amp Modeler</a> A2 Lite 캡처를 HX Stomp 자체 DSP에서 실행합니다. 설치 페이지가 <code>.nam</code> 파일을 블록이 읽는 User IR로 변환합니다.",
     "nam-a2-lite.li1": "<strong>위치:</strong> Amp &gt; NAM. 노브 10개와 톤 스택이 있는 블록입니다. Xenomorph Fuzz Mono의 프리셋 ID 555를 사용하므로(이 순정 모델은 제거됨) HX Edit에서도 NAM 블록이 유지되고, 어느 한쪽 빌드로 만든 프리셋을 다른 쪽에서도 열 수 있습니다.",
     "nam-a2-lite.li2": "<strong>이전 프리셋:</strong> 이전 NAM 빌드(프리셋 ID 147, 148)로 저장한 프리셋은 이 빌드에서 NAM A2 Lite를 열지 못합니다. 그런 프리셋에서는 블록을 다시 추가하세요.",
-    "nam-a2-lite.li3": "<strong>블록 수:</strong> 최대 3개가 각각 자기 캡처로 동시에 재생되며, 그보다 많은 블록은 입력을 그대로 통과시킵니다. 블록이 적을수록 다른 DSP 기능을 넣을 자리가 생깁니다. 3개면 메트로놈과 FX Loop 게이트를, 2개면 거기에 GR 미터까지 넣을 수 있습니다. <code>build.py</code>에서는 <code>HX_NAM_SLOTS</code>로 정하며, 지정하지 않으면 켠 DSP 기능이 들어갈 자리를 남기는 최대값이 됩니다.",
+    "nam-a2-lite.li3": "<strong>블록 수:</strong> 최대 3개가 각각 자기 캡처로 동시에 재생되며, 그보다 많은 블록은 입력을 그대로 통과시킵니다. 블록이 적을수록 다른 DSP 기능을 넣을 자리가 생깁니다. 3개면 메트로놈과 FX Loop 게이트를, 또는 USB &amp; Send Routing이나 Input Sidechain 중 하나만, 2개면 다섯 가지 모두를 넣을 수 있습니다. <code>build.py</code>에서는 <code>HX_NAM_SLOTS</code>로 정하며, 지정하지 않으면 켠 DSP 기능이 들어갈 자리를 남기는 최대값이 됩니다.",
     "nam-a2-lite.li4": "<strong>캡처:</strong> 포함된 캡처는 없습니다. <code>.nam</code> 파일은 직접 준비해야 하며, 라이선스는 각 제작자에게 달려 있습니다.",
     "nam-a2-lite.p2": "NAM 관련 변경 사항은 업스트림의 <a href=\"https://github.com/wisemandenny/hxtra/blob/main/CHANGELOG.md\">CHANGELOG.md</a>에 있습니다.",
     "nam-a2-lite.li5": "<strong>Model</strong>은 HX Stomp에서 4.0이 아니라 4처럼 슬롯 번호로 표시됩니다. 슬롯 사이의 값(MIDI 컨트롤러에서 보낸 값)은 실제로 재생되는 슬롯으로 표시됩니다. HX Stomp XL에서는 여전히 4.0으로 표시됩니다.",
-    "preset-led-color.p1": "Preset 풋스위치 모드에서 HX Stomp는 현재 프리셋의 링을 빨간색으로 켜고 홈 화면에 빨간 스위치 아이콘을 표시하며, 나머지 두 프리셋의 링은 꺼 둡니다. HXtra는 TAP LED 색상과 같은 팔레트에서 프리셋마다 고유한 색을 줍니다.",
+    "gate-sidechain.p1": "Noise Gate 블록은 자기 신호 대신 입력을 키로 쓸 수 있습니다(<a href=\"https://github.com/wisemandenny/hxtra/issues/131\">#131</a>). Input Sidechain을 켜면 게이트는 Input 블록의 게이트가 듣는 신호(어떤 블록도 거치기 전의 기타, 왼쪽과 오른쪽 합)에 따라 열리고 닫히지만, 게이트를 거는 대상은 블록에 도착한 신호 그대로입니다. 그래서 하이게인 드라이브 뒤의 게이트가 클린 기타를 따라갑니다. 연주를 멈추면 닫히고, 드라이브 자체의 잡음이 게이트를 열어 두지 못합니다.",
+    "gate-sidechain.exp": "<strong>실험적 기능:</strong> 녹음된 신호로 테스트했고 실제로 연주한 악기로는 아직 테스트하지 않아 조정이 필요할 수 있습니다. HX Stomp의 기타 입력에 케이블이 꽂혀 있을 때만 동작합니다.",
+    "gate-sidechain.li1": "<strong>DSP:</strong> Input Sidechain을 켜든 끄든 Noise Gate 블록마다 0.1%(스테레오 0.2%) 더 듭니다. Noise Gate가 있고 이미 한도에 다다른 프리셋은 불러오지 못할 수 있습니다.",
+    "gate-sidechain.li2": "<strong>Threshold</strong>는 이때 입력 레벨과 비교되므로 Input 블록의 게이트처럼 설정하세요. Input 블록 자체의 Input Gate는 켜도 되고 꺼도 됩니다.",
+    "gate-sidechain.li3": "Input Sidechain으로 저장한 <strong>프리셋</strong>은 노브 설정을 유지합니다. HX Edit는 블록마다 자체 노브 목록을 갖고 있어 이 노브를 표시하지 않습니다. 그런 프리셋을 순정 펌웨어에서 여는 것은 아직 테스트하지 않았습니다.",
+    "gate-sidechain.what1": "켜면 게이트가 블록에 도착하는 신호 대신 입력을 따라갑니다. Off면 순정 펌웨어처럼 동작합니다.",
+    "preset-led-color.p1": "Preset 풋스위치 모드에서 HX Stomp는 현재 프리셋의 링을 빨간색으로 켜고 홈 화면에 빨간 스위치 아이콘을 표시하며, 나머지 두 프리셋의 링은 꺼 둡니다. HXtra는 Tap LED Color와 같은 팔레트에서 프리셋마다 고유한 색을 줍니다.",
     "preset-led-color.li1": "<strong>This Preset</strong>(Global Settings &gt; Displays, 2페이지)으로 현재 프리셋의 색을 정합니다. 유지하려면 프리셋을 저장하세요. 색이 프리셋 자체에 저장되므로 프리셋을 옮기거나 내보내거나 복원해도 함께 따라갑니다.",
     "preset-led-color.li2": "<strong>선택된</strong> 프리셋은 링과 아이콘이 그 색으로 켜집니다. <strong>선택되지 않은</strong> 프리셋은 색이 있으면 어둡게 표시되므로(HX Stomp가 그 색의 바이패스된 블록에 쓰는 음영), 어느 풋스위치에 어느 프리셋이 있는지 알 수 있습니다.",
     "preset-led-color.li3": "<strong>색이 없는 프리셋</strong>은 선택된 동안 <strong>Preset LED</strong>의 색(기본값은 순정처럼 빨간색)으로 켜지고, 선택되지 않으면 꺼집니다.",
@@ -2463,7 +2580,7 @@ var LANGS = {
     "real-block-names.li1": "<strong>이름이 바뀌지 않는 것:</strong> Line 6 오리지널 모델, 유틸리티 블록, 이미 실제 이름인 제목.",
     "real-block-names.li2": "<strong>프리셋</strong>은 같은 모델 ID를 유지하므로 실제 이름을 쓰든 안 쓰든 똑같고, 순정 펌웨어에서도 평소처럼 열립니다.",
     "tap-command.p1": "순정 HX Stomp에서 탭 템포는 풋스위치의 전역 기능입니다: FS3의 TAP/TUNER, 또는 TAP으로 설정한 FS4/FS5가 모든 프리셋에서 쓰입니다. HXtra는 Command Center에 <strong>Tap</strong> 명령을 추가합니다. Command Center는 프리셋마다 저장되므로, 풋스위치는 넣어 둔 프리셋에서만 템포를 탭합니다.",
-    "tap-command.li1": "<strong>설정 방법:</strong> 풋스위치는 Stomp 스위치여야 합니다. FS1과 FS2는 항상 그렇고, FS3, FS4, FS5는 Global Settings &gt; Footswitches에서 기능을 Stomp로 설정합니다. 그런 다음 프리셋에서 Menu &gt; Command Center를 열고 그 풋스위치의 슬롯을 선택한 뒤 Command를 <strong>Tap</strong>(Hotkey 다음)으로 돌립니다. 유지하려면 프리셋을 저장하세요.",
+    "tap-command.li1": "<strong>설정 방법:</strong> 풋스위치는 Stomp 스위치여야 하므로 Stomp 풋스위치 모드를 쓰세요. 이 모드에서 FS1과 FS2는 항상 그렇고, FS3, FS4, FS5는 Global Settings &gt; Footswitches에서 기능을 Stomp로 설정합니다. 그런 다음 프리셋에서 Menu &gt; Command Center를 열고 그 풋스위치의 슬롯을 선택한 뒤 Command를 <strong>Tap</strong>(Hotkey 다음)으로 돌립니다. 유지하려면 프리셋을 저장하세요.",
     "tap-command.li2": "<strong>누르면</strong> TAP 풋스위치와 똑같이 템포를 탭합니다. 길게 누르면 탭하지 않습니다.",
     "tap-command.li3": "<strong>링</strong>(FS1–FS3)은 TAP 링처럼 템포에 맞춰 깜박이며, 빌드에 Tap LED Color가 있으면 그 색을 씁니다. Tap LED Color의 Off로 깜박임이 멈춥니다(Tap LED Color가 없는 빌드에서는 순정 Tap Tempo LED가 그 역할을 합니다). FS4와 FS5에는 링이 없습니다.",
     "tap-command.li4": "<strong>스냅샷을 바꿔도</strong> 탭되지 않습니다.",
@@ -2515,7 +2632,7 @@ var LANGS = {
     "gr-meter.name": "Индикатор компрессии",
     "gr-meter.desc": "Показывает, насколько сильно работает компрессор, на главном экране и в его окне Edit, чтобы вы могли настраивать Threshold, Ratio, Attack и Release прямо во время игры.",
     "gr-meter.floc": "Главный экран и окно Edit компрессора",
-    "gr-meter.where": "Ручки Mtr Size, Mtr Pos и Mtr Dir компрессора — на всех компрессорах, кроме 3-Band Comp",
+    "gr-meter.where": "Ручки Mtr Size, Mtr Pos и Mtr Dir компрессора — на компрессорах Deluxe, LA Studio, Kinky, Ampeg Opto, Rochester и Red Squeeze",
     "dsp-usage-display.name": "Индикатор загрузки DSP",
     "dsp-usage-display.desc": "Показывает долю DSP каждого блока на блоках в окне Edit и в браузере моделей, а общую сумму — в правом верхнем углу.",
     "dsp-usage-display.floc": "Окно Edit и браузер моделей",
@@ -2547,15 +2664,19 @@ var LANGS = {
     "nam-a2-lite.desc": "Воспроизводит захваты Neural Amp Modeler на собственном DSP HX Stomp, до трёх одновременно; страница установки конвертирует ваши файлы .nam.",
     "nam-a2-lite.floc": "Браузер моделей: Amp &gt; NAM",
     "nam-a2-lite.where": "Ручки блока",
+    "gate-sidechain.name": "Input Sidechain для Noise Gate",
+    "gate-sidechain.desc": "Регулятор Input Sidechain в блоке Noise Gate: когда он включён, гейт открывается и закрывается по гитаре в том виде, в каком она приходит на вход, поэтому гейт после хай-гейн перегруза следует за чистой гитарой.",
+    "gate-sidechain.floc": "Блок Noise Gate, моно и стерео",
+    "gate-sidechain.where": "Регулятор Input Sidechain блока",
     "preset-led-color.name": "Цвет светодиодов в режиме Preset",
     "preset-led-color.desc": "В режиме футсвичей Preset у каждого пресета свой цвет, который сохраняется вместе с пресетом: его кольцо и иконка на главном экране горят этим цветом, пока пресет выбран, и приглушены, пока нет.",
     "preset-led-color.floc": "Футсвичи пресетов в режиме футсвичей Preset",
     "preset-led-color.where": "Global Settings &gt; Displays, страница 2",
     "real-block-names.name": "Настоящие названия блоков",
-    "real-block-names.desc": "Переименовывает все блоки по названиям приборов, на которых они основаны: например, Deez One Mod становится Boss DS-1 Mod.",
+    "real-block-names.desc": "Переименовывает блоки по названиям приборов, на которых они основаны: например, Deez One Mod становится Boss DS-1 Mod.",
     "real-block-names.floc": "Браузер моделей и окно Edit",
     "tap-command.name": "Команда Tap",
-    "tap-command.desc": "Тап-темп только в тех пресетах, где он нужен: команда Tap в Command Center, сохраняемая с пресетом, превращает FS1–FS5 в переключатель тап-темпа, кольцо которого мигает в темп.",
+    "tap-command.desc": "Тап-темп только в тех пресетах, где он нужен: команда Tap в Command Center, сохраняемая с пресетом, превращает FS1–FS5 в переключатель тап-темпа; на FS1–FS3 его кольцо мигает в темп.",
     "tap-command.floc": "Menu &gt; Command Center, слот FS",
     "tap-led-color.name": "Цвет светодиода TAP",
     "tap-led-color.desc": "Цвет мигающего светодиодного кольца футсвича TAP, а также иконки и подписи TAP/TUNER на главном экране. Rainbow на каждой доле сдвигается по радуге; Random на каждой доле выбирает новый цвет.",
@@ -2570,12 +2691,13 @@ var LANGS = {
     "virtual-footswitches.floc": "Bypass Assign &gt; MIDI In блока или Controller Assign",
     "virtual-footswitches.where": "Global Settings &gt; Footswitches, страницы 4 и 5",
     "overview.name": "Демо",
+    "overview.labels": "У настроек и ручек блоков HXtra бирюзовые подписи, чтобы их можно было с одного взгляда отличить от штатных.",
     "demos.note": "Демо записаны с экрана настоящего HX Stomp вместе со звуком и нажатиями кнопок, а затем наложены на симулированный HX Stomp.",
     "bpm.alt1": "Нажатия TAP: темп и точка доли следуют за ними",
     "bpm.alt2": "Global Settings, BPM Display: Font Size, Color и Dot Position",
     "bpm.p1": "Главный экран показывает темп в левом верхнем углу и точку доли рядом с номером пресета, которая загорается вместе с кольцом футсвича TAP, при нажатии — красным.",
     "bpm.li1": "<strong>Темп</strong> — тот, который использует HX Stomp: глобальный или пресета, как указано в Tempo Select, целым числом. Пока темп идёт от MIDI clock (Extrnl на экране темпа), после него стоит <code>X</code>, а без темпа показывается <code>--</code>.",
-    "bpm.li2": "<strong>Точка</strong> отбивает долю в любом режиме футсвичей, и при выключенном Tap Tempo LED тоже: кольцо тогда остаётся тёмным, а точка мигает.",
+    "bpm.li2": "<strong>Точка</strong> отбивает долю в любом режиме футсвичей, и при выключенном Tap LED Color тоже: кольцо тогда остаётся тёмным, а точка мигает.",
     "settings": "Настройки",
     "th.setting": "Настройка",
     "th.values": "Значения",
@@ -2596,7 +2718,7 @@ var LANGS = {
     "gr-meter.li2": "<strong>Окно Edit:</strong> пока выбран один из этих компрессоров, индикатор показывается и в его окне Edit, на том же месте и того же размера, чтобы вы могли настраивать компрессор во время игры. Горящие сегменты закрывают то, что под ними (название пресета при Top, названия ручек при Bottom); негорящие оставляют это видимым. Если в пресете два компрессора с индикатором, оба окна Edit показывают тот, у которого Mtr Size меняли последним.",
     "gr-meter.li3": "<strong>С NAM:</strong> DSP-код индикатора занимает место третьего блока NAM A2 Lite, поэтому в сборке с ним не больше двух блоков NAM.",
     "th.knob": "Ручка",
-    "gr-meter.what1": "Толщина индикатора: 5, 10, 15 или 20 пикселей. Пресет, сохранённый с Mtr Thk из более старой сборки, открывается с S для 1 px, M для 2, L для 3 и XL для 4 и больше.",
+    "gr-meter.what1": "Толщина индикатора: 5, 10, 15 или 20 пикселей. Пресет, сохранённый с Mtr Thk из более старой сборки, рисует индикатор как S для 1 px, M для 2, L для 3 и XL для 4 и больше.",
     "gr-meter.what2": "Где на главном экране и в окне Edit загорается индикатор. Middle встаёт на место линии посередине.",
     "gr-meter.what3": "Normal заполняется слева направо или сверху вниз; Reverse — в обратную сторону.",
     "dsp-usage-display.alt1": "Просмотр басовых усилителей: сумма DSP заранее показывает каждую модель, затем добавленный блок показывает свою долю",
@@ -2607,10 +2729,9 @@ var LANGS = {
     "dsp-usage-display.what2": "Доли на блоках в окне Edit.",
     "dsp-usage-display.what3": "Сумма в правом верхнем углу. <strong>Small</strong> рисует её цифрами индикатора 3x5 в масштабе 2x, примерно в половину высоты заголовка, в том же углу, так что длинное название всё ещё может на неё наехать. <strong>Large</strong> рисует её шрифтом заголовка, как до появления этих настроек. <strong>Off</strong> ничего там не рисует, так что длинное название пресета или блока не перекрывается.",
     "tuner-settings.alt1": "Тюнер: Activate на Press, так что одно нажатие открывает его, затем Lock On, и его ручки больше ничего не меняют",
-    "tuner-settings.p1": "С <code>HX_TUNER=1</code> собственные настройки тюнера получают отдельную, третью страницу: листайте вправо после Trails, Offsets и String 6. За ней идут страницы струн (Strings 5–3, затем 2 и 1): мало кто пользуется пострунными смещениями, поэтому эта страница стоит раньше. Её ручки работают как ручки стоковых страниц: поверните, чтобы изменить, нажмите, чтобы вернуть значение по умолчанию.",
+    "tuner-settings.p1": "Собственные настройки тюнера получают отдельную, третью страницу: листайте вправо после Trails, Offsets и String 6. За ней идут страницы струн (Strings 5–3, затем 2 и 1): мало кто пользуется пострунными смещениями, поэтому эта страница стоит раньше. Её ручки работают как ручки стоковых страниц: поверните, чтобы изменить, нажмите, чтобы вернуть значение по умолчанию.",
     "tuner-settings.what1": "Футсвич с назначением TAP/Tunr обычно задаёт темп нажатиями, а удержание открывает тюнер. При <strong>Press</strong> нажатие сразу открывает тюнер, и темп больше не задаётся. Настройка следует за назначением, так что работает на любом футсвиче с TAP/Tunr.",
     "tuner-settings.what2": "On не даёт менять остальные настройки тюнера (Output, Refrnc, Type, Trails, Offsets): повороты ручек и нажатия на ручки, сбрасывающие значение по умолчанию, игнорируются. Листать страницы по-прежнему можно, и ручки этой страницы по-прежнему крутятся, так что Lock можно выключить там же, где его включили.",
-    "tuner-settings.p2": "Обе сохраняют значения (ID настроек 29 и 104) из сборок, где они были в Global Settings &gt; HXtra.",
     "long-press.alt1": "Нажатие и удержание FS2, удержание FS1 для тюнера, затем настройки Hold и FS6–FS10 Function",
     "long-press.p1": "В режиме футсвичей Stomp каждому из FS1–FS5 можно назначить действие на удержание (Global Settings &gt; Footswitches, страницы 2 и 3: FS1 Hold Function … FS5 Hold Function). Удержание кнопки 1 s запускает его; короткое нажатие по-прежнему переключает блоки этой кнопки, но при отпускании, а не при нажатии, потому что в момент нажатия ещё неизвестно, станет ли оно удержанием.",
     "long-press.li1": "<strong>Tuner</strong> открывает тюнер, как удержание TAP.",
@@ -2619,7 +2740,7 @@ var LANGS = {
     "long-press.li4": "Кнопка с Hold на <strong>Off</strong>, моментальная кнопка, а также режимы футсвичей Preset и Snapshot работают как в стоке.",
     "long-press.what1": "Что делает удержание этого футсвича 1 s. FS4 и FS5 — внешние переключатели. По умолчанию удержание FS1 даёт FS6, и так далее до FS5 и FS10.",
     "fx-loop-gate.p1": "Нойз-гейт, встроенный в блоки FX Loop и Return, как у блока Input, чтобы шумной педали в петле не требовался собственный блок Noise Gate (<a href=\"https://github.com/wisemandenny/hxtra/issues/69\">#69</a>). Он гейтирует то, что возвращается из петли, до уровня Return и Mix блока; сухой сигнал и Send не гейтируются.",
-    "fx-loop-gate.li1": "<strong>DSP:</strong> каждый блок FX Loop и Return стоит примерно на 0.2% больше (0.4% в стерео), включён его гейт или нет. Пресет, уже упёршийся в лимит, с одним из этих блоков может не загрузиться.",
+    "fx-loop-gate.li1": "<strong>DSP:</strong> каждый блок FX Loop и Return стоит на 0.2% больше (0.4% в стерео), включён его гейт или нет. Пресет, уже упёршийся в лимит, с одним из этих блоков может не загрузиться.",
     "fx-loop-gate.li2": "<strong>Стереоблоки</strong> гейтируют каждую сторону отдельно, без связки.",
     "fx-loop-gate.li3": "<strong>Пресеты</strong>, сохранённые с гейтом, сохраняют его ручки. Открытие такого пресета на стоковой прошивке или в HX Edit пока не проверено.",
     "fx-loop-gate.what1": "Включает гейт. При Off блок звучит как на стоковой прошивке.",
@@ -2655,11 +2776,17 @@ var LANGS = {
     "nam-a2-lite.p1": "Из исходного проекта <a href=\"https://github.com/nocaseguy/hx-stomp-nam-lite\">hx-stomp-nam-lite</a>, в этом форке без изменений, кроме того, как отображается ручка Model: захваты <a href=\"https://www.neuralampmodeler.com\">Neural Amp Modeler</a> A2 Lite, работающие на собственном DSP HX Stomp. Страница установки конвертирует ваши файлы <code>.nam</code> в User IR, которые читает блок.",
     "nam-a2-lite.li1": "<strong>Где:</strong> Amp &gt; NAM, блок с десятью ручками и темброблоком. Он занимает ID пресета 555 модели Xenomorph Fuzz Mono (эта стоковая модель удалена), поэтому HX Edit сохраняет блоки NAM, а пресеты, сделанные в одной из двух сборок, открываются и в другой.",
     "nam-a2-lite.li2": "<strong>Старые пресеты:</strong> в пресетах, сохранённых с более ранней сборкой NAM (ID пресетов 147 и 148), эта сборка не открывает NAM A2 Lite: добавьте блок в эти пресеты заново.",
-    "nam-a2-lite.li3": "<strong>Сколько блоков:</strong> до 3 одновременно, у каждого свой захват; следующий просто пропускает входной сигнал. Чем меньше блоков, тем больше места остаётся для остальных функций DSP: 3 блока оставляют место для метронома и гейта FX Loop, 2 — для них и индикатора компрессии. В <code>build.py</code> это задаёт <code>HX_NAM_SLOTS</code>; если не задано, берётся наибольшее число, при котором помещаются включённые функции DSP.",
+    "nam-a2-lite.li3": "<strong>Сколько блоков:</strong> до 3 одновременно, у каждого свой захват; следующий просто пропускает входной сигнал. Чем меньше блоков, тем больше места остаётся для остальных функций DSP: 3 блока оставляют место для метронома и гейта FX Loop или только для USB &amp; Send Routing либо Input Sidechain, 2 — для всех пяти. В <code>build.py</code> это задаёт <code>HX_NAM_SLOTS</code>; если не задано, берётся наибольшее число, при котором помещаются включённые функции DSP.",
     "nam-a2-lite.li4": "<strong>Захваты:</strong> в комплект не входят. Вы используете свои файлы <code>.nam</code>, а их лицензии определяют их авторы.",
     "nam-a2-lite.p2": "Изменения NAM описаны в <a href=\"https://github.com/wisemandenny/hxtra/blob/main/CHANGELOG.md\">CHANGELOG.md</a> исходного проекта.",
     "nam-a2-lite.li5": "<strong>Model</strong> на HX Stomp отображается как номер слота: 4, а не 4.0. Значение между слотами (с MIDI-контроллера) отображается как слот, который звучит. HX Stomp XL по-прежнему показывает 4.0.",
-    "preset-led-color.p1": "В режиме футсвичей Preset HX Stomp подсвечивает кольцо текущего пресета красным, с красной иконкой кнопки на главном экране, а кольца двух других пресетов не горят. HXtra даёт каждому пресету свой цвет из той же палитры, что и у цвета светодиода TAP.",
+    "gate-sidechain.p1": "Блок Noise Gate может брать управляющий сигнал со входа, а не из собственного сигнала (<a href=\"https://github.com/wisemandenny/hxtra/issues/131\">#131</a>). С включённым Input Sidechain гейт открывается и закрывается по тому, что слышит гейт блока Input (гитара до всех блоков, левый и правый каналы вместе), но по-прежнему обрабатывает сигнал, который приходит к нему. Гейт после хай-гейн перегруза тогда следует за чистой гитарой: закрывается, как только вы перестаёте играть, и собственный шум перегруза больше не держит его открытым.",
+    "gate-sidechain.exp": "<strong>Экспериментально:</strong> проверено на записанных сигналах, но ещё не на живом инструменте, поэтому может потребовать доработки. Работает, только когда в гитарный вход HX Stomp вставлен кабель.",
+    "gate-sidechain.li1": "<strong>DSP:</strong> каждый блок Noise Gate стоит на 0.1% больше (0.2% в стерео), включён Input Sidechain или нет. Пресет, который уже на пределе и содержит Noise Gate, может не загрузиться.",
+    "gate-sidechain.li2": "<strong>Threshold</strong> тогда сравнивается с уровнем на входе, поэтому настраивайте его как гейт блока Input. Собственный Input Gate блока Input может быть включён или выключен.",
+    "gate-sidechain.li3": "<strong>Пресеты</strong>, сохранённые с Input Sidechain, сохраняют регулятор. HX Edit его не показывает, так как у него свой список регуляторов каждого блока; открытие такого пресета на заводской прошивке ещё не проверено.",
+    "gate-sidechain.what1": "Когда включён, гейт следует за входом, а не за сигналом, который приходит в блок. В положении Off блок работает как на заводской прошивке.",
+    "preset-led-color.p1": "В режиме футсвичей Preset HX Stomp подсвечивает кольцо текущего пресета красным, с красной иконкой кнопки на главном экране, а кольца двух других пресетов не горят. HXtra даёт каждому пресету свой цвет из той же палитры, что и у Tap LED Color.",
     "preset-led-color.li1": "<strong>This Preset</strong> (Global Settings &gt; Displays, страница 2) задаёт цвет текущего пресета. Чтобы цвет остался, сохраните пресет: цвет хранится в самом пресете, поэтому переходит вместе с ним при перемещении, экспорте или восстановлении.",
     "preset-led-color.li2": "<strong>Выбранный</strong> пресет горит своим цветом на кольце и иконке. <strong>Невыбранный</strong> пресет с цветом показывает его приглушённым (тем оттенком, которым HX Stomp показывает отключённый блок этого цвета), так что видно, на каком футсвиче какой пресет.",
     "preset-led-color.li3": "<strong>Пресет без цвета</strong> горит цветом <strong>Preset LED</strong> (по умолчанию красным, как в стоке), пока выбран, и не горит, пока нет.",
@@ -2672,7 +2799,7 @@ var LANGS = {
     "real-block-names.li1": "<strong>Что сохраняет название:</strong> оригинальные модели Line 6, служебные блоки и названия, которые уже настоящие.",
     "real-block-names.li2": "<strong>Пресеты</strong> хранят те же ID моделей, поэтому пресет одинаков с настоящими названиями и без них и, как обычно, открывается на стоковой прошивке.",
     "tap-command.p1": "На стоковом HX Stomp тап-темп — глобальная функция футсвича: TAP/TUNER на FS3 или FS4/FS5, настроенные на TAP, во всех пресетах. HXtra добавляет в Command Center команду <strong>Tap</strong>, а Command Center сохраняется с каждым пресетом, поэтому футсвич задаёт темп только в тех пресетах, куда вы её поставили.",
-    "tap-command.li1": "<strong>Настройка:</strong> футсвич должен быть переключателем Stomp. FS1 и FS2 — всегда; для FS3, FS4 или FS5 выберите функцию Stomp в Global Settings &gt; Footswitches. Затем в пресете откройте Menu &gt; Command Center, выберите слот футсвича и поверните Command до <strong>Tap</strong> (после Hotkey). Сохраните пресет, чтобы команда осталась.",
+    "tap-command.li1": "<strong>Настройка:</strong> футсвич должен быть переключателем Stomp, поэтому используйте режим футсвичей Stomp, в котором FS1 и FS2 — всегда; для FS3, FS4 или FS5 выберите функцию Stomp в Global Settings &gt; Footswitches. Затем в пресете откройте Menu &gt; Command Center, выберите слот футсвича и поверните Command до <strong>Tap</strong> (после Hotkey). Сохраните пресет, чтобы команда осталась.",
     "tap-command.li2": "<strong>Нажатие</strong> задаёт темп точно так же, как футсвич TAP. Удержание темп не задаёт.",
     "tap-command.li3": "<strong>Его кольцо</strong> (FS1–FS3) мигает в темп, как кольцо TAP, цветом Tap LED Color, если эта функция есть в вашей сборке. Off в Tap LED Color останавливает мигание (в сборке без Tap LED Color это делает стоковый Tap Tempo LED). У FS4 и FS5 колец нет.",
     "tap-command.li4": "<strong>Смена снапшота</strong> никогда не задаёт темп.",

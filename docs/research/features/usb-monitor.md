@@ -21,7 +21,7 @@ Global Settings > Ins/Outs > Path A Out (`HX_USB_MONITOR`, `tools/features/usb_m
 
 ## On the unit [verified on unit, 2026-11-16]
 
-All on RAM runs from `next`. The Volt 4 had the phones on input 1 and Main on input 2 (they were taken the other way round at the time; Mr. Wiseman, 2026-11-16, see [sharc/usb-routing.md](../sharc/usb-routing.md), "Which writer is which"). The levels below are labelled as corrected. Plucks played on USB 5/6 with input A on USB 5/6, or on USB 1/2 for "DAW".
+All on RAM runs from `next`. The Volt 4 had the phones on input 1 and Main on input 2 (they were taken the other way round at the time; 2026-11-16, see [sharc/usb-routing.md](../sharc/usb-routing.md), "Which writer is which"). The levels below are labelled as corrected. Plucks played on USB 5/6 with input A on USB 5/6, or on USB 1/2 for "DAW".
 
 - **usb-monitor-4** (own section, image `877cd8b0…`):
   - Main L/R: the guitar is on USB 1/2, Main at -1.9 dBFS and the phones at -15.6.

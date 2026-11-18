@@ -27,7 +27,8 @@ Steps:
      (HX Stomp only, first: tools/patch_menu.py, the HXtra features of tools/features; --splash, --splash-fit,
      --splash-text and --splash-glyph are the splash feature's HX_SPLASH, HX_SPLASH_FIT, HX_SPLASH_TEXT and HX_SPLASH_GLYPHS;
      with HX_CLICK=1, then tools/patch_click.py: the Metronome block; with HX_FX_GATE=1, tools/patch_gate.py: the gate in
-     the FX Loop and Return blocks; with HX_GR=1, last, tools/patch_comp.py: the GR meter's compressor knobs and DSP code)
+     the FX Loop and Return blocks; with HX_GATE_SC=1, tools/patch_sidechain.py: the Noise Gate's Input Sidechain;
+     with HX_GR=1, last, tools/patch_comp.py: the GR meter's compressor knobs and DSP code)
   4. tools/l6ia_verify.py: every checksum of the result
   5. tools/hxf.py pack: the .hxf
 """
@@ -150,6 +151,9 @@ def main():
         os.replace(titled, image)
     if os.environ.get("HX_FX_GATE") and unit == "HX_Stomp":
         run(py, "tools/patch_gate.py", image, titled)
+        os.replace(titled, image)
+    if os.environ.get("HX_GATE_SC") and unit == "HX_Stomp":
+        run(py, "tools/patch_sidechain.py", image, titled)
         os.replace(titled, image)
     if os.environ.get("HX_USB_MONITOR") and unit == "HX_Stomp":
         run(py, "tools/patch_usbmon.py", image, titled)

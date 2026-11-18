@@ -45,12 +45,12 @@ From a script: `Input(ctl).press('view+action')`, or `u.press('view+action')` in
 |---|---|---|
 | VIEW | back to Home from the Menu, Global Settings and the tuner; on Home it toggles Play view and Edit view | [verified on unit] |
 | VIEW | closes an action panel, cancels the model list | [hypothesis] |
-| **VIEW + ACTION** together | opens the **Save Preset** screen (below) | by hand [verified on unit, Mr. Wiseman 2026-11-16]; over USB [hypothesis] |
+| **VIEW + ACTION** together | opens the **Save Preset** screen (below) | by hand [verified on unit, 2026-11-16]; over USB [hypothesis] |
 | **VIEW + ACTION** together, twice | **quick save**: the edits saved over the current preset, same name and place | [hypothesis] |
 | **PAGE◀ + PAGE▶** together | opens the **Menu** (below) | [verified on unit] |
 | **ACTION + PAGE▶** together | opens the tuner | [hypothesis] |
 | **Upper + Lower Knob** (`knob4` + `knob5`) together | **All Bypass**: "Analog [or DSP] bypass! Press any switch."; any footswitch press ends it | [hypothesis] |
-| ACTION | the action panel of the selected block or of the screen (below); held alone it does nothing useful, nor does VIEW held | by hand [verified on unit, Mr. Wiseman 2026-11-16] |
+| ACTION | the action panel of the selected block or of the screen (below); held alone it does nothing useful, nor does VIEW held | by hand [verified on unit, 2026-11-16] |
 | Knob 3 / Knob 1 in a dialog | OK / Cancel | [hypothesis] |
 
 - **Saving writes the eMMC.** In a plain RAM run (`hxboot`, `writes: ram`) a save stays in SDRAM and is gone at power-off; in a `--writes pass` run it overwrites the real preset ([conventions.md](../conventions.md)). The devtest never saves: a test that saves runs in a plain RAM run, or saves to a spare preset place.
@@ -108,7 +108,7 @@ PAGE◀ and PAGE▶ on Home step the footswitch mode through Stomp, Scroll, Pres
 
 | screen | ACTION, then |
 |---|---|
-| Global Settings | Knob 1 Factory Settings, Knob 3 OK: **resets every Global Setting** (HXtra's feature settings likely with them). Never in a test on Mr. Wiseman's unit. |
+| Global Settings | Knob 1 Factory Settings, Knob 3 OK: **resets every Global Setting** (HXtra's feature settings likely with them). Never in a test. |
 | Global EQ | Knob 1 Reset EQ, Knob 3 OK. On the screen itself, Upper Knob press turns Global EQ on/off, its turn picks the band, Knobs 1..3 set it. |
 | Bypass Assign | on a block: Knob 1 Clear Assignments; Knob 2 Clear All Assignments, Knob 3 OK |
 | Controller Assign | on a block: Knob 1 Clear Controller; Knob 2 Clear All Controllers (EXP 1 wah and EXP 2 volume too), Knob 3 OK. PAGE▶ then Knob 3 Learn. |

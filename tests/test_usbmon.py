@@ -126,8 +126,8 @@ def test_everything_else_reaches_the_stock_control_function_unchanged(pid, word)
     assert s.rd(syms['USB_MODE']) == 1, 'the mode as it was'
 
 
-def test_dsp_is_the_last_feature_in_block3():
-    assert block3.FEATURES[-1] == ('HX_USB_MONITOR', 'patch_usbmon')
+def test_dsp_is_under_the_gr_meter_in_block3():
+    assert block3.FEATURES[3] == ('HX_USB_MONITOR', 'patch_usbmon')
     env = {'HX_CLICK': '1', 'HX_FX_GATE': '1', 'HX_GR': '1', 'HX_USB_MONITOR': '1'}
     dm, pm = block3.place('HX_USB_MONITOR', env)
     n_dm, n_pm = pu.dsp_size()

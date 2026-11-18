@@ -83,9 +83,9 @@ def reader_slots(b, b0):
     return [k + 1 for k, m in enumerate(members) if m['type_id'] == READER]
 
 
-def blob_add_gate(b, first_slot, readers, defaults):
+def blob_add_gate(b, first_slot, readers, defaults, pid=GATE_PID):
     """A model blob with an input node per knob (slots first_slot..) and a root default for each, each feeding a writer per reader
-    slot of `readers` that hands its value to that reader as pid GATE_PID + k. Laid out as patch_comp.blob_add_knobs does: the
+    slot of `readers` that hands its value to that reader as pid + k. Laid out as patch_comp.blob_add_knobs does: the
     parameter map, init records and relocation list are rebuilt after the node tree, nothing before the parameter map moves."""
     assert b[0] == 3 and b[6] < b[10] < b[4] < b[8] and b[8] + 2 * b[9] == len(b), 'unexpected blob layout'
     po, pl, pin, npin, ini, nini, sub, nsub = b[6], b[7], b[10], b[11], b[4], b[5], b[8], b[9]
@@ -117,7 +117,7 @@ def blob_add_gate(b, first_slot, readers, defaults):
         for k in range(n):
             writers.append(len(pm))
             nodes.append([len(pm), 0, len(nodes), 1, 0, 3, 3, 3, 0, 0])
-            pm += [p, GATE_PID + k, 1]
+            pm += [p, pid + k, 1]
             ct.append([nA + k, len(nodes) - 1, 0, 0])
     pm[0] = len(pm)
     pm += [w for nd in nodes for w in nd]
@@ -180,7 +180,7 @@ def e3_add_gate(e3, model_name, S, knobs):
     n_par, n_st = d[7], d[6]
     assert n_par == n_st and all(p['slot'] == k + 1 for k, p in enumerate(m['params'])), \
         f'{model_name}: parameters and states are not one per slot 1..{n_par}'
-    assert not {p['name'] for p in m['params']} & {k[0] for k in KNOBS}, f'{model_name} has the gate already'
+    assert not {p['name'] for p in m['params']} & {k[0] for k in knobs}, f'{model_name} has these knobs already'
     base = pa._align(len(e3), 4)
     e3 += bytes(base - len(e3))
     tail, params, states = bytearray(), [], []

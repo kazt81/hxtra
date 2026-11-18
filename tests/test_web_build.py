@@ -83,6 +83,7 @@ def test_sources_cover_the_build():
             *(f"tools/features/{f.name}" for f in (ROOT / "tools/features").glob("*.py")),
             "tools/patch_click.py", "build.py", "src/sharc/click.asm",      # the Metronome: patch_click.py reads both
             "tools/patch_gate.py", "src/sharc/fx_gate.asm",                 # the gate in the FX Loop and Return blocks
+            "tools/patch_sidechain.py", "src/sharc/gate_sc.asm",            # the Noise Gate's Input Sidechain
             "tools/patch_comp.py", "src/sharc/frame_probe.asm"}             # the GR meter's knobs and DSP code
     for d in ("tools", "tools/sharc"):
         for f in listed:
@@ -132,7 +133,7 @@ def test_page_lists_the_dsp_features_and_slot_counts():
 
 
 def test_page_default_is_two_nam_slots_and_every_dsp_feature_and_fits():
-    # Mr. Wiseman's default (issue #111): 2 NAM slots with the GR meter, the Metronome and the FX Loop gate
+    # The default (issue #111): 2 NAM slots with the GR meter, the Metronome and the FX Loop gate
     import block3
     boxes, slots, nam = page_dsp()
     picked = slots[0][1]

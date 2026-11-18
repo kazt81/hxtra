@@ -2,6 +2,7 @@
 .syntax unified
 .thumb
 .include "hxtra.inc"
+.include "tuner_label.inc"          @ LABEL_COLOUR_FN: label_color's label_any, or the stock 0x28dc6454
 .equ PAGE, 4                        @ its page at [view+0x74], after the stock ones; tools/features/tuner.py's PAGE
 .equ SHOWN_AT, 2                    @ its place in the order the pages are paged and dotted; tools/features/tuner.py's SHOWN_AT
 .equ STOCK_PAGES, 4
@@ -263,7 +264,7 @@ knobs:                              @ per knob: ID, max, default
     .hword SETTING_TUNER_LOCK
     .byte SETTING_TUNER_LOCK_MAX, SETTING_TUNER_LOCK_DEFAULT
 colours:                            @ (function, colour) as the stock paints a knob that can be turned
-    .word 0x28dc6455, 0xffffff
+    .word LABEL_COLOUR_FN, 0xffffff
     .word 0x28dc651d, 0x6b6b6b
     .word 0x28dc6535, 0x4d4d4d
     .word 0x28dc6505, 0xb1b1b1
