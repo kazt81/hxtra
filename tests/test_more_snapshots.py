@@ -1,7 +1,8 @@
 """tools/features/more_snapshots.py and src/m4/more_snapshots.s: the module run in unicorn against a fake snapshot manager and stock
-select (a flip on the lit snapshot, next and previous across the banks, select's view of it, bank B's defaults and edits, preset
-load and save, the lock), the number
-it draws over the snapshot icon in bank B, and the firmware it builds."""
+select (a flip on the lit snapshot, next and previous across the banks, bank B's defaults and edits, preset load and save, the lock,
+the previous snapshot across the banks), the Hold mode's footswitch events (presses held back, clicks, holds, the bank the
+footswitches select in and what leaves it alone, the layout's reads and the tick), the number it draws over the snapshot icon in
+bank B, and the firmware it builds, its footswitch handler and label layout run in unicorn."""
 import os
 import struct
 
@@ -11,8 +12,8 @@ import features
 import patch_amp as pa
 import patch_menu as pm
 import setting_ids
-from features import more_snapshots as ms
-from firmware import branch_target, built
+from features import Setting, long_press, more_snapshots as ms
+from firmware import assert_virtual, branch_target, built, built_e0, reader, stock_e0
 
 MODS = features.load()
 IDS = setting_ids.by_name()
@@ -32,6 +33,21 @@ LABEL_X, LABEL_Y = (53, 160, 267), 100
 WIDGET_LOCK, WIDGET_UNLOCK, REDRAW, FILL, TEXT = 0x28e24970, 0x28e24ae8, 0x28db8508, 0x100017e8, 0x28db7aa4
 REC, RECS, CUR, PREV, BUSY = 0x260, 0xc, 0x743, 0x744, 0x9a9
 VALID, NAME = 0x24b, 0x255            # in a record: set once it holds a sound; its name, 11 bytes
+COLOUR, RENAMED = 0x254, 0x24c        # its colour, 0 the default; set once it has a name of its own
+STOCK_SELECT = 0x28780000             # stock select as the select hook's stub reaches it: a stand-in, past the hook
+SAVE, WRITER = 0x28790000, 0x287a0000  # a preset serializer chained as the build chains both (the save's, HX Edit's), and its write
+BANK_SWITCH, FS_MODE, RESELECT = IDS['more_snapshots.bank_switch'], 0x15, 103
+HOLD_SEL, TAP_SEL, SNAPSHOT_MODE = 0, 1, 3
+VIEW_IS, HOME_GET, LAYOUT, SELECTED_BLOCK = 0x28d96134, 0x28d960f4, 0x28dc87cc, 0x28df0280
+HOME, HOME_VIEW, TUNER_VIEW, EDIT_VIEW = 0x2812a05c, 0, 5, 1
+OBJ = 0x28730000                      # the handler's object, a stand-in for the unit's 0x28128a80
+EVENT, OUT, KEPT = 0x28600400, 0x28600500, 0x28600600     # an event, the getter's out, r4 and r5 after
+EVENT_TRAMPOLINE = 0x28750000
+PRESS, RELEASE, CLICK, HOLD = 1, 2, 3, 5
+PENDING, PENDING_FS, IMMEDIATE, PRESSED = 0x4f, 0x50, 0x6d, 0x78
+LISTS_GET, CTRLS_GET, LISTS, CTRLS = 0x28d96084, 0x28d9608c, 0x28128b4c, 0x28125d30    # the footswitch lists, the controllers
+FS_LEARNING, CC_LEARNING = 0x28dd87a0, 0x28dde9ec    # (lists), (controllers) -> set while a learn waits
+SAVING, VIEW, WRAP, RELAYOUT, PREV6, NONE, STEP = 2, 4, 5, 7, 8, 0xff, 3     # in snaps_data
 
 
 def record(i):
@@ -47,22 +63,50 @@ def bank_a(i):
 
 
 class Manager:
-    """The module in unicorn, with the manager's records, the lock, and select doing what stock does to them."""
+    """The module in unicorn, with the manager's records, the lock, select doing what stock does to them behind the select hook
+    (snaps_selecting, as the build chains it), a serializer behind snaps_saving and snaps_saved, the settings (Snapshot 4-6 Sel on
+    Tap unless a test sets Hold; Reselect Snapshot unset, so it recalls), the current view, the Home layout, and the footswitch
+    event handler's object and its call of snaps_event."""
 
-    def __init__(self, m4emu, at=CODE):
+    def __init__(self, m4emu, at=CODE, bank_switch=TAP_SEL):
         code, self.sym = m4emu.assemble('src/m4/more_snapshots.s', MODS, IDS)
         self.at = at
         self.m = m4emu.M4(code, at)
+        self.settings = {FS_MODE: SNAPSHOT_MODE, BANK_SWITCH: bank_switch}
+        self.view, self.layouts, self.during_layout = HOME_VIEW, [], None
+        self.m.stub(pm.GET_VALUE, self._get_value)
+        self.m.stub(VIEW_IS, lambda m: m.reg('r0', int(m.reg('r0') == self.view)))
+        self.m.stub(HOME_GET, lambda m: m.reg('r0', HOME))
+        self.m.stub(LAYOUT, self._layout)
+        self.m.stub(SELECTED_BLOCK, lambda m: m.reg('r0', 0x5e1ec7ed ^ m.reg('r0')))
+        self.learning = [0, 0]              # Bypass Assign's footswitch learn, and its or Controller Assign's CC learn
+        self.m.stub(LISTS_GET, lambda m: m.reg('r0', LISTS))
+        self.m.stub(CTRLS_GET, lambda m: m.reg('r0', CTRLS))
+        self.m.stub(FS_LEARNING, lambda m: m.reg('r0', self.learning[0] if m.reg('r0') == LISTS else 0xbad))
+        self.m.stub(CC_LEARNING, lambda m: m.reg('r0', self.learning[1] if m.reg('r0') == CTRLS else 0xbad))
+        for fn, off in ((ms.CUR_GET, CUR), (ms.COLOUR_GET, RECS + COLOUR), (ms.RENAMED_GET, RECS + RENAMED)):
+            self.m.stub(fn, lambda m, fn=fn, off=off: m.reg('r0', self._record_byte(m, fn, off)))
+        self.m.stub(ms.NAME_GET, lambda m: m.reg('r0', m.reg('r0') + RECS + REC * m.reg('r1') + NAME))
+        self.m.load(SELECT, pm.chain_cave(SELECT, STOCK_SELECT, [at + self.sym['snaps_selecting']], []))
+        self.m.load(SAVE, pm.chain_cave(SAVE, WRITER, [at + self.sym['snaps_saving']], [at + self.sym['snaps_saved']]))
+        self.saved = []                     # the bank live, the current snapshot and bank A's records, as each write saw them
+        self.m.stub(WRITER, lambda m: (self.saved.append((self.bank_b_live(), self.cur(), [self.rec(i) for i in range(3)])),
+                                       m.reg('r0', 1)))
+        a = pm.Asm(EVENT_TRAMPOLINE)        # r4 the event, r5 the object, r0 the getter's out, as the handler calls it; r4, r5 after
+        a.h(0xb5f8, 0x4604, 0x460d, 0x4610, 0x461f)        # push {r3-r7,lr}; mov r4,r0; mov r5,r1; mov r0,r2; mov r7,r3
+        a.bl(at + self.sym['snaps_event'])
+        a.h(0x603c, 0x607d, 0xbdf8)                         # str r4,[r7]; str r5,[r7,#4]; pop {r3-r7,pc}
+        self.m.load(EVENT_TRAMPOLINE, a.bytes())
         keys = {ms.FILE_KEY: ('more_snapshots', at + self.sym['snaps_key_write'], at + self.sym['snaps_key_found'])}
         engine, self.esym = m4emu.assemble('src/m4/preset_keys.s', MODS, IDS, inc={'preset_keys.inc': pm.preset_keys_inc(keys)})
         self.m.load(ENGINE, engine)
         self.stack_top = m4emu.STACK_TOP
-        self.depth, self.selects, self.inits, self.held = 0, [], [], []
+        self.depth, self.selects, self.inits, self.held, self.during_select = 0, [], [], [], None
         self.m.stub(LOCK, self._lock)
         self.m.stub(UNLOCK, self._unlock)
         self.m.stub(MEMCPY, lambda m: m.write(m.reg('r0'), m.read(m.reg('r1'), m.reg('r2'))))
         self.m.stub(MEMSET, lambda m: m.write(m.reg('r0'), bytes([m.reg('r1') & 0xff]) * m.reg('r2')))
-        self.m.stub(SELECT, self._select)
+        self.m.stub(STOCK_SELECT, self._select)
         self.m.stub(RECORD_INIT, self._init)
         self.written, self.section, self.flag = [], b'', 0
         self.m.stub(WRITE_FN, lambda m: self.written.append(m.read(m.reg('r1'), m.reg('r2'))))
@@ -97,6 +141,46 @@ class Manager:
         for i, f in enumerate(functions):
             self.m.u8(FS_FUNCTIONS + 2 * i, f)
 
+    def _get_value(self, m):
+        pid, out = m.reg('r0'), m.reg('r1')
+        if pid in self.settings:
+            m.u8(out, 2)
+            m.u32(out + 4, self.settings[pid])
+            m.reg('r0', 0)
+        else:
+            m.reg('r0', -1)
+
+    def _record_byte(self, m, fn, off):
+        """The stock getters: the current snapshot, or record k's colour, or 1 when it is renamed."""
+        if fn == ms.CUR_GET:
+            return m.read(m.reg('r0') + CUR, 1)[0]
+        v = m.read(m.reg('r0') + REC * m.reg('r1') + off, 1)[0]
+        return int(v != 0) if fn == ms.RENAMED_GET else v
+
+    def _layout(self, m):
+        assert (m.reg('r0'), m.reg('r1')) == (HOME, 0), 'the Home layout, as the stomp toggle calls it'
+        self.layouts.append(self.data(VIEW))
+        if self.during_layout:
+            self.during_layout()
+
+    def data(self, i, value=None):
+        """snaps_data byte i, or set it."""
+        at = self.at + self.sym['snaps_data'] + i
+        if value is None:
+            return self.m.read(at, 1)[0]
+        self.m.u8(at, value)
+
+    def armed(self):
+        return list(self.m.read(self.at + self.sym['snaps_armed'], 3))
+
+    def event(self, code, kind):
+        """The footswitch event handler's call at 0x28dd1986 with event {1, code, -, -, kind}: snaps_event's result is the getter's."""
+        self.m.write(EVENT, bytes([1, code, 0, 0]) + struct.pack('<I', kind))
+        r0 = self.m.call(EVENT_TRAMPOLINE, EVENT, OBJ, OUT, KEPT)
+        assert r0 == 0x5e1ec7ed ^ OUT, "the selected block's getter, with the handler's out, and its result"
+        assert struct.unpack('<2I', self.m.read(KEPT, 8)) == (EVENT, OBJ), 'r4 and r5 kept'
+        assert self.m.calls(SELECTED_BLOCK)[-1][0] == OUT
+
     def _section(self, m):
         assert (m.reg('r1'), m.reg('r3'), m.stack_args(1)[0]) == (10, SECTION, 0x5000), 'section 10, as the load reads it'
         m.write(SECTION, self.section)
@@ -111,18 +195,24 @@ class Manager:
         self.depth -= 1
 
     def _select(self, m):
-        """Stock: an unused record gets the old one's sound (not its name); then the old index becomes the previous one."""
+        """Stock: an unused record gets the old one's sound (not its name); then the old index becomes the previous one. The current
+        index again recalls it, or with Reselect Snapshot set swaps the current and previous ones (0x28de340a..0x28de3426)."""
         mgr, new = m.reg('r0'), m.reg('r1')
         assert mgr == MGR and self.depth == 0, 'select takes the lock itself'
+        if self.during_select:
+            self.during_select()
         if self.m.read(MGR + BUSY, 1)[0]:
             self.held.append(new)
             m.reg('r0', 0)
             return
         old = self.cur()
+        if new == old and self.settings.get(RESELECT):
+            new = self.prev()
         self.selects.append((new, old, self.rec(old), self.rec(new)))
         if not self.rec(new)[VALID]:
             m.write(record(new), self.rec(old)[:VALID] + b'\1' + self.rec(new)[VALID + 1:])
-        m.u8(MGR + PREV, old)
+        if new != old:
+            m.u8(MGR + PREV, old)
         m.u8(MGR + CUR, new)
         m.reg('r0', 1)
 
@@ -186,9 +276,9 @@ class Manager:
         return self.call('snaps_cc_select', MGR, value)
 
     def go(self, i):
-        """Snapshot i in the live bank: a press unless it's lit, which would flip."""
+        """Snapshot i in the live bank: select, unless it's lit."""
         if self.cur() != i:
-            self.press(i)
+            self.m.call(SELECT, MGR, i)
         self.selects.clear()
 
     def bank_b_live(self):
@@ -199,13 +289,15 @@ class Manager:
         self.m.u32(self.stack_top, 0x5000)
         return self.engine('pk_section', 0x28720000, 10, 0, SECTION)
 
-    def paint(self, view='top'):
+    def paint(self, view='top', lit=None):
         """The top view's (or Home view's) paint, then the module after it, with the cameras as stock sets them for the current
-        snapshot; what the module did, and which camera nodes it marked to draw (0 the top icon, 1..3 the labels)."""
+        snapshot (the labels for lit, 0xff none, if given); what the module did, and which camera nodes it marked to draw (0 the
+        top icon, 1..3 the labels)."""
         cur = self.cur()
+        lit = cur if lit is None else lit
         self.m.u32(ICON, CAMERAS[self.icon_style][cur])
         for i in range(3):
-            self.m.u32(LABELS + 0x24 * i, CAMERAS['lit' if i == cur else 'white'][i])
+            self.m.u32(LABELS + 0x24 * i, CAMERAS['lit' if i == lit else 'white'][i])
         self.events.clear()
         for n in range(4):
             self.m.u8(NODE + 0x40 * n + 0x24, 0)
@@ -214,10 +306,95 @@ class Manager:
         self.m.call(self.at + self.sym[sym], FB, view_at)
         return self.events, [n for n in range(4) if self.m.read(NODE + 0x40 * n + 0x24, 1)[0]]
 
+    def obj(self, off, value=None):
+        """The handler's object's byte at off, or set it."""
+        if value is None:
+            return self.m.read(OBJ + off, 1)[0]
+        self.m.u8(OBJ + off, value)
+
+    def dispatch(self, k):
+        """The function dispatch for footswitch k, as far as Snapshot mode goes: function 14 selects snapshot k while it is pressed."""
+        if self.m.read(FS_FUNCTIONS + 2 * k, 1)[0] == 14 and self.obj(PRESSED + k):
+            self.call('snaps_select', MGR, k)
+
+    def fs_press(self, k):
+        """A press of footswitch k: the hook, then what stock does with it (0x28dd19f8..0x28dd1a9c, 0x28dd1fd2, 0x28dd2040)."""
+        self.event(12 + k, PRESS)
+        if self.view == TUNER_VIEW:
+            return
+        self.obj(PRESSED + k, 1)
+        if self.settings[FS_MODE] not in (2, 3) or self.obj(IMMEDIATE):
+            return self.dispatch(k)
+        if not self.obj(PENDING):
+            self.obj(PENDING, 1)
+            self.m.u32(OBJ + PENDING_FS, k)
+            return
+        if self.m.u32(OBJ + PENDING_FS) == k:
+            return
+        self.obj(PENDING, 0)
+        pressed = [self.obj(PRESSED + i) for i in range(3)]
+        if pressed[:2] == [1, 1] or pressed == [0, 1, 1]:
+            self.settings[FS_MODE] = 2              # the combo: Preset mode, its bank view
+            self.mode([5, 6, 3])
+
+    def fs_fire(self):
+        """The press's 30-tick timer, then its deferred dispatch (0x28dd048c, 0x28dd18b0)."""
+        if self.obj(PENDING):
+            self.obj(PENDING, 0)
+            k = self.m.u32(OBJ + PENDING_FS)
+            self.dispatch(k)
+            self.obj(PRESSED + k, 0)
+
+    def fs_release(self, k):
+        self.event(12 + k, RELEASE)
+        if self.obj(PRESSED + k):
+            self.obj(PRESSED + k, 0)
+            self.dispatch(k)
+
+    def fs_click(self, k):
+        self.event(12 + k, CLICK)
+
+    def fs_hold(self, k):
+        self.event(12 + k, HOLD)
+        self.obj(PRESSED + k, 0)
+
+    def tap(self, k):
+        """Footswitch k tapped for longer than the 30-tick window: its press waits, is dispatched, then released."""
+        self.fs_press(k)
+        self.fs_fire()
+        self.fs_release(k)
+        self.fs_click(k)
+
+    def hold_fs(self, k):
+        """Footswitch k held for 1 s, then let go: no click after a hold."""
+        self.fs_press(k)
+        self.fs_fire()
+        self.fs_hold(k)
+        self.event(12 + k, RELEASE)
+
+    def tick(self):
+        self.call('snaps_tick', 0, OBJ)
+
+    def save(self):
+        """A preset serializer through its chain: a save on the unit, or HX Edit's Get edit buffer (command 0x16)."""
+        assert self.m.call(SAVE, STREAM, HEADER) == 1, "the serializer's result"
+
+    def at_snapshot(self):
+        """1..6: the live one."""
+        return self.cur() + 3 * self.bank_b_live() + 1
+
 
 @pytest.fixture
 def mgr(m4emu):
     return Manager(m4emu)
+
+
+@pytest.fixture
+def hm(m4emu):
+    """Snapshot 4-6 Sel on Hold, as a unit that never stored it reads."""
+    m = Manager(m4emu, bank_switch=HOLD_SEL)
+    del m.settings[BANK_SWITCH]
+    return m
 
 
 def test_a_snapshot_not_lit_goes_straight_to_select(mgr):
@@ -239,7 +416,7 @@ def test_the_lit_snapshot_again_flips_to_bank_b(mgr, lit):
     assert not new_rec[VALID] and new_rec[NAME:NAME + 10] == f'SNAPSHOT {lit + 4}'.encode()
     assert mgr.rec(lit)[:VALID] == bank_a(lit)[:VALID] and mgr.name(lit) == f'SNAPSHOT {lit + 4}'.encode()
     assert [mgr.name(i) for i in range(3)] == [f'SNAPSHOT {i + 4}'.encode() for i in range(3)]
-    assert mgr.cur() == lit and mgr.prev() == 2 - lit, 'the previous snapshot is kept'
+    assert mgr.cur() == lit and mgr.prev() == lit, 'the previous snapshot is the new one: the one before it is in bank A'
     assert mgr.depth == 0
 
 
@@ -757,8 +934,747 @@ def test_a_preset_load_forgets_the_last_presets_bank_b(mgr):
     assert [(new, old) for new, old, _, _ in mgr.selects] == [(0, 2)] and mgr.inits == [] and not mgr.bank_b_live()
 
 
-def test_feature_flag():
-    assert ms.FLAG == 'HX_MORE_SNAPSHOTS' and not getattr(ms, 'SETTINGS', ())
+def test_snapshot_4_6_sel_is_a_footswitches_setting_on_a_virtual_id():
+    """Hold (0) is the default, which a unit reads before the setting is ever stored; the HX Stomp shows 'Snapshot' over '4-6 Sel'."""
+    assert ms.FLAG == 'HX_MORE_SNAPSHOTS' and ms.MENU == 'Footswitches'
+    assert ms.SETTINGS == (Setting('bank_switch', b'4-6 Sel\nSnapshot', (b'Hold', b'Tap'), 0),)
+    assert IDS['more_snapshots.bank_switch'] == 0xe6 and setting_ids.packing()[0xe6] == (114, 0, 2)
+
+
+def bank_b_ready(m):
+    """A preset with a bank B (each of 4..6 holding a sound of its own), bank A live on snapshot 1, then Snapshot 4-6 Sel on Hold;
+    bank B's records."""
+    m.settings[BANK_SWITCH] = TAP_SEL
+    bank_b = with_bank_b(m)
+    m.settings[BANK_SWITCH] = HOLD_SEL
+    return bank_b
+
+
+def test_the_event_hook_returns_the_selected_block_and_keeps_registers(hm):
+    """Every event the handler gets reaches the hook: the stock getter runs once with the handler's out argument and its result
+    comes back, r4 and r5 unchanged."""
+    events = [(c, t) for c in (9, 10, 11, 12, 13, 14, 15, 16, 8, 0x40) for t in (PRESS, RELEASE, CLICK, HOLD, 4)]
+    for code, kind in events:
+        hm.event(code, kind)
+    assert len(hm.m.calls(SELECTED_BLOCK)) == len(events)
+
+
+def test_touches_other_keys_and_releases_select_nothing(hm):
+    for k in range(3):
+        hm.obj(PRESSED + k, 1)
+    for code, kind in [(c, t) for c in (9, 10, 11, 15, 16, 8, 0x40) for t in (PRESS, RELEASE, CLICK, HOLD)] + [(12, RELEASE)]:
+        hm.event(code, kind)
+    assert hm.selects == [] and hm.layouts == [] and hm.armed() == [0, 0, 0] and hm.data(VIEW) == 0
+
+
+def test_an_unset_setting_holds_back_a_snapshot_press(hm):
+    """snaps_select with no mark is footswitch k's press of snapshot k: in Hold mode it selects nothing, takes no lock, paints
+    nothing; its click selects."""
+    for k in range(3):
+        assert hm.call('snaps_select', MGR, k) == 0
+    assert hm.selects == [] and hm.inits == [] and hm.depth == 0 and hm.events == []
+    hm.settings[BANK_SWITCH] = 7
+    assert hm.call('snaps_select', MGR, 1) == 0 and hm.selects == [], 'a value above Tap reads Hold, the default'
+
+
+@pytest.mark.parametrize('index', [3, 8, 0xff])
+def test_in_hold_mode_an_index_above_2_goes_to_select(hm, index):
+    hm.call('snaps_select', MGR, index)
+    assert [s[0] for s in hm.selects] == [index]
+
+
+@pytest.mark.parametrize('sel', [HOLD_SEL, TAP_SEL])
+@pytest.mark.parametrize('way, start', [(1, 0), (1, 1), (-1, 1), (-1, 2)])
+def test_footswitch_steps_within_a_bank_reach_stock_select_in_both_modes(mgr, sel, way, start):
+    """SnpshtUp and SnpshtDn share the select call with snapshot k's press; their read of the current snapshot marks a step, which
+    snaps_select clears and sends to select, so Hold does not hold them back."""
+    with_bank_b(mgr)
+    mgr.go(start)
+    mgr.settings[BANK_SWITCH] = sel
+    assert mgr.step(way) == 1
+    assert [(new, old) for new, old, _, _ in mgr.selects] == [(start + way, start)] and not mgr.bank_b_live()
+    assert mgr.data(WRAP) == 0, 'the mark is cleared'
+
+
+@pytest.mark.parametrize('sel', [HOLD_SEL, TAP_SEL])
+def test_footswitch_wraps_still_cross_in_both_modes(mgr, sel):
+    bank_b = with_bank_b(mgr)
+    mgr.go(2)
+    mgr.settings[BANK_SWITCH] = sel
+    mgr.step(1)
+    (new, _, old_rec, new_rec), = mgr.selects
+    assert (new, old_rec, new_rec) == (0, bank_a(2), bank_b[0]) and mgr.bank_b_live()
+
+
+def test_a_stray_step_mark_at_cc_69_is_stock(mgr):
+    with_bank_b(mgr)
+    mgr.go(1)
+    mgr.data(WRAP, STEP)
+    mgr.call('snaps_cc_select', MGR, 2)
+    assert [(new, old) for new, old, _, _ in mgr.selects] == [(2, 1)] and not mgr.bank_b_live() and mgr.data(WRAP) == 0
+
+
+def test_a_click_selects_in_the_live_bank_on_its_release(hm):
+    hm.fs_press(1)
+    hm.fs_fire()
+    assert hm.selects == [], 'the dispatch 30 ticks on is held back'
+    hm.fs_release(1)
+    assert hm.selects == []
+    hm.fs_click(1)
+    assert [(new, old) for new, old, _, _ in hm.selects] == [(1, 0)] and hm.armed() == [0, 0, 0]
+
+
+def test_a_short_tap_selects_once_on_its_click(hm):
+    """Released inside the 30-tick window: stock would select nothing; the click selects, and the dispatch after finds it released."""
+    hm.fs_press(2)
+    hm.fs_release(2)
+    hm.fs_click(2)
+    hm.fs_fire()
+    hm.fs_click(2)
+    assert [(new, old) for new, old, _, _ in hm.selects] == [(2, 0)], 'once: the click consumed the press'
+
+
+@pytest.mark.parametrize('k', [0, 1, 2])
+def test_a_lit_click_is_stock_select_which_does_what_reselect_says(hm, k):
+    hm.m.u8(MGR + CUR, k)
+    hm.tap(k)
+    assert [(new, old) for new, old, _, _ in hm.selects] == [(k, k)] and not hm.bank_b_live() and hm.inits == []
+
+
+@pytest.mark.parametrize('start, fs, hold_fs, end', [(2, 2, 1, 6), (6, 0, 0, 1), (2, 1, 1, 5), (5, 1, 0, 2), (1, 0, 1, 4)])
+def test_hold_then_click_moves_with_one_sound_change(hm, start, fs, hold_fs, end):
+    """Holding FS1 points the footswitches at 1..3 and FS2 at 4..6, with no sound change; the click then crosses, one select from
+    the record left to the other bank's, and the footswitches stay on the bank now live. Bank B made live by CC 69 left them on
+    bank A, so a hold of FS1 there has nothing to change."""
+    bank_b = bank_b_ready(hm)
+    if start > 3:
+        hm.cc(start - 1)
+    hm.go((start - 1) % 3)
+    assert hm.at_snapshot() == start and hm.data(VIEW) == 0
+    left = hm.rec(hm.cur())
+    hm.layouts.clear()
+    hm.hold_fs(hold_fs)
+    assert hm.selects == [] and hm.data(VIEW) == hold_fs
+    assert hm.layouts == ([] if hold_fs == 0 else [1]), 'a layout of the bank held, at once, when it changes'
+    hm.fs_press(fs)
+    hm.fs_fire()
+    hm.fs_release(fs)
+    assert hm.selects == []
+    hm.fs_click(fs)
+    (new, old, old_rec, new_rec), = hm.selects
+    target = bank_b[fs] if end > 3 else bank_a(fs)
+    assert (new, old_rec, new_rec) == (fs, left, target) and old != fs, 'from the sound left, a select of another index'
+    assert hm.at_snapshot() == end and hm.prev() == hm.cur() and hm.data(PREV6) == start - 1
+    assert hm.data(VIEW) == hold_fs and hm.data(RELAYOUT) == 1, 'the cross asks for a layout'
+    hm.tick()
+    assert hm.layouts[-1] == hold_fs and hm.data(RELAYOUT) == 0, 'the tick lays the labels out again, once the cross is whole'
+
+
+def test_in_bank_b_a_click_selects_within_it(hm):
+    bank_b_ready(hm)
+    hm.hold_fs(1)
+    hm.tap(0)
+    hm.selects.clear()
+    hm.tap(1)
+    assert [(new, old) for new, old, _, _ in hm.selects] == [(1, 0)] and hm.bank_b_live() and hm.at_snapshot() == 5
+
+
+def test_holding_fs3_and_the_release_after_a_hold_do_nothing(hm):
+    bank_b_ready(hm)
+    hm.layouts.clear()
+    hm.hold_fs(2)
+    hm.fs_click(2)
+    assert hm.selects == [] and hm.data(VIEW) == 0 and hm.layouts == [], 'FS3 has no bank yet'
+    hm.hold_fs(1)
+    hm.fs_click(1)
+    assert hm.selects == [] and hm.data(VIEW) == 1 and len(hm.layouts) == 1, 'the click after a hold is stray: no select'
+
+
+def test_holding_the_viewed_bank_again_or_the_live_one(hm):
+    bank_b_ready(hm)
+    hm.hold_fs(1)
+    hm.layouts.clear()
+    hm.hold_fs(1)
+    assert hm.data(VIEW) == 1 and hm.layouts == [], 'already on bank B'
+    hm.hold_fs(0)
+    assert hm.data(VIEW) == 0 and hm.layouts == [0] and hm.selects == [], 'bank A is live: back to it, no sound change'
+    hm.view = EDIT_VIEW
+    hm.hold_fs(1)
+    assert hm.data(VIEW) == 1 and hm.layouts == [0] and hm.data(RELAYOUT) == 1, 'away from Home: laid out on its return'
+    hm.tick()
+    assert hm.layouts == [0] and hm.data(RELAYOUT) == 1
+    hm.view = HOME_VIEW
+    hm.tick()
+    assert hm.layouts == [0, 1] and hm.data(RELAYOUT) == 0
+    hm.tick()
+    assert hm.layouts == [0, 1], 'once'
+
+
+def test_an_aborted_hold_is_a_click(hm):
+    hm.fs_press(1)
+    hm.fs_fire()
+    hm.fs_release(1)
+    hm.fs_click(1)
+    assert [new for new, _, _, _ in hm.selects] == [1] and hm.data(VIEW) == 0
+
+
+@pytest.mark.parametrize('first, second', [(0, 1), (1, 2), (0, 2), (1, 0), (2, 1), (2, 0)])
+def test_a_second_switch_held_inside_the_window_disarms_both(hm, first, second):
+    """FS1+FS2 and FS2+FS3 switch to Preset mode (its bank view) and FS1+FS3 is dropped, as stock: neither press selects."""
+    bank_b_ready(hm)
+    hm.fs_press(first)
+    hm.fs_press(second)
+    assert hm.armed() == [0, 0, 0]
+    for k in (first, second):
+        hm.fs_hold(k)
+        hm.fs_click(k)
+    assert hm.selects == [] and hm.data(VIEW) == 0
+
+
+def test_a_switch_let_go_inside_the_window_leaves_the_next_one_armed(hm):
+    """A quick tap then another switch inside its window: stock drops both; the first selected on its click, the second on its own."""
+    hm.fs_press(0)
+    hm.fs_release(0)
+    hm.fs_click(0)
+    hm.fs_press(2)
+    hm.fs_release(2)
+    hm.fs_click(2)
+    assert [new for new, _, _, _ in hm.selects] == [0, 2]
+
+
+def test_overlapping_presses_outside_the_window_select_in_release_order(hm):
+    """FS1 pressed and held past its window, then FS3 pressed, let go, then FS1: each selects on its own click, so the last let go
+    wins (stock would have selected in press order)."""
+    hm.fs_press(0)
+    hm.fs_fire()
+    hm.fs_press(2)
+    hm.fs_fire()
+    hm.fs_release(2)
+    hm.fs_click(2)
+    hm.fs_release(0)
+    hm.fs_click(0)
+    assert [new for new, _, _, _ in hm.selects] == [2, 0] and hm.cur() == 0
+
+
+def test_cc_49_to_51_select_on_their_press_in_the_bank_shown(hm):
+    """MIDI CC 49..51 press a footswitch with [obj+0x6d] set: the press dispatches at once, held back, and the hook selects as a
+    tap does, across the banks after a hold of FS2, and on the lit one as Reselect Snapshot says; the click after it selects
+    nothing."""
+    bank_b = bank_b_ready(hm)
+    hm.obj(IMMEDIATE, 1)
+    for k in (1, 1):
+        hm.fs_press(k)
+        hm.fs_release(k)
+        hm.fs_click(k)
+    assert [(new, old) for new, old, _, _ in hm.selects] == [(1, 0), (1, 1)] and not hm.bank_b_live()
+    hm.obj(IMMEDIATE, 0)
+    hm.hold_fs(1)
+    hm.obj(IMMEDIATE, 1)
+    hm.selects.clear()
+    hm.fs_press(2)
+    (new, _, _, new_rec), = hm.selects
+    assert (new, new_rec) == (2, bank_b[2]) and hm.at_snapshot() == 6 and hm.data(VIEW) == 1
+    hm.fs_release(2)
+    hm.fs_click(2)
+    assert len(hm.selects) == 1 and hm.armed() == [0, 0, 0]
+
+
+def test_a_cc_press_held_on_holds_nothing(hm):
+    """A preset that makes the footswitch momentary: CC 49..51's on-value posts the press alone, and on-values sent again count
+    towards a hold. The press selected; the hold and the click with the off-value do nothing."""
+    bank_b_ready(hm)
+    hm.obj(IMMEDIATE, 1)
+    hm.fs_press(1)
+    hm.fs_hold(1)
+    hm.fs_release(1)
+    hm.fs_click(1)
+    assert [(new, old) for new, old, _, _ in hm.selects] == [(1, 0)] and hm.data(VIEW) == 0 and hm.layouts == []
+
+
+@pytest.mark.parametrize('learn', [0, 1], ids=['bypass assign', 'controller assign'])
+def test_a_press_a_learn_takes_selects_nothing(hm, learn):
+    """While Bypass Assign's or Controller Assign's learn waits, the dispatch gives the press to it: not armed, so neither its
+    click nor its hold selects or changes the bank shown, after the learn is done."""
+    bank_b_ready(hm)
+    for cc in (0, 1):
+        hm.obj(IMMEDIATE, cc)
+        for k, end in ((1, CLICK), (1, HOLD), (0, CLICK)):
+            hm.learning[learn] = 1
+            hm.event(12 + k, PRESS)
+            assert hm.armed() == [0, 0, 0]
+            hm.learning[learn] = 0
+            hm.event(12 + k, end)
+    assert hm.selects == [] and hm.data(VIEW) == 0 and hm.layouts == []
+
+
+@pytest.mark.parametrize('why', ['preset mode', 'not snapshot k', 'tap', 'tuner'])
+def test_no_click_selects_outside_snapshot_mode_on_tap_or_in_the_tuner(hm, why):
+    """Not armed by a press made there; and a press armed before it changed is consumed by its click or hold, selecting nothing."""
+    def leave():
+        if why == 'preset mode':
+            hm.settings[FS_MODE] = 2
+        elif why == 'not snapshot k':
+            hm.mode([14, 13, 14])
+        elif why == 'tap':
+            hm.settings[BANK_SWITCH] = TAP_SEL
+        else:
+            hm.view = TUNER_VIEW
+
+    leave()
+    hm.event(13, PRESS)
+    hm.event(13, CLICK)
+    assert hm.selects == [] and hm.armed() == [0, 0, 0]
+    hm.settings[FS_MODE], hm.settings[BANK_SWITCH], hm.view = SNAPSHOT_MODE, HOLD_SEL, HOME_VIEW
+    hm.mode([14, 14, 14])
+    hm.event(13, PRESS)
+    assert hm.armed() == [0, 1, 0]
+    leave()
+    hm.event(13, CLICK)
+    hm.event(13, HOLD)
+    assert hm.selects == [] and hm.armed() == [0, 0, 0] and hm.data(VIEW) == 0
+
+
+def viewing_b(m):
+    """Bank A live on snapshot 1, the footswitches pointed at bank B by a hold of FS2; the layouts and selects cleared."""
+    bank_b = bank_b_ready(m)
+    m.hold_fs(1)
+    assert m.data(VIEW) == 1
+    m.layouts.clear()
+    m.selects.clear()
+    return bank_b
+
+
+@pytest.mark.parametrize('how', ['select', 'cc 4', 'cc 1', 'cc lit', 'cc wrap', 'fs wrap', 'fs step', 'action', 'busy'])
+def test_no_other_select_moves_the_footswitches(hm, how):
+    """HX Edit's select (command 0x58), CC 69's values, its next past the bank's end, SnpshtUp's, the Command Center's, one select
+    refuses: the footswitches stay on the bank held, whichever bank is live after it. A move between the banks asks for a layout
+    once it is whole; within a bank stock lays the labels out itself."""
+    viewing_b(hm)
+    if how == 'select':
+        hm.m.call(SELECT, MGR, 2)
+    elif how in ('cc 4', 'cc 1', 'cc lit'):
+        hm.cc({'cc 4': 4, 'cc 1': 1, 'cc lit': 0}[how])
+    elif how in ('cc wrap', 'fs wrap'):
+        hm.go(2)
+        hm.step(1, how[:2])
+    elif how == 'fs step':
+        hm.step(1)
+    elif how == 'action':
+        hm.call('snaps_action_select', MGR, 2)
+    else:
+        hm.m.u8(MGR + BUSY, 1)
+        hm.m.call(SELECT, MGR, 2)
+        assert hm.held == [2], 'refused by select, after its hook'
+    cross = how in ('cc 4', 'cc wrap', 'fs wrap')
+    assert hm.data(VIEW) == 1 and hm.bank_b_live() == cross and hm.data(RELAYOUT) == int(cross)
+    hm.tick()
+    assert hm.layouts == ([1] if cross else []) and hm.data(RELAYOUT) == 0 and hm.data(VIEW) == 1
+
+
+def test_a_select_with_the_live_bank_shown_lays_out_nothing(hm):
+    hm.m.call(SELECT, MGR, 2)
+    hm.tick()
+    assert hm.data(RELAYOUT) == 0 and hm.layouts == []
+
+
+def test_a_click_leaves_the_footswitches_on_the_bank_now_live(hm):
+    """A click selects in the bank the footswitches are on, which is then live; one select refuses (+0x9a9) leaves the live bank
+    as it was, and the footswitches go back to it, laid out by the tick."""
+    viewing_b(hm)
+    hm.m.u8(MGR + BUSY, 1)
+    hm.tap(1)
+    assert hm.held == [1] and hm.data(VIEW) == 0 and hm.data(RELAYOUT) == 1 and not hm.bank_b_live()
+    hm.tick()
+    assert hm.layouts == [0]
+    hm.m.u8(MGR + BUSY, 0)
+    hm.hold_fs(1)
+    hm.tap(1)
+    assert hm.at_snapshot() == 5 and hm.data(VIEW) == 1
+    hm.tap(0)
+    assert hm.at_snapshot() == 4 and hm.data(VIEW) == 1
+
+
+def test_a_preset_load_points_the_footswitches_at_bank_a(hm):
+    """The load's bank A, whichever bank the footswitches were on or was live; the press made before it selects nothing in the
+    new preset, and its previous snapshot is no other bank's."""
+    viewing_b(hm)
+    hm.cc(4)
+    hm.event(12, PRESS)
+    assert hm.armed() == [1, 0, 0] and hm.bank_b_live() and hm.data(PREV6) == 0
+    hm.selects.clear()
+    hm.call('snaps_loaded', MGR, 0, 0, 0)
+    assert hm.data(VIEW) == 0 and hm.data(RELAYOUT) == 1 and hm.armed() == [0, 0, 0] and hm.data(PREV6) == NONE
+    hm.event(12, CLICK)
+    assert hm.selects == [], 'the press made before the load selects nothing in the new preset'
+
+
+@pytest.mark.parametrize('sel, view, relayout', [(HOLD_SEL, 1, 1), (HOLD_SEL, 0, 0), (TAP_SEL, 1, 0)])
+def test_a_preset_load_asks_the_tick_for_a_layout_only_off_bank_b_on_hold(hm, sel, view, relayout):
+    """Stock lays the labels out after a load; the tick lays them out too only when Hold had them on bank B, so a load on Tap, or
+    with the labels on bank A already, adds no layout from the key task."""
+    hm.settings[BANK_SWITCH] = sel
+    hm.data(VIEW, view)
+    hm.call('snaps_loaded', MGR, 0, 0, 0)
+    assert hm.data(VIEW) == 0 and hm.data(RELAYOUT) == relayout
+
+
+@pytest.mark.parametrize('bank', ['a', 'b'])
+def test_a_save_leaves_the_footswitches_and_the_previous_snapshot_alone(hm, bank):
+    """Through a serializer's chain, as a save or HX Edit's Get edit buffer runs it, three times: in bank B each write sees bank A
+    live and the two flips come back, SAVING set through both. The bank the footswitches are on and the current and previous
+    snapshots, in both forms, are as before; only the flips ask for a layout."""
+    bank_b_ready(hm)
+    hm.go(1)
+    hm.go(2)
+    if bank == 'b':
+        hm.cc(4)
+        hm.go(0)
+        hm.go(1)
+    hm.hold_fs(0 if bank == 'b' else 1)
+    hm.selects.clear()
+    hm.layouts.clear()
+    before = hm.cur(), hm.prev(), hm.data(PREV6), hm.data(VIEW), hm.bank_b_live()
+    assert before == ((1, 0, 3, 0, True) if bank == 'b' else (2, 1, 1, 1, False))
+    saving = []
+    hm.during_select = lambda: saving.append(hm.data(SAVING))
+    for _ in range(3):
+        hm.save()
+    assert [(b, cur) for b, cur, _ in hm.saved] == [(False, before[0])] * 3
+    assert saving == ([1] * 6 if bank == 'b' else []) and hm.data(SAVING) == 0
+    assert (hm.cur(), hm.prev(), hm.data(PREV6), hm.data(VIEW), hm.bank_b_live()) == before
+    hm.tick()
+    assert hm.layouts == ([0] if bank == 'b' else [])
+
+
+@pytest.mark.parametrize('held, cc', [(1, 0), (0, 0), (1, 1)], ids=['on bank b', 'on bank a', 'cc 51'])
+def test_a_tap_during_a_serializers_flips_selects_nothing(hm, held, cc):
+    """On 5 a serializer flips to bank A and back (a save, or HX Edit's Get edit buffer from the request task); a tap of FS3 between
+    the flips, or MIDI CC 51's, selects nothing and leaves the footswitches where they were: byte 0 is bank A's there, and the
+    records are the ones the serializer reads. After the flip back the same tap selects 6, or 3 with FS1 held."""
+    bank_b_ready(hm)
+    hm.hold_fs(1)
+    hm.tap(1)
+    hm.hold_fs(held)
+    hm.call('snaps_saving', STREAM, HEADER)
+    assert hm.data(SAVING) == 1 and not hm.bank_b_live()
+    hm.selects.clear()
+    hm.obj(IMMEDIATE, cc)
+    hm.tap(2)
+    hm.obj(IMMEDIATE, 0)
+    assert hm.selects == [] and hm.armed() == [0, 0, 0] and hm.data(VIEW) == held
+    hm.call('snaps_saved', STREAM, HEADER)
+    assert hm.at_snapshot() == 5 and hm.data(VIEW) == held and hm.data(SAVING) == 0
+    hm.tap(2)
+    assert hm.at_snapshot() == (6 if held else 3) and hm.data(VIEW) == held
+
+
+@pytest.mark.parametrize('during', [True, False], ids=['between the flips', 'outside them'])
+def test_a_select_during_a_serializers_flips_keeps_the_previous_snapshot_in_bank_b(hm, during):
+    """Reselect Snapshot set to go back. On 5, HX Edit's snapshot 3 between a serializer's flips selects record 2 of bank A's, which
+    the flip back makes 6: the snapshot it left is 5, in bank B, so the lit FS3 goes back to 5 within the bank, as the same select
+    does outside the flips."""
+    bank_b_ready(hm)
+    hm.settings[RESELECT] = 1
+    hm.hold_fs(1)
+    hm.tap(1)
+    if during:
+        hm.call('snaps_saving', STREAM, HEADER)
+    hm.m.call(SELECT, MGR, 2)
+    if during:
+        hm.call('snaps_saved', STREAM, HEADER)
+    assert hm.at_snapshot() == 6 and hm.data(PREV6) == 4 and hm.prev() == 1
+    hm.tap(2)
+    assert hm.at_snapshot() == 5 and hm.bank_b_live() and hm.data(VIEW) == 1
+
+
+@pytest.mark.parametrize('why', ['stomp mode', 'tap', 'tuner'])
+def test_leaving_snapshot_mode_hold_or_home_leaves_the_footswitches_alone(hm, why):
+    """Back in Snapshot mode, on Hold or out of the tuner, the footswitches are still on the bank held: the tick only lays out."""
+    viewing_b(hm)
+    if why == 'stomp mode':
+        hm.mode([2, 2, 2])
+    elif why == 'tap':
+        hm.settings[BANK_SWITCH] = TAP_SEL
+    else:
+        hm.view = TUNER_VIEW
+    for _ in range(3):
+        hm.tick()
+    hm.mode([14, 14, 14])
+    hm.settings[BANK_SWITCH], hm.view = HOLD_SEL, HOME_VIEW
+    hm.tick()
+    assert hm.data(VIEW) == 1 and hm.layouts == [] and hm.selects == []
+
+
+def test_the_tick_leaves_a_hold_alone(hm):
+    viewing_b(hm)
+    for _ in range(3):
+        hm.tick()
+    assert hm.data(VIEW) == 1 and hm.layouts == []
+
+
+def test_a_change_during_the_holds_layout_lays_out_again(hm):
+    """A cross in another task, or a preset load, while the hold's layout runs: each stores RELAYOUT after what it changed, so the
+    next tick lays out what they left."""
+    bank_b_ready(hm)
+    stores = [lambda: hm.data(RELAYOUT, 1), lambda: (hm.data(VIEW, 0), hm.data(RELAYOUT, 1))]
+    for store, after in zip(stores, (1, 0)):
+        hm.data(VIEW, 0)
+        hm.layouts.clear()
+        hm.during_layout = store
+        hm.hold_fs(1)
+        hm.during_layout = None
+        assert hm.layouts == [1] and hm.data(RELAYOUT) == 1
+        hm.tick()
+        assert hm.layouts == [1, after] and hm.data(RELAYOUT) == 0
+
+
+def test_a_change_during_the_ticks_layout_lays_out_again(hm):
+    """A hold away from Home is laid out by the tick on Home's return; a load in another task during that layout sets RELAYOUT
+    again, so the next tick lays out bank A."""
+    bank_b_ready(hm)
+    hm.view = EDIT_VIEW
+    hm.hold_fs(1)
+    hm.view = HOME_VIEW
+    hm.layouts.clear()
+    hm.during_layout = lambda: (hm.data(VIEW, 0), hm.data(RELAYOUT, 1))
+    hm.tick()
+    hm.during_layout = None
+    assert hm.layouts == [1] and hm.data(RELAYOUT) == 1
+    hm.tick()
+    assert hm.layouts == [1, 0] and hm.data(RELAYOUT) == 0
+
+
+@pytest.mark.parametrize('code', [9, 10, 11])
+def test_touches_leave_the_footswitches_alone(hm, code):
+    """A foot touches a cap with every press and hold: the hook ignores the caps' codes, so none of them moves the footswitches or
+    lays the labels out (the built handler's copy or swap is test_the_built_handler_leaves_the_bank_held_for_a_copy_or_swap)."""
+    viewing_b(hm)
+    for kind in (PRESS, RELEASE, CLICK, HOLD):
+        hm.event(code, kind)
+    assert hm.data(VIEW) == 1 and hm.layouts == [] and hm.selects == []
+
+
+def test_on_tap_the_hooks_follow_the_live_bank_and_keep_the_footswitches_on_it(hm):
+    """Snapshot 4-6 Sel on Tap: the layout's reads and the labels' numbers are the live bank's, whatever bank a hold left the
+    footswitches on. A snapshot footswitch press and every move between the banks put them on the live bank, where Hold finds
+    them; with neither, the bank held stays held."""
+    viewing_b(hm)
+    hm.data(3, 0)
+    hm.settings[BANK_SWITCH] = TAP_SEL
+    assert [layout(hm, i)[::2] for i in range(3)] == [(0, b'A1'), (0, b'A2'), (0, b'A3')], 'the stock reads: bank A, 1 lit'
+    assert hm.paint('home') == ([], [])
+    hm.settings[BANK_SWITCH] = HOLD_SEL
+    assert hm.data(VIEW) == 1, 'the bank held, with nothing between'
+    hm.settings[BANK_SWITCH] = TAP_SEL
+    hm.press(1)
+    assert hm.data(VIEW) == 0 and hm.at_snapshot() == 2
+    hm.cc(4)
+    assert hm.data(VIEW) == 1 and hm.at_snapshot() == 5
+    hm.data(VIEW, 0)
+    hm.step(1)
+    hm.step(1)
+    assert hm.data(VIEW) == 0 and hm.at_snapshot() == 1, 'next on 6: back to bank A'
+    hm.press(0)
+    assert hm.data(VIEW) == 1 and hm.at_snapshot() == 4, 'the lit one: the flip'
+    hm.settings[BANK_SWITCH] = HOLD_SEL
+    assert layout(hm, 0)[0] == 0, 'on Hold the labels show the live bank, its snapshot lit'
+
+
+def test_the_lit_click_goes_back_across_the_banks_with_reselect_snapshot(hm):
+    """Reselect Snapshot set to go back: on 2, FS2 held and FS3 tapped is 6; FS3 again is 2, from the sound left, and FS2 again
+    6. On 6, FS1 held and FS1 tapped is 1; FS1 again is 6. The footswitches follow each."""
+    bank_b = bank_b_ready(hm)
+    hm.settings[RESELECT] = 1
+    hm.go(1)
+    hm.hold_fs(1)
+    hm.tap(2)
+    assert hm.at_snapshot() == 6 and hm.data(PREV6) == 1 and hm.prev() == hm.cur()
+    hm.selects.clear()
+    hm.tap(2)
+    (new, _, old_rec, new_rec), = hm.selects
+    assert (new, old_rec, new_rec) == (1, bank_b[2], bank_a(1)) and hm.at_snapshot() == 2
+    assert hm.data(VIEW) == 0 and hm.data(PREV6) == 5
+    hm.tap(1)
+    assert hm.at_snapshot() == 6 and hm.data(VIEW) == 1 and hm.data(PREV6) == 1
+    hm.hold_fs(0)
+    hm.tap(0)
+    assert hm.at_snapshot() == 1 and hm.data(PREV6) == 5
+    hm.tap(0)
+    assert hm.at_snapshot() == 6 and hm.data(VIEW) == 1 and hm.data(PREV6) == 0
+
+
+def test_the_lit_click_goes_back_within_the_bank_as_stock(hm):
+    """The previous snapshot in the live bank: stock select, whose swap of the current and previous ones goes back."""
+    bank_b_ready(hm)
+    hm.settings[RESELECT] = 1
+    hm.tap(1)
+    assert hm.at_snapshot() == 2 and hm.data(PREV6) == 0
+    hm.tap(1)
+    assert hm.at_snapshot() == 1 and hm.prev() == 1 and hm.data(PREV6) == 1
+    hm.tap(0)
+    assert hm.at_snapshot() == 2 and hm.data(PREV6) == 0
+    assert [(new, old) for new, old, _, _ in hm.selects] == [(1, 0), (0, 1), (1, 0)] and not hm.bank_b_live()
+
+
+def test_an_outside_select_is_the_previous_snapshot_for_the_lit_click(hm):
+    """On 2, FS2 held and FS3 tapped (6), then HX Edit selects 4: the lit FS1 goes back to 6, within bank B, as stock does."""
+    bank_b_ready(hm)
+    hm.settings[RESELECT] = 1
+    hm.go(1)
+    hm.hold_fs(1)
+    hm.tap(2)
+    hm.m.call(SELECT, MGR, 0)
+    assert hm.at_snapshot() == 4 and hm.data(PREV6) == 5 and hm.prev() == 2
+    hm.tap(0)
+    assert hm.at_snapshot() == 6 and hm.data(PREV6) == 3
+
+
+def test_an_aborted_hold_of_the_lit_switch_goes_back_with_reselect_snapshot(hm):
+    bank_b_ready(hm)
+    hm.settings[RESELECT] = 1
+    hm.go(1)
+    hm.hold_fs(1)
+    hm.tap(2)
+    hm.fs_press(2)
+    hm.fs_fire()
+    hm.fs_release(2)                        # before the hold: a click
+    hm.fs_click(2)
+    assert hm.at_snapshot() == 2 and hm.data(VIEW) == 0
+
+
+def test_the_lit_click_recalls_with_reselect_snapshot_off(hm):
+    bank_b_ready(hm)
+    hm.go(1)
+    hm.hold_fs(1)
+    hm.tap(2)
+    hm.selects.clear()
+    hm.tap(2)
+    assert [(new, old) for new, old, _, _ in hm.selects] == [(2, 2)] and hm.at_snapshot() == 6 and hm.data(PREV6) == 1
+
+
+def test_cc_69s_lit_value_and_the_command_center_stay_within_the_bank(hm):
+    """Right after a move between the banks the previous snapshot select keeps is the current one, so CC 69's lit value and the
+    Command Center's lit snapshot stay put with Reselect Snapshot set to go back; the lit footswitch still goes back across."""
+    bank_b_ready(hm)
+    hm.settings[RESELECT] = 1
+    hm.go(1)
+    hm.hold_fs(1)
+    hm.tap(2)
+    hm.selects.clear()
+    hm.cc(5)
+    hm.call('snaps_action_select', MGR, 2)
+    assert [(new, old) for new, old, _, _ in hm.selects] == [(2, 2), (2, 2)] and hm.at_snapshot() == 6 and hm.data(PREV6) == 1
+    hm.tap(2)
+    assert hm.at_snapshot() == 2
+
+
+def layout(m, k):
+    """The layout's reads of snapshot k through the module's hooks: (current, colour, name, renamed)."""
+    return (m.call('snaps_layout_cur', MGR), m.call('snaps_layout_colour', MGR, k),
+            m.m.read(m.call('snaps_layout_name', MGR, k), 11).split(b'\0')[0], m.call('snaps_layout_renamed', MGR, k))
+
+
+def test_the_layout_reads_follow_the_bank_the_footswitches_select_in(hm):
+    for i in range(3):                      # bank A: colours 3 + i, names A1..A3, A2 renamed
+        r = bytearray(bank_a(i))
+        r[COLOUR], r[RENAMED] = 3 + i, int(i == 1)
+        hm.m.write(record(i), r)
+    hm.m.u8(MGR + CUR, 1)
+    stock = [(1, 3 + i, f'A{i + 1}'.encode(), int(i == 1)) for i in range(3)]
+    assert [layout(hm, i) for i in range(3)] == stock, 'the live bank: the stock reads'
+    hm.data(VIEW, 1)
+    assert [layout(hm, i) for i in range(3)] == [(NONE, 0, f'SNAPSHOT {i + 4}'.encode(), 0) for i in range(3)], \
+        'bank B not made yet: its defaults, none lit'
+    shadow = CODE + hm.sym['snaps_shadow']
+    for i in range(3):
+        r = bytearray(REC)
+        r[COLOUR], r[RENAMED] = 7 + i, int(i == 2)
+        r[NAME:NAME + 3] = f'B{i + 4}'.encode()
+        hm.m.write(shadow + REC * i, r)
+    hm.data(1, 1)
+    assert [layout(hm, i) for i in range(3)] == [(NONE, 7 + i, f'B{i + 4}'.encode(), int(i == 2)) for i in range(3)]
+    hm.data(0, 1)
+    hm.data(VIEW, 0)
+    assert [layout(hm, i) for i in range(3)] == [(NONE, 7 + i, f'B{i + 4}'.encode(), int(i == 2)) for i in range(3)], \
+        'bank B live: bank A waits in the shadow'
+    hm.data(VIEW, 1)
+    assert [layout(hm, i) for i in range(3)] == stock, 'VIEW on the live bank: the stock reads'
+    hm.data(VIEW, 0)
+    hm.settings[BANK_SWITCH] = TAP_SEL
+    assert [layout(hm, i) for i in range(3)] == stock, 'Tap: the stock reads, whatever VIEW says'
+
+
+def test_the_labels_show_the_bank_the_footswitches_select_in(hm):
+    """Pointed at bank B with bank A live: 4..6 over the labels, none lit, and the top icon stays on the live snapshot; pointed at
+    bank A with bank B live (CC 69 made it live, which leaves them there): no numbers over the labels, the top icon still 4..6."""
+    viewing_b(hm)
+    hm.data(3, 0)
+    assert hm.paint('home', lit=NONE) == (labels(None), [])
+    assert hm.paint() == ([], []), 'the top icon: bank A is live'
+    hm.hold_fs(0)
+    hm.go(1)
+    hm.cc(4)
+    assert hm.data(VIEW) == 0 and hm.at_snapshot() == 5
+    assert hm.paint('home', lit=NONE) == ([], [])
+    assert hm.paint() == (top('5'), [])
+    hm.hold_fs(1)
+    assert hm.paint('home') == (labels(1), []), 'back on the live bank B'
+
+
+@pytest.mark.parametrize('how', ['flip', 'cc', 'wrap', 'click'])
+def test_a_cross_leaves_the_previous_snapshot_on_the_new_one(mgr, how):
+    """The previous snapshot after a cross is the new one, so Reselect Snapshot's previous recalls it rather than jump to an index
+    of the other bank."""
+    with_bank_b(mgr)
+    mgr.go(1)
+    mgr.go(2)
+    if how == 'flip':
+        mgr.press(2)
+    elif how == 'cc':
+        mgr.cc(4)
+    elif how == 'wrap':
+        mgr.step(1)
+    else:
+        mgr.settings[BANK_SWITCH] = HOLD_SEL
+        mgr.hold_fs(1)
+        mgr.tap(0)
+    assert mgr.bank_b_live() and mgr.prev() == mgr.cur() and mgr.data(PREV6) == 2, 'snapshot 3, in PREV6'
+
+
+@pytest.mark.parametrize('k', [0, 1, 2])
+def test_the_snapshot_action_is_stock_on_hold_and_flips_on_tap(mgr, k):
+    """The Command Center's snapshot k: on Hold stock select in the live bank, the lit one too, leaving the footswitches on the
+    bank held; on Tap the flip, which puts them on the live bank."""
+    with_bank_b(mgr)
+    mgr.go(k)
+    mgr.settings[BANK_SWITCH] = HOLD_SEL
+    mgr.hold_fs(1)
+    mgr.call('snaps_action_select', MGR, k)
+    assert [(new, old) for new, old, _, _ in mgr.selects] == [(k, k)] and not mgr.bank_b_live() and mgr.data(VIEW) == 1
+    mgr.selects.clear()
+    mgr.settings[BANK_SWITCH] = TAP_SEL
+    mgr.call('snaps_action_select', MGR, k)
+    assert mgr.bank_b_live() and mgr.cur() == k and mgr.data(VIEW) == 1, 'Tap: the flip'
+
+
+def module_of(read, sym):
+    """Where the build put the module: from its footswitch select hook."""
+    return branch_target(ms.FS_SELECT_CALL, read(ms.FS_SELECT_CALL, 4)) - sym['snaps_select']
+
+
+def chain_handlers(read, stub, before, after):
+    """The handlers a chain stub (tools/patch_menu.py chain_cave) calls before and after the original."""
+    at = stub + 2
+    befores = []
+    for _ in range(before):
+        befores.append(branch_target(at + 4, read(at + 4, 4)))
+        at += 8
+    at += 4 + 8 + 6
+    afters = []
+    for _ in range(after):
+        afters.append(branch_target(at + 4, read(at + 4, 4)))
+        at += 8
+    return befores, afters
 
 
 @pytest.mark.firmware
@@ -767,39 +1683,53 @@ def test_build_sends_the_snapshot_footswitch_to_the_module_and_wraps_load_and_sa
     _, esym = m4emu.assemble('src/m4/preset_keys.s', MODS, IDS, inc={'preset_keys.inc': pm.preset_keys_inc({ms.FILE_KEY: ('', 0, 0)})})
     read, on = built({'HX_MORE_SNAPSHOTS': '1'})
     assert 'more_snapshots' in on
-    module = branch_target(ms.FS_SELECT_CALLS[0], read(ms.FS_SELECT_CALLS[0], 4)) - sym['snaps_select']
+    module = module_of(read, sym)
     assert read(module, len(code)) == code
-    assert [branch_target(s, read(s, 4)) for s in ms.FS_SELECT_CALLS] == [module + sym['snaps_select']] * 2
     engine = branch_target(pm.PRESET_FILE_CALLS[0][0], read(pm.PRESET_FILE_CALLS[0][0], 4)) - esym['pk_serialize']
     assert [branch_target(s, read(s, 4)) for s, _, _ in pm.PRESET_FILE_CALLS] == [engine + esym[h] for _, _, h in pm.PRESET_FILE_CALLS]
     tables = struct.unpack('<2I', read(engine + esym['pk_writers'], 8))
     assert tables == ((module + sym['snaps_key_write']) | 1, (module + sym['snaps_key_found']) | 1), 'key 0x64 on the preset file engine'
-    hooks = ((ms.NEXT_CUR, 'snaps_next_cur'), (ms.PREV_CUR, 'snaps_prev_cur'), (ms.CC_SELECT, 'snaps_cc_select'),
-             (ms.CC_VALUE_CALL, 'snaps_cc_value'), *((s, 'snaps_cc_wrap') for s in ms.CC_WRAP_CALLS))
+    hooks = ((ms.FS_SELECT_CALL, 'snaps_select'), (ms.ACTION_SELECT_CALL, 'snaps_action_select'), (ms.NEXT_CUR, 'snaps_next_cur'),
+             (ms.PREV_CUR, 'snaps_prev_cur'), (ms.CC_SELECT, 'snaps_cc_select'), (ms.CC_VALUE_CALL, 'snaps_cc_value'),
+             *((s, 'snaps_cc_wrap') for s in ms.CC_WRAP_CALLS), (ms.EVENT_CALL, 'snaps_event'),
+             *((s, 'snaps_layout_cur') for s in ms.LAYOUT_CUR_CALLS), *((s, 'snaps_layout_colour') for s in ms.LAYOUT_COLOUR_CALLS),
+             (ms.LAYOUT_NAME_CALL, 'snaps_layout_name'), (ms.LAYOUT_RENAMED_CALL, 'snaps_layout_renamed'))
     assert [branch_target(s, read(s, 4)) for s, _ in hooks] == [module + sym[h] for _, h in hooks]
-    for fn, before, after in ((ms.PARSE, 'snaps_loaded', None), *((fn, 'snaps_saving', 'snaps_saved') for fn, _ in ms.SERIALIZERS)):
+    for fn, before, after in ((ms.SELECT, 'snaps_selecting', None), (ms.PARSE, 'snaps_loaded', None),
+                              *((fn, 'snaps_saving', 'snaps_saved') for fn, _ in ms.SERIALIZERS)):
         stub = branch_target(fn, read(fn, 4))
-        assert branch_target(stub + 6, read(stub + 6, 4)) == module + sym[before], 'push, ldm, then the before handler'
-        if after:
-            at = stub + len(pm.chain_cave(stub, stub, [stub], [stub])) - 12      # the after handler's bl, before the epilogue
-            assert branch_target(at, read(at, 4)) == module + sym[after]
+        assert chain_handlers(read, stub, 1, int(bool(after))) == ([module + sym[before]], [module + sym[after]] if after else [])
+    tick = struct.unpack('<I', read(ms.TICK_LIT, 4))[0]
+    assert tick & 1 and tick != ms.TICK
+    assert chain_handlers(read, tick & ~1, 0, 1) == ([], [module + sym['snaps_tick']])
+
+
+@pytest.mark.firmware
+@pytest.mark.parametrize('env', [{}, {'HX_LONG_PRESS': '1'}], ids=['alone', 'with long press'])
+def test_build_serves_snapshot_4_6_sel_from_footswitches(env):
+    """A virtual setting in Global Settings > Footswitches: after FS5 Function, or after long press's ten, whose pages stay put."""
+    e0 = built_e0({'HX_MORE_SNAPSHOTS': '1', **env})
+    assert_virtual(e0, ms, ms.SETTINGS[0])
+    ids = [17, 97, 98, 99, *([IDS[f'long_press.{s.key}'] for s in long_press.SETTINGS] if env else []), 0xe6]
+    assert struct.pack(f'<{len(ids)}H', *ids, ) + struct.pack('<H', pm.EMPTY_SLOT) * (-len(ids) % 3) in e0
 
 
 DISPATCH, DISPATCH_END, DISPATCH_SWITCH = 0x28dd14a0, 0x28dd1880, 0x28dd14e0
-OBJ, TRAMPOLINE = 0x28730000, 0x28740000
+TRAMPOLINE = 0x28740000
 NEXT_FN, PREV_FN = 7, 8                     # footswitch functions SnpshtUp and SnpshtDn, as FS3..FS10 Function set them
 
 
 @pytest.mark.firmware
+@pytest.mark.parametrize('sel', [HOLD_SEL, TAP_SEL], ids=['hold', 'tap'])
 @pytest.mark.parametrize('k', [3, 4])
-def test_the_built_dispatch_crosses_the_banks_for_a_virtual_footswitch(m4emu, k):
+def test_the_built_dispatch_crosses_the_banks_for_a_virtual_footswitch(m4emu, k, sel):
     """The built firmware's next and previous cases, entered at the dispatch's switch with its frame, as long press runs an FS6..FS10
-    Function (and as a release of FS4 or FS5 reaches them): next on 3 goes to 4 and on 6 to 1, previous on 1 to 6."""
+    Function (and as a release of FS4 or FS5 reaches them): next on 3 goes to 4 and on 6 to 1, previous on 1 to 6. On Hold too:
+    the steps within a bank are marked, so snaps_select does not hold them back as a press of snapshot k."""
     code, sym = m4emu.assemble('src/m4/more_snapshots.s', MODS, IDS)
     read, on = built({'HX_MORE_SNAPSHOTS': '1', 'HX_LONG_PRESS': '1'})
     assert {'more_snapshots', 'long_press'} <= set(on)
-    module = branch_target(ms.FS_SELECT_CALLS[0], read(ms.FS_SELECT_CALLS[0], 4)) - sym['snaps_select']
-    mgr = Manager(m4emu, module)
+    mgr = Manager(m4emu, module_of(read, sym))
     mgr.m.load(DISPATCH, read(DISPATCH, DISPATCH_END - DISPATCH))
     mgr.m.stub(0x28d960a4, lambda m: m.reg('r0', MGR))
     # push {r4-r6,lr}; sub sp,#16; r4 k, r6 the object, r5 2k, r3 the function - 1; then the dispatch's switch
@@ -813,6 +1743,7 @@ def test_the_built_dispatch_crosses_the_banks_for_a_virtual_footswitch(m4emu, k)
         return mgr.cur() + 3 * mgr.bank_b_live() + 1
 
     with_bank_b(mgr)
+    mgr.settings[BANK_SWITCH] = sel
     assert [release(NEXT_FN) for _ in range(6)] == [2, 3, 4, 5, 6, 1]
     assert [release(PREV_FN) for _ in range(6)] == [6, 5, 4, 3, 2, 1]
     mgr.call('snaps_loaded', MGR, 0, 0, 0)
@@ -824,14 +1755,14 @@ CC_HANDLER, CC_HANDLER_END = 0x28d9b120, 0x28d9b700
 
 
 @pytest.mark.firmware
-def test_the_built_cc_handler_selects_all_six_snapshots_by_cc_69(m4emu):
+@pytest.mark.parametrize('sel', [HOLD_SEL, TAP_SEL], ids=['hold', 'tap'])
+def test_the_built_cc_handler_selects_all_six_snapshots_by_cc_69(m4emu, sel):
     """The built firmware's CC handler (cc, value), from its entry: CC 69's 0..5 land on snapshots 1..6 from either bank, 6 and 7
-    still do nothing, and next and previous still run through all six."""
+    still do nothing, and next and previous still run through all six, whatever Snapshot 4-6 Sel says."""
     code, sym = m4emu.assemble('src/m4/more_snapshots.s', MODS, IDS)
     read, on = built({'HX_MORE_SNAPSHOTS': '1'})
     assert 'more_snapshots' in on and read(ms.CC_RANGE, 2) == ms.CC_RANGE_SIX
-    module = branch_target(ms.FS_SELECT_CALLS[0], read(ms.FS_SELECT_CALLS[0], 4)) - sym['snaps_select']
-    mgr = Manager(m4emu, module)
+    mgr = Manager(m4emu, module_of(read, sym), bank_switch=sel)
     mgr.m.load(CC_HANDLER, read(CC_HANDLER, CC_HANDLER_END - CC_HANDLER))
     mgr.m.stub(ms.MANAGER_GET, lambda m: m.reg('r0', MGR))
 
@@ -850,7 +1781,7 @@ def test_the_built_cc_handler_selects_all_six_snapshots_by_cc_69(m4emu):
 def test_build_draws_the_numbers_after_the_top_and_home_paints(m4emu):
     code, sym = m4emu.assemble('src/m4/more_snapshots.s', MODS, IDS)
     read, _ = built({'HX_MORE_SNAPSHOTS': '1'})
-    module = branch_target(ms.FS_SELECT_CALLS[0], read(ms.FS_SELECT_CALLS[0], 4)) - sym['snaps_select']
+    module = module_of(read, sym)
     for lit, fn, handler in ((ms.TOP_PAINT_LIT, ms.TOP_PAINT, 'snaps_paint'), (ms.HOME_PAINT_LIT, ms.HOME_PAINT, 'snaps_home_paint')):
         stub = struct.unpack('<I', read(lit, 4))[0]
         assert stub & 1 and stub != fn
@@ -910,7 +1841,13 @@ def test_the_number_covers_the_icon_digit_and_stays_inside_the_circle():
 def test_without_the_flag_the_sites_stay_stock():
     read, on = built({})
     assert 'more_snapshots' not in on
-    assert all(read(s, 4) == pm.thumb_bw(s, ms.SELECT) for s in (*ms.FS_SELECT_CALLS, ms.CC_SELECT))
+    assert all(read(s, 4) == pm.thumb_bw(s, ms.SELECT) for s in (ms.FS_SELECT_CALL, ms.ACTION_SELECT_CALL, ms.CC_SELECT))
+    assert read(ms.SELECT, 4) == ms.SELECT_STOCK and struct.unpack('<I', read(ms.TICK_LIT, 4))[0] == ms.TICK
+    assert read(ms.EVENT_CALL, 4) == pm.bl(ms.EVENT_CALL, ms.SELECTED_BLOCK)
+    assert all(read(s, 4) == pm.bl(s, ms.CUR_GET) for s in ms.LAYOUT_CUR_CALLS)
+    assert all(read(s, 4) == pm.bl(s, ms.COLOUR_GET) for s in ms.LAYOUT_COLOUR_CALLS)
+    assert read(ms.LAYOUT_NAME_CALL, 4) == pm.bl(ms.LAYOUT_NAME_CALL, ms.NAME_GET)
+    assert read(ms.LAYOUT_RENAMED_CALL, 4) == pm.bl(ms.LAYOUT_RENAMED_CALL, ms.RENAMED_GET)
     assert read(ms.NEXT_CUR, 4) == pm.bl(ms.NEXT_CUR, ms.CUR_GET) and read(ms.PREV_CUR, 4) == pm.bl(ms.PREV_CUR, ms.CUR_GET)
     assert all(read(s, 4) == pm.bl(s, ms.MANAGER_GET) for s in (*ms.CC_WRAP_CALLS, ms.CC_VALUE_CALL))
     assert read(ms.CC_RANGE, 2) == ms.CC_RANGE_STOCK
@@ -919,7 +1856,454 @@ def test_without_the_flag_the_sites_stay_stock():
     assert struct.unpack('<I', read(ms.TOP_PAINT_LIT, 4))[0] == ms.TOP_PAINT
 
 
+EVERY = ('HX_BPM', 'HX_TAP_COLOR', 'HX_PRESET_COLOR', 'HX_GR', 'HX_BREATHING_LINE', 'HX_DSP_METER', 'HX_TUNER', 'HX_CLICK',
+         'HX_LONG_PRESS', 'HX_REAL_NAMES', 'HX_USB_INPUT', 'HX_USB_MONITOR', 'HX_FX_GATE', 'HX_SCREEN_MIRROR')
+
+
 @pytest.mark.firmware
-def test_builds_alongside_the_other_features():
-    _, on = built({'HX_MORE_SNAPSHOTS': '1', 'HX_BPM': '1', 'HX_DSP_METER': '1', 'HX_LONG_PRESS': '1'})
-    assert {'bpm', 'dsp_meter', 'long_press', 'more_snapshots'} <= set(on)
+def test_builds_alongside_every_other_feature():
+    """No other feature writes over its sites: a clash fails the build (Patch.put)."""
+    _, on = built({'HX_MORE_SNAPSHOTS': '1', **{f: '1' for f in EVERY}})
+    assert {'bpm', 'dsp_meter', 'long_press', 'more_snapshots', 'tap_color', 'preset_color', 'tuner'} <= set(on)
+
+
+HANDLER, HANDLER_END = 0x28dd1978, 0x28dd2360           # the footswitch event handler and its literals
+DEFERRED, DEFERRED_END = 0x28dd18b0, 0x28dd1978         # the deferred dispatch the request task runs (item at the object's +0xb4)
+TIMER_CB, TIMER_CB_END = 0x28dd048c, 0x28dd04d8         # the 30-tick timer's callback
+TIMER_START, TIMER_STOP, OBJ_GET, DEFER = 0x28da6428, 0x28da6454, 0x28d96114, 0x28d96800
+CRITICAL, CRITICAL_END, FUNCTIONS_GET = 0x28e24a90, 0x28e249a8, 0x28d9607c
+FS_LEARN, CC_LEARN = 0x28dda360, 0x28ddf6dc             # the dispatch's learn of a footswitch press (lists, k), (controllers, k + 3, -)
+COPY_SWAP, COPY_SWAP_HELD = 0x28d9668c, 0x28df02f4      # the touch copy or swap of snapshots (k, j), and its guard () -> 0
+LEAVE_TUNER, MODE_BANK = 0x28d965d8, 0x28dd0f44
+LAYOUT_LOOP, LAYOUT_LOOP_END = 0x28dc87cc, 0x28dc8c80   # the Home layout, its Snapshot-mode branch and its coloured path
+CAMERA_TABLES = 0x28e3ab94                              # its three tables: +0x18 the cameras, +0x30 the lit (Sel) ones
+
+
+class BuiltHandler(Manager):
+    """The built footswitch event handler, its function dispatch, the 30-tick timer's callback and the deferred dispatch, in
+    unicorn with the module where the build put it: the key task posts each event to the handler; the timer and the request
+    task are run by hand (fire), so a test orders them as it likes."""
+
+    def __init__(self, m4emu, env=None, bank_switch=HOLD_SEL):
+        code, sym = m4emu.assemble('src/m4/more_snapshots.s', MODS, IDS)
+        env = {'HX_MORE_SNAPSHOTS': '1', **(env or {})}
+        e0 = built_e0(env)
+        read = reader(e0)
+        super().__init__(m4emu, module_of(read, sym), bank_switch)
+        stock_end = pa._parse_e0_segments(stock_e0())[6]
+        _, _, slen, dst, _ = pa._parse_e0_segments(e0)[6]
+        cave = stock_end[3] + stock_end[2]
+        self.m.load(cave, read(cave, dst + slen - cave))        # the module, long press's and the chain stubs, as built
+        self.m.load(self.at, code)
+        for lo, hi in ((HANDLER, HANDLER_END), (DISPATCH, DISPATCH_END), (DEFERRED, DEFERRED_END), (TIMER_CB, TIMER_CB_END)):
+            self.m.load(lo, read(lo, hi - lo))
+        self.m.load(SELECT, pm.chain_cave(SELECT, STOCK_SELECT, [self.at + self.sym['snaps_selecting']], []))
+        self.timer, self.items, self.setters = None, [], []
+        self.m.stub(TIMER_START, self._timer_start)
+        self.m.stub(TIMER_STOP, lambda m: setattr(self, 'timer', None))
+        self.m.stub(OBJ_GET, lambda m: m.reg('r0', OBJ))
+        self.m.stub(DEFER, lambda m: self.items.append(m.reg('r0')))
+        self.m.stub(CRITICAL)
+        self.m.stub(CRITICAL_END)
+        self.m.stub(FUNCTIONS_GET, lambda m: m.reg('r0', FS_FUNCTIONS - 4))
+        self.learned, self.copies = [], []
+        self.m.stub(FS_LEARN, lambda m: self._learn(m, 0))
+        self.m.stub(CC_LEARN, lambda m: self._learn(m, 1))
+        self.m.stub(COPY_SWAP_HELD, lambda m: m.reg('r0', 0))
+        self.m.stub(COPY_SWAP, lambda m: self.copies.append((m.reg('r0'), m.reg('r1'))))
+        self.m.stub(ms.MANAGER_GET, lambda m: m.reg('r0', MGR))
+        self.m.stub(LEAVE_TUNER)
+        self.m.stub(MODE_BANK)
+        self.m.stub(pm.SETTER_CONTEXT, lambda m: m.reg('r0', 0x28128000))
+        self.m.stub(pm.SETTER, self._setter)
+
+    def _timer_start(self, m):
+        assert (m.reg('r0'), m.reg('r1'), m.reg('r2')) == (OBJ + 0x88, 30, TIMER_CB | 1), 'the press waits 30 ticks'
+        self.timer = TIMER_CB
+
+    def _setter(self, m):
+        pid, value = m.reg('r1'), m.u32(m.reg('r2') + 4)
+        self.setters.append((pid, value))
+        if pid == FS_MODE:
+            self.settings[FS_MODE] = value
+            self.mode([5, 6, 3])
+
+    def _learn(self, m, which):
+        """A learn takes footswitch k's press; it is done before the click comes, its flags cleared."""
+        self.learned.append((which, m.reg('r1') - 3 * which))
+        self.learning = [0, 0]
+
+    def post(self, code, kind):
+        """The key task's post of {1, code, -, -, kind} to the handler."""
+        self.m.write(EVENT, bytes([1, code, 0, 0]) + struct.pack('<I', kind))
+        self.m.call(HANDLER, EVENT, OBJ)
+
+    def fire(self):
+        """The 30-tick timer runs out, then the request task runs what it queued."""
+        if self.timer:
+            self.timer = None
+            self.m.call(TIMER_CB, 0)
+        while self.items:
+            self.m.call(DEFERRED, self.items.pop(0))
+
+    def tap(self, k, short=False):
+        self.post(12 + k, PRESS)
+        if not short:
+            self.fire()
+        self.post(12 + k, RELEASE)
+        self.post(12 + k, CLICK)
+        self.fire()
+
+    def hold_fs(self, k):
+        self.post(12 + k, PRESS)
+        self.fire()
+        self.post(12 + k, HOLD)
+        self.post(12 + k, RELEASE)
+
+    def foot_tap(self, k, short=False):
+        """Footswitch k tapped by a foot, which touches its cap first and leaves it last: the key task posts the cap's click after
+        its release, as for every key (tools/hx_devtest.py foot_tap sends none)."""
+        self.post(9 + k, PRESS)
+        self.tap(k, short)
+        self.post(9 + k, RELEASE)
+        self.post(9 + k, CLICK)
+
+    def foot_hold(self, k, touch_first=True):
+        """Footswitch k held by a foot: the cap's press with the switch's, both holds after 1 s (the cap's first, as
+        tools/hx_devtest.py foot_hold sends them, or the switch's), the switch let go, then the cap."""
+        self.post(9 + k, PRESS)
+        self.post(12 + k, PRESS)
+        self.fire()
+        for code in ((9, 12) if touch_first else (12, 9)):
+            self.post(code + k, HOLD)
+        self.post(12 + k, RELEASE)
+        self.post(9 + k, RELEASE)
+
+
+@pytest.mark.firmware
+def test_the_built_handler_holds_back_presses_and_selects_on_clicks(m4emu):
+    """Hold: a press waits 30 ticks and its dispatch is held back; the click selects on the release, once, even for a tap shorter
+    than the window; a hold of FS2 points the footswitches at bank B, and the next click crosses."""
+    b = BuiltHandler(m4emu)
+    bank_b = bank_b_ready(b)
+    b.post(13, PRESS)
+    assert b.timer == TIMER_CB and b.obj(PENDING) == 1
+    b.fire()
+    assert b.selects == [] and b.obj(PRESSED + 1) == 0, 'the deferred dispatch: held back'
+    b.post(13, RELEASE)
+    assert b.selects == []
+    b.post(13, CLICK)
+    assert [(new, old) for new, old, _, _ in b.selects] == [(1, 0)]
+    b.selects.clear()
+    b.tap(2, short=True)
+    assert [(new, old) for new, old, _, _ in b.selects] == [(2, 1)], 'a short tap: once, on its click'
+    b.selects.clear()
+    b.tap(2)
+    assert [(new, old) for new, old, _, _ in b.selects] == [(2, 2)], 'the lit one: stock select, which Reselect Snapshot handles'
+    b.selects.clear()
+    b.hold_fs(1)
+    assert b.selects == [] and b.data(VIEW) == 1 and b.layouts == [1]
+    b.tap(0)
+    (new, _, _, new_rec), = b.selects
+    assert (new, new_rec) == (0, bank_b[0]) and b.at_snapshot() == 4 and b.data(VIEW) == 1 and b.data(RELAYOUT) == 1
+    b.tick()
+    assert b.layouts[-1] == 1 and b.data(RELAYOUT) == 0
+
+
+@pytest.mark.firmware
+@pytest.mark.parametrize('first, second, mode', [(0, 1, 2), (1, 2, 2), (0, 2, SNAPSHOT_MODE), (1, 0, 2), (2, 1, 2)])
+def test_the_built_handler_keeps_the_stock_combos(m4emu, first, second, mode):
+    """FS1+FS2 and FS2+FS3 inside the window switch to Preset mode, its bank view; FS1+FS3 is dropped: neither press selects."""
+    b = BuiltHandler(m4emu)
+    b.post(12 + first, PRESS)
+    b.post(12 + second, PRESS)
+    b.fire()
+    for k in (first, second):
+        b.post(12 + k, RELEASE)
+        b.post(12 + k, CLICK)
+    b.fire()
+    assert b.selects == [] and b.settings[FS_MODE] == mode
+    assert b.setters == ([(FS_MODE, 2)] if mode == 2 else [])
+
+
+@pytest.mark.firmware
+def test_the_built_handler_selects_a_quick_tap_and_another_inside_its_window(m4emu):
+    """FS1 let go inside its window, then FS3 pressed inside it: no combo, as FS1 is no longer pressed; each selects on its click."""
+    b = BuiltHandler(m4emu)
+    for code in (12, 14):
+        for kind in (PRESS, RELEASE, CLICK):
+            b.post(code, kind)
+    b.fire()
+    assert [new for new, _, _, _ in b.selects] == [0, 2] and b.settings[FS_MODE] == SNAPSHOT_MODE
+
+
+@pytest.mark.firmware
+@pytest.mark.parametrize('touch_first', [True, False], ids=['touch hold first', 'switch hold first'])
+def test_the_built_handler_takes_a_foots_holds_and_taps(m4emu, touch_first):
+    """A foot touches the cap with every press and lets it go last, so a touch, its hold and its release come with every hold
+    and tap: FS2 held then FS1 tapped is 4; FS1 held then FS3 tapped is 3, a short tap too; the lit one again is stock select."""
+    b = BuiltHandler(m4emu)
+    bank_b = bank_b_ready(b)
+    b.foot_hold(1, touch_first)
+    assert b.selects == [] and b.data(VIEW) == 1 and b.layouts == [1], 'the hold, and the cap let go after it'
+    b.foot_tap(0)
+    (new, _, _, new_rec), = b.selects
+    assert (new, new_rec) == (0, bank_b[0]) and b.at_snapshot() == 4 and b.data(VIEW) == 1
+    b.selects.clear()
+    b.foot_hold(0, touch_first)
+    assert b.selects == [] and b.data(VIEW) == 0
+    b.foot_tap(2, short=True)
+    assert [new for new, _, _, _ in b.selects] == [2] and b.at_snapshot() == 3 and b.data(VIEW) == 0
+    b.foot_tap(2)
+    assert [(new, old) for new, old, _, _ in b.selects][1:] == [(2, 2)] and b.at_snapshot() == 3
+    assert b.copies == [] and b.armed() == [0, 0, 0]
+
+
+@pytest.mark.firmware
+def test_the_built_handler_keeps_bank_a_held_with_bank_b_live(m4emu):
+    """On 5, reached with the footswitches, a foot holds FS1: they stay on bank A, the labels laid out for it with no numbers, through
+    the switch's and the cap's release, ticks and paints, two caps touched and one held, HX Edit's select, CC 69 into either bank,
+    SnpshtUp and SnpshtDn, the Command Center, a save or HX Edit's Get edit buffer (the serializers' chain), a tap during its flips
+    (which selects nothing), the tuner, another footswitch mode and the setting on Tap and back; FS1 tapped then selects 1."""
+    b = BuiltHandler(m4emu)
+    bank_b_ready(b)
+    b.foot_hold(1)
+    b.foot_tap(1)
+    b.tick()
+    assert b.at_snapshot() == 5 and b.data(VIEW) == 1
+    b.layouts.clear()
+    b.foot_hold(0)
+    assert b.data(VIEW) == 0 and b.layouts == [0] and b.at_snapshot() == 5
+
+    def away(**state):
+        def run():
+            was = b.view, b.settings[BANK_SWITCH], [b.m.read(FS_FUNCTIONS + 2 * k, 1)[0] for k in range(3)]
+            b.view = state.get('view', b.view)
+            b.settings[BANK_SWITCH] = state.get('sel', b.settings[BANK_SWITCH])
+            b.mode(state.get('functions', was[2]))
+            for _ in range(3):
+                b.tick()
+            b.view, b.settings[BANK_SWITCH] = was[:2]
+            b.mode(was[2])
+        return run
+
+    gestures = [('touches', lambda: [b.post(c, t) for c, t in ((9, PRESS), (10, PRESS), (10, HOLD), (10, RELEASE), (9, RELEASE))]),
+                ("HX Edit's select", lambda: b.m.call(SELECT, MGR, 2)), ('CC 69 into bank A', lambda: b.cc(1)),
+                ('CC 69 into bank B', lambda: b.cc(3)), ('SnpshtUp', lambda: b.step(1)), ('SnpshtDn', lambda: b.step(-1)),
+                ('the Command Center', lambda: b.call('snaps_action_select', MGR, 1)),
+                ('a save or Get edit buffer', b.save),
+                ("a tap during the serializer's flips", lambda: (b.call('snaps_saving', STREAM, HEADER), b.foot_tap(2),
+                                                                 b.call('snaps_saved', STREAM, HEADER))),
+                ('the tuner', away(view=TUNER_VIEW)), ('stomp mode', away(functions=[2, 2, 2])), ('tap', away(sel=TAP_SEL))]
+    for what, gesture in gestures:
+        gesture()
+        for _ in range(3):
+            b.tick()
+        events, _ = b.paint('home', lit=NONE)
+        assert b.data(VIEW) == 0 and set(b.layouts) == {0}, what
+        assert not [e for e in events if e[0] == 'text'], f"{what}: no numbers over bank A's labels"
+    assert b.at_snapshot() == 5 and b.copies == [(1, 0)] and len(b.saved) == 1
+    b.foot_tap(0)
+    assert b.at_snapshot() == 1 and b.data(VIEW) == 0
+
+
+@pytest.mark.firmware
+def test_the_built_handler_goes_back_across_the_banks_with_reselect_snapshot(m4emu):
+    """Reselect Snapshot set to go back, with a foot: on 2, FS2 held and FS3 tapped is 6, FS3 again 2, FS2 again 6; FS1 held and
+    FS1 tapped is 1, FS1 again 6. Within bank B a tap and its lit one again go back as stock does, a short tap too."""
+    b = BuiltHandler(m4emu)
+    bank_b_ready(b)
+    b.settings[RESELECT] = 1
+    b.foot_tap(1)
+    b.foot_hold(1)
+    b.foot_tap(2)
+    assert b.at_snapshot() == 6
+    seen = []
+    for k in (2, 1):
+        b.foot_tap(k)
+        seen.append((b.at_snapshot(), b.data(VIEW)))
+    assert seen == [(2, 0), (6, 1)]
+    b.foot_hold(0)
+    b.foot_tap(0)
+    assert b.at_snapshot() == 1
+    b.foot_tap(0)
+    assert b.at_snapshot() == 6 and b.data(VIEW) == 1
+    b.foot_tap(0)
+    b.foot_tap(0)
+    assert b.at_snapshot() == 6 and b.bank_b_live()
+    b.foot_tap(2, short=True)
+    assert b.at_snapshot() == 4 and b.copies == [] and b.armed() == [0, 0, 0]
+
+
+@pytest.mark.firmware
+def test_the_built_handler_leaves_the_bank_held_for_a_copy_or_swap(m4emu):
+    """Two caps touched and one held: stock's snapshot copy or swap of the live bank's records; the footswitches stay on the bank
+    held and the labels are not laid out."""
+    b = BuiltHandler(m4emu)
+    bank_b_ready(b)
+    b.hold_fs(1)
+    b.layouts.clear()
+    b.post(9, PRESS)
+    b.post(11, PRESS)
+    b.post(11, HOLD)
+    b.post(11, RELEASE)
+    b.post(9, RELEASE)
+    b.tick()
+    assert b.copies == [(2, 0)] and b.data(VIEW) == 1 and b.layouts == [] and b.selects == []
+
+
+@pytest.mark.firmware
+def test_the_built_handler_on_tap_flips_as_before(m4emu):
+    """Snapshot 4-6 Sel on Tap: nothing armed; a press selects at the deferred dispatch, the lit one flips there, a hold changes
+    no bank shown, and clicks select nothing more."""
+    b = BuiltHandler(m4emu, bank_switch=TAP_SEL)
+    b.post(13, PRESS)
+    b.fire()
+    assert [(new, old) for new, old, _, _ in b.selects] == [(1, 0)] and b.armed() == [0, 0, 0]
+    b.post(13, RELEASE)
+    b.post(13, CLICK)
+    b.fire()
+    assert len(b.selects) == 1
+    b.foot_tap(1)
+    assert b.bank_b_live() and b.at_snapshot() == 5 and len(b.selects) == 2, 'the lit one: the flip, from the deferred dispatch'
+    b.foot_hold(0)
+    assert b.at_snapshot() == 4 and len(b.selects) == 3 and b.data(VIEW) == 1 and b.armed() == [0, 0, 0]
+
+
+@pytest.mark.firmware
+def test_the_built_handler_selects_overlapping_presses_in_release_order(m4emu):
+    """FS1 held past its window, FS3 pressed and let go, then FS1: each selects on its click, the last one let go wins."""
+    b = BuiltHandler(m4emu)
+    b.post(12, PRESS)
+    b.fire()
+    b.post(14, PRESS)
+    b.fire()
+    b.post(14, RELEASE)
+    b.post(14, CLICK)
+    b.post(12, RELEASE)
+    b.post(12, CLICK)
+    b.fire()
+    assert [new for new, _, _, _ in b.selects] == [2, 0] and b.cur() == 0
+
+
+def cc_fs(b, k, *kinds):
+    """A MIDI CC 49..51 message for footswitch k, as the request task runs it: [obj+0x6d] set while it posts kinds (press,
+    release and click at once; with the footswitch momentary in the preset, the on-value's press or the off-value's release
+    and click), with no touch."""
+    b.obj(IMMEDIATE, 1)
+    for kind in kinds:
+        b.post(12 + k, kind)
+    b.obj(IMMEDIATE, 0)
+    assert b.timer is None and b.items == []
+
+
+@pytest.mark.firmware
+def test_the_built_handler_takes_cc_49_to_51_as_taps(m4emu):
+    """MIDI CC 49..51 in the request task: the press dispatches at once and is held back, and the hook selects on it in the bank
+    the footswitches select in, as stock selects on it, whether the release comes with it or with a later message."""
+    b = BuiltHandler(m4emu)
+    bank_b = bank_b_ready(b)
+    cc_fs(b, 1, PRESS, RELEASE, CLICK)
+    cc_fs(b, 1, PRESS, RELEASE, CLICK)
+    assert [(new, old) for new, old, _, _ in b.selects] == [(1, 0), (1, 1)], 'then the lit one: stock select (Reselect Snapshot)'
+    b.selects.clear()
+    b.hold_fs(1)
+    cc_fs(b, 2, PRESS, RELEASE, CLICK)
+    (new, _, _, new_rec), = b.selects
+    assert (new, new_rec) == (2, bank_b[2]) and b.at_snapshot() == 6 and b.data(VIEW) == 1
+    b.selects.clear()
+    cc_fs(b, 0, PRESS)
+    assert [(new, old) for new, old, _, _ in b.selects] == [(0, 2)], 'momentary: on the on-value, as stock'
+    cc_fs(b, 0, HOLD)
+    cc_fs(b, 0, RELEASE, CLICK)
+    assert len(b.selects) == 1 and b.data(VIEW) == 1, 'the hold and the off-value do nothing'
+
+
+@pytest.mark.firmware
+@pytest.mark.parametrize('learn', [0, 1], ids=['bypass assign', 'controller assign'])
+def test_the_built_handler_leaves_a_learned_press_to_the_learn(m4emu, learn):
+    """While a learn waits, the dispatch gives FS1..3's press to it and selects nothing (0x28dd14a8..0x28dd14be): neither the
+    click nor the hold after it selects or changes the bank shown, after the learn is done."""
+    b = BuiltHandler(m4emu)
+    bank_b_ready(b)
+    for gesture in (b.tap, b.hold_fs, b.foot_hold, lambda k: cc_fs(b, k, PRESS, RELEASE, CLICK)):
+        b.learning[learn] = 1
+        gesture(1)
+    assert b.learned == [(learn, 1)] * 4
+    assert b.selects == [] and b.data(VIEW) == 0 and b.layouts == []
+
+
+@pytest.mark.firmware
+@pytest.mark.parametrize('code, fn', [(15, NEXT_FN), (16, PREV_FN)])
+def test_the_built_handler_steps_within_a_bank_from_fs4_and_fs5_on_hold(m4emu, code, fn):
+    """SnpshtUp on FS4 and SnpshtDn on FS5 dispatch on the press and act on the release; Hold must not hold their select back."""
+    b = BuiltHandler(m4emu)
+    with_bank_b(b)
+    b.settings[BANK_SWITCH] = HOLD_SEL
+    b.go(1)
+    b.m.u8(FS_FUNCTIONS + 2 * (code - 12), fn)
+    b.post(code, PRESS)
+    b.post(code, RELEASE)
+    b.post(code, CLICK)
+    b.fire()
+    assert [(new, old) for new, old, _, _ in b.selects] == [(2 if fn == NEXT_FN else 0, 1)] and not b.bank_b_live()
+
+
+@pytest.mark.firmware
+def test_long_press_passes_snapshot_mode_events_to_the_hook(m4emu):
+    """Built with long press, which owns the handler's entry: in Snapshot mode its lp_event passes every event to the stock handler,
+    whose call at 0x28dd1986 is the hook's."""
+    b = BuiltHandler(m4emu, {'HX_LONG_PRESS': '1'})
+    bank_b = bank_b_ready(b)
+    assert b.m.read(HANDLER, 4) != long_press.HANDLER_STOCK, "the b.w to long press's lp_event"
+    b.tap(1)
+    assert [(new, old) for new, old, _, _ in b.selects] == [(1, 0)]
+    b.selects.clear()
+    b.hold_fs(1)
+    b.tap(2)
+    (new, _, _, new_rec), = b.selects
+    assert (new, new_rec) == (2, bank_b[2]) and b.at_snapshot() == 6
+
+
+@pytest.mark.firmware
+def test_the_built_layout_shows_the_bank_the_footswitches_select_in(m4emu):
+    """The built Home layout's Snapshot-mode branch, through the nine hooks: the live bank lights the current snapshot's camera
+    (the Sel image) and reads its records; pointed at the other bank, no camera or colour is lit and the records are that bank's:
+    a renamed one's name instead of its camera, a coloured one's colour."""
+    b = BuiltHandler(m4emu)
+    read = reader(built_e0({'HX_MORE_SNAPSHOTS': '1'}))
+    b.m.load(LAYOUT_LOOP, read(LAYOUT_LOOP, LAYOUT_LOOP_END - LAYOUT_LOOP))
+    b.m.write(CAMERA_TABLES, read(CAMERA_TABLES, 0x3c))   # its tables: renamed labels' text, the cameras, the lit ones
+    images, visible, names, colours = {}, {}, [], []
+    b.m.stub(0x28e24c18, lambda m: images.__setitem__(m.reg('r0'), m.reg('r1')))         # setImage
+    b.m.stub(0x28e24a98, lambda m: visible.__setitem__(m.reg('r0'), m.reg('r1')))        # an image's setVisible
+    b.m.stub(0x28daad94, lambda m: names.append(m.read(m.reg('r1'), 11).split(b'\0')[0]))    # the name's copy
+    b.m.stub(0x28dd8110, lambda m: (colours.append((m.reg('r1'), m.reg('r2'))), m.reg('r0', 0)))   # (lists, colour, lit)
+    for fn in (0x28e24bc8, 0x28e24a28, 0x28e24bc0, 0x28dc6fe0, 0x28daad1c, 0x28d968c4, 0x28e24a68, 0x28e24b98, 0x28e24b28,
+               0x28e24b00, 0x28dc6e9c, REDRAW):
+        b.m.stub(fn, lambda m: m.reg('r0', 0))
+    b.m.u8(HOME + 5, 1)                     # laid out, and not the other Snapshot-mode branch
+    b.m.u8(HOME + 0x61, 0)
+    bank_b_ready(b)
+    b.go(1)
+    shadow = b.at + b.sym['snaps_shadow']
+    for i in range(3):
+        for at, colour, renamed in ((record(i), 0, 0), (shadow + REC * i, 5 * (i == 1), int(i == 2))):
+            b.m.u8(at + COLOUR, colour)
+            b.m.u8(at + RENAMED, renamed)
+
+    def run():
+        images.clear()
+        visible.clear()
+        names.clear()
+        colours.clear()
+        b.m.call(LAYOUT_LOOP, HOME, 0)
+        return [images.get(LABELS + 0x24 * i) for i in range(3)], [visible[LABELS + 0x24 * i] for i in range(3)], list(names)
+
+    plain, sel = struct.unpack('<3I', read(CAMERA_TABLES + 0x18, 12)), struct.unpack('<3I', read(CAMERA_TABLES + 0x30, 12))
+    assert run() == ([plain[0], sel[1], plain[2]], [1, 1, 1], [b'A1', b'A2', b'A3']) and colours == []
+    b.data(VIEW, 1)
+    assert run() == ([plain[0], plain[1], None], [1, 1, 0], [b'SNAPSHOT 4', b'SNAPSHOT 5', b'SNAPSHOT 6'])
+    assert colours == [(5, 0)], "bank B's coloured snapshot 5, not lit"
+    b.data(VIEW, 0)
+    assert run()[0] == [plain[0], sel[1], plain[2]]

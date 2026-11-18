@@ -189,7 +189,7 @@ https://github.com/user-attachments/assets/50b5cd91-f578-4252-a1df-4b73d8ca1995
 
 ### <img src="docs/assets/icons/snapshots.svg" width="104" height="32" align="top" alt=""> More snapshots
 
-- Six snapshots per preset: press the lit snapshot footswitch again to flip between snapshots 1–3 and 4–6.
+- Six snapshots per preset: hold FS1 or FS2 for 1 s and the snapshot footswitches select snapshots 1–3 or 4–6, then tap one to select it. With Snapshot 4-6 Sel on Tap, press the lit snapshot footswitch again to flip between 1–3 and 4–6.
 - Once a preset has snapshots 4–6, next and previous snapshot (SnpshtUp, SnpshtDn, MIDI CC 69) step through all six: next on 3 goes to 4, and next on 6 back to 1.
 - MIDI CC 69 selects any of the six directly: values 0–2 for snapshots 1–3, 3–5 for 4–6.
 
@@ -197,7 +197,7 @@ https://github.com/user-attachments/assets/50b5cd91-f578-4252-a1df-4b73d8ca1995
 <details>
 <summary>Demo</summary>
 
-<img src="https://github.com/user-attachments/assets/8ce9d86c-cffb-491e-9c47-0430a02a4af7" width="100%" alt="Snapshots 1 to 3, the lit footswitch again for 4 to 6, and again back to 1 to 3">
+<img src="https://github.com/user-attachments/assets/8ce9d86c-cffb-491e-9c47-0430a02a4af7" width="100%" alt="Snapshots 1 to 3, the lit footswitch again for 4 to 6, and again back to 1 to 3 (Snapshot 4-6 Sel on Tap)">
 
 </details>
 
