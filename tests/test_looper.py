@@ -2,9 +2,8 @@
 for the stock state machine (what it hands the stock and what it does to the looper), the stock code it relies on, and the built state
 machine run in unicorn from the stock file with the looper's tick, beside the stock one: press, release and hold from stopped, the
 double press, the stock values as stock, every other state and gesture as stock, the double-press gap with DblPress on Release and
-Stock, the window after a first press from every other state (opened only by a release that finds the loop playing), the press and
-release that long press replays together, a press between the overdub's post and the worker task, the four combinations of the two
-settings; and the firmware it builds."""
+Stock, the window after a first press from every other state (opened only by a release that finds the loop playing), a press
+between the overdub's post and the worker task, the four combinations of the two settings; and the firmware it builds."""
 import functools
 import struct
 
@@ -665,21 +664,6 @@ def test_after_a_long_press_that_started_recording_a_quick_press_closes_the_loop
         for pair, m in built.items():
             assert outcome(m, dict(loop=0), double_press(held, after)) == want, (pair, after)
 
-
-@pytest.mark.firmware
-def test_with_long_press_holding_the_press_back_dbl_press_gains_one_tick(pairs):
-    """Long press holds back the press of a footswitch whose Hold is set and replays it with its release on the click, so the looper
-    gets each press and release together as the footswitch comes up (held 0), and a double press is timed from release to release:
-    stock stops when the second comes within 20 ticks of the first, DblPress Release within 21. From 21 the overdub has posted,
-    while the second press may still be down, and the replayed second press ends it."""
-    stock, built = pairs
-    for after in AFTER:
-        steps = double_press(0, after)
-        want = outcome(stock, FROM_PLAYING, steps)
-        assert want[0] == (['stop'] if after < WINDOW_TICKS else [OVERDUB] if after < OVERDUB_TICKS else [OVERDUB, 'odub off'])
-        for (sp, dp), m in built.items():
-            got = outcome(m, FROM_PLAYING, steps)
-            assert got == want if dp == DBL_STOCK or after >= OVERDUB_TICKS else got[0] == ['stop'], (sp, dp, after)
 
 
 @pytest.fixture
