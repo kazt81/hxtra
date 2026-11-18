@@ -38,16 +38,6 @@ body:
         - MIDI
         - The setup page
         - Not sure
-  - type: dropdown
-    id: device
-    attributes:
-      label: Device
-      options:
-        - HX Stomp
-        - HX Effects
-        - Both
-    validations:
-      required: true
   - type: textarea
     id: alternatives
     attributes:

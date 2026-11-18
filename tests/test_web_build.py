@@ -1,8 +1,9 @@
-"""web/firmware-worker.js, the in-browser build.py: it accepts the same stock files,
+"""web/firmware-worker.js, the in-browser build.py: it accepts the same stock file, the HX Stomp's only,
 pins the same built MD5s, and loads every file the build reads; with HX_STOMP_HXF set, its
 copy of the repository builds the features from a release's M4 code (tools/m4cache.py) as
 the repository does with clang."""
 import ast
+import hashlib
 import importlib.util
 import json
 import os
@@ -10,10 +11,12 @@ import re
 import shutil
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 import pytest
 
+import block3
 import m4asm
 import m4cache
 
@@ -41,8 +44,47 @@ def py_dict(path, name):
     raise KeyError(name)
 
 
+# The stock HX Stomp XL and HX Effects 3.80.0 files, which upstream builds and HXtra refuses
+NOT_HX_STOMP = {"329e3a26d60d3de1988b6785fa833ee1": "HX_Stomp_XL", "7c2ebdf1bffb6bcc5f89dda97f91e40c": "HX_Effects"}
+
+
 def test_stock_md5_as_build_py():
     assert js_object("STOCK_MD5") == py_dict("build.py", "STOCK_MD5")
+
+
+def test_hx_stomp_only():
+    # No build for anyone without an HX Stomp
+    assert py_dict("build.py", "STOCK_MD5") == {"a2cd8f4ae56f49415380270ebc484bf1": "HX_Stomp"}
+    assert set(py_dict("build.py", "KERNEL")) == set(py_dict("build.py", "STEPS")) == {"HX_Stomp"}
+    assert not NOT_HX_STOMP.keys() & js_object("STOCK_MD5").keys()
+    assert set(js_object("BUILT_MD5")) == set(js_value("KERNEL")) == set(js_value("STEPS")) == {"HX_Stomp"}
+    assert "HX_Effects" not in WORKER and "HX_Stomp_XL" not in WORKER and "--effects" not in WORKER
+
+
+def test_worker_refuses_another_file_as_the_page_expects():
+    # the page shows fw.wrongText for an error with "not the stock" in it
+    refusal = re.search(r'throw new Error\("(This is not the stock[^"]*)"', WORKER).group(1)
+    assert "HX Stomp 3.80.0" in refusal and "HXtra is for the HX Stomp only" in WORKER
+    assert "/not the stock/.test(m.text)" in (ROOT / "web/index.html").read_text()
+
+
+@pytest.mark.parametrize("md5", [*NOT_HX_STOMP, None], ids=[*NOT_HX_STOMP.values(), "other"])
+def test_build_py_refuses_another_unit(tmp_path, monkeypatch, md5):
+    spec = importlib.util.spec_from_file_location("hxtra_build", ROOT / "build.py")
+    build = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(build)
+    stock = tmp_path / "stock.hxf"
+    stock.write_bytes(b"not firmware")
+    if md5:      # the stock XL and HX Effects files are not in the repository: their MD5 stands in
+        monkeypatch.setattr(build.hashlib, "md5", lambda b: types.SimpleNamespace(hexdigest=lambda: md5))
+    md5 = md5 or hashlib.md5(b"not firmware").hexdigest()
+    monkeypatch.setattr(build, "run", lambda *a: pytest.fail(f"ran {a[1:]}"))
+    monkeypatch.setattr(sys, "argv", ["build.py", str(stock), "-o", str(tmp_path / "out.hxf"), "--no-check"])
+    with pytest.raises(SystemExit) as e:
+        build.main()
+    assert f"MD5 {md5}, not the stock HX Stomp 3.80.0 firmware" in str(e.value)
+    assert "HXtra is for the HX Stomp only" in str(e.value)
+    assert not (tmp_path / "out.hxf").exists()
 
 
 def js_value(name):
@@ -69,8 +111,7 @@ def test_kernel_slots_as_build_py():
 
 def test_built_md5_as_firmware_test():
     pinned = py_dict("tests/test_firmware.py", "BUILT_MD5")
-    assert js_object("BUILT_MD5") == {"HX_Stomp": pinned["HX_STOMP_HXF"], "HX_Stomp_XL": pinned["HX_STOMP_XL_HXF"],
-                                      "HX_Effects": pinned["HX_EFFECTS_HXF"]}
+    assert js_object("BUILT_MD5") == {"HX_Stomp": pinned["HX_STOMP_HXF"]}
 
 
 def test_sources_cover_the_build():
@@ -178,21 +219,40 @@ def test_site_root_keeps_the_anchor():
     assert 'location.replace("web/" + location.hash)' in site
 
 
+def page_combo(slots, leave_out=()):
+    """The flags of the page's combination with every feature and DSP feature that fits but leave_out, at slots NAM slots."""
+    dsp = [f for f in m4cache.web_dsp() if f not in leave_out]
+    while not block3.fits(slots, dsp):
+        dsp.pop(0)
+    return m4cache.web_flags() + dsp + [m4cache.slots_flag(slots)]
+
+
+# the default selection, then one of each kind the v1.2.0 cache lacked a module for (issue #163)
+PAGE_COMBOS = {"default": (2, ()), "no GR": (2, ("HX_GR",)), "no Metronome": (2, ("HX_CLICK",)),
+               "no USB Monitor": (2, ("HX_USB_MONITOR",)), "3 NAM slots": (3, ()), "no NAM, no DSP": (0, tuple(m4cache.web_dsp()))}
+
+
+def test_page_combos_are_offered():
+    offered = {m4cache.combo_key(c) for c in m4cache.combos()}
+    assert all(m4cache.combo_key(page_combo(*c)) in offered for c in PAGE_COMBOS.values())
+
+
 @pytest.mark.firmware
-@pytest.mark.parametrize("nam", [True, False])
-def test_page_copy_builds_features_from_the_cache(tmp_path, nam):
+@pytest.mark.parametrize("combo", PAGE_COMBOS)
+def test_page_copy_builds_features_from_the_cache(tmp_path, combo):
     stock = os.environ.get("HX_STOMP_HXF")
     if not stock:
         pytest.skip("HX_STOMP_HXF is not set")
-    flags = ["HX_BPM", "HX_LONG_PRESS", "HX_GR"]      # a section of its own, settings in a stock category, Entry 3's strings
+    flags = page_combo(*PAGE_COMBOS[combo])
+    nam = m4cache.flag_env(flags)[block3.VAR] != "0"
     cache = tmp_path / "m4cache.json"
-    cache.write_text(json.dumps({"modules": {**m4cache.modules(stock, flags), **m4cache.modules(stock, flags, nam=False)}}))
+    cache.write_text(json.dumps({"modules": m4cache.modules(stock, flags, nam)}))      # what m4cache.make keeps for it
     page = tmp_path / "repo"
     for p in listed_sources():
         (page / p).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(ROOT / p, page / p)
     env = {k: v for k, v in os.environ.items() if not k.startswith("HX_")}
-    env.update({f: "1" for f in flags})
+    env.update(m4cache.flag_env(flags))
     base = m4cache.nam_base(stock, str(tmp_path)) if nam else stock     # what build.py, and the page, give patch_menu.py
     out = {}
     for name, root, extra in (("clang", ROOT, {}), ("cache", page, {"HX_M4_CACHE": str(cache)})):

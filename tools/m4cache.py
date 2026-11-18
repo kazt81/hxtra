@@ -3,14 +3,17 @@
 
 usage: m4cache.py <HX_Stomp_v3.80.0_0x103966115.hxf> [-o build/m4cache.json] [--release v1.0.0]
 
-Runs the features of tools/patch_menu.py, all those the page builds, on the images build.py gives them (the stock file with
-NAM A2 Lite added, and without it for HX_NAM_SLOTS=0: the features' code reads addresses in it), keeping what every module
-assembled to (keyed by m4asm.key), then builds every combination the page offers with build.py to pin its MD5: each NAM slot
-count with each set of DSP features that fits beside it (tools/block3.py), with each set of the other opt-ins. The page reads
-the room and the costs from "dsp". tools/release.py attaches the file to
-the GitHub release, and the Pages workflow publishes it next to the page; m4asm reads it when HX_M4_CACHE names it.
+Runs the features of tools/patch_menu.py for every combination the page offers (each NAM slot count with each set of DSP
+features that fits beside it, tools/block3.py, with each set of the other opt-ins) on the image build.py gives them (the stock
+file with NAM A2 Lite added, and without it for HX_NAM_SLOTS=0: the features' code reads addresses in it), keeping what every
+module assembled to (keyed by m4asm.key: a module's .inc differs with the other features built). Then it builds each
+combination with build.py through those modules, as the page does, to pin its MD5, so a module missing fails here, not on
+the page. The page reads the room and the costs from "dsp". tools/release.py attaches the file to the GitHub release, and
+the Pages workflow publishes it next to the page; m4asm reads it when HX_M4_CACHE names it.
 """
 import argparse
+import contextlib
+import functools
 import hashlib
 import importlib.util
 import itertools
@@ -78,29 +81,62 @@ def nam_base(stock, d):
     return src
 
 
-def modules(stock, flags, nam=True):
-    """{m4asm.key: {code, symbols}} of every module the features of flags assemble, on the image with NAM A2 Lite (nam) or without."""
-    out, assemble = {}, m4asm.assemble_module
+@functools.lru_cache(maxsize=None)
+def image(stock, nam):
+    """The image build.py hands tools/patch_menu.py: with NAM A2 Lite (nam), or the stock file's (HX_NAM_SLOTS=0)."""
+    with tempfile.TemporaryDirectory() as d:
+        return pa.load_l6ia_from_any(nam_base(stock, d) if nam else stock)[0]
+
+
+def flag_env(flags):
+    """The environment flags turn on: '1' each, a 'VAR=value' one set to its value."""
+    return dict(f.split('=', 1) if '=' in f else (f, '1') for f in flags)
+
+
+@contextlib.contextmanager
+def build_env(env):
+    """os.environ's HX_ variables as build.py's would be (features read some through it), restored after."""
+    saved = {k: v for k, v in os.environ.items() if k.startswith('HX_')}
+    for k in saved:
+        del os.environ[k]
+    os.environ.update(env)
+    try:
+        yield
+    finally:
+        for k in [k for k in os.environ if k.startswith('HX_')]:
+            del os.environ[k]
+        os.environ.update(saved)
+
+
+def modules(stock, flags, nam=True, out=None):
+    """{m4asm.key: {code, symbols}} of every module the features of flags assemble, on the image with NAM A2 Lite (nam) or without,
+    added to out: a module already in it isn't assembled again."""
+    out, assemble = {} if out is None else out, m4asm.assemble_module
 
     def keep(src, include=()):
-        code, symbols = assemble(src, include)
-        out[m4asm.key(src, include)] = {'code': code.hex(), 'symbols': symbols}
-        return code, symbols
+        k = m4asm.key(src, include)
+        if k not in out:
+            code, symbols = assemble(src, include)
+            out[k] = {'code': code.hex(), 'symbols': symbols}
+        return bytes.fromhex(out[k]['code']), out[k]['symbols']
 
-    with tempfile.TemporaryDirectory() as d:
-        data, _ = pa.load_l6ia_from_any(nam_base(stock, d) if nam else stock)
+    data, env = image(stock, nam), flag_env(flags)
     m4asm.assemble_module = keep
     try:
-        pm.menu_entries(lambda e: pa.get_entry_swapped(data, e), env={f: '1' for f in flags})
+        with build_env(env):
+            pm.menu_entries(lambda e: pa.get_entry_swapped(data, e), env=env)
     finally:
         m4asm.assemble_module = assemble
     return out
 
 
-def built_md5(stock, flags):
-    """The MD5 of build.py's .hxf with flags on (a 'VAR=value' one set to its value) and no other HX_ variable."""
+def built_md5(stock, flags, cache=None):
+    """The MD5 of build.py's .hxf with flags on (a 'VAR=value' one set to its value) and no other HX_ variable, its modules from
+    the m4cache.json cache, as the page builds, when given."""
     env = {k: v for k, v in os.environ.items() if not k.startswith('HX_')}
-    env.update(f.split('=', 1) if '=' in f else (f, '1') for f in flags)
+    env.update(flag_env(flags))
+    if cache:
+        env[m4asm.CACHE] = os.path.abspath(cache)
     with tempfile.TemporaryDirectory() as d:
         out = os.path.join(d, 'out.hxf')
         r = subprocess.run([sys.executable, os.path.join(ROOT, 'build.py'), os.path.abspath(stock), '-o', out, '--no-check'],
@@ -110,18 +146,31 @@ def built_md5(stock, flags):
         return hashlib.md5(open(out, 'rb').read()).hexdigest()
 
 
+def combos():
+    """The flags of every combination the page offers: each NAM slot count with each set of DSP features that fits beside it,
+    with each set of the other opt-ins."""
+    flags, options, dsp = web_flags(), web_options(), web_dsp()
+    return [flags + d + o + [slots_flag(s)] for s in block3.SLOTS for d in subsets(dsp) if block3.fits(s, d)
+            for o in subsets(options)]
+
+
 def make(stock, release=None):
     if os.environ.get(m4asm.CACHE):
         raise SystemExit(f'm4cache: unset {m4asm.CACHE}: this assembles with clang')
-    flags, options, dsp = web_flags(), web_options(), web_dsp()
-    combos = [flags + d + o + [slots_flag(s)] for s in block3.SLOTS for d in subsets(dsp) if block3.fits(s, d)
-              for o in subsets(options)]
-    every = flags + options + dsp
+    flags, options, dsp, every = web_flags(), web_options(), web_dsp(), combos()
+    # a module's key covers its .inc, which differs with the other features built, so each combination keeps its own
+    mods = {}
+    for c in every:
+        modules(stock, c, nam=flag_env(c)[block3.VAR] != '0', out=mods)
+    with tempfile.TemporaryDirectory() as d:
+        cache = os.path.join(d, 'm4cache.json')
+        with open(cache, 'w') as f:
+            json.dump({'modules': mods}, f)
+        md5 = {combo_key(c): built_md5(stock, c, cache) for c in every}
     return {'release': release, 'unit': UNIT, 'features': flags, 'options': options,
             'dsp': {'features': dsp, 'slots': list(block3.SLOTS), 'room': {str(s): block3.words(s) for s in block3.SLOTS},
                     'cost': {f: block3.cost(f) for f in dsp}},
-            'md5': {UNIT: {combo_key(c): built_md5(stock, c) for c in combos}},
-            'modules': {**modules(stock, every), **modules(stock, every, nam=False)}}
+            'md5': {UNIT: md5}, 'modules': mods}
 
 
 def main():

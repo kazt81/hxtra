@@ -383,8 +383,8 @@ def test_after_the_metronome_and_before_the_gr_knobs():
 
 
 GATE_BUILT_MD5 = {
-    'HX_FX_GATE': 'ebd1781789d421012292d448222dc255',
-    'HX_FX_GATE HX_GR HX_CLICK HX_REAL_NAMES': '534835eb9240f2304bad5e30a87183fa',      # every DSP and model step, and an Entry 0 renamer
+    'HX_FX_GATE': 'ed293498c8168ab656f9cc5c99628135',
+    'HX_FX_GATE HX_GR HX_CLICK HX_REAL_NAMES': 'ed0330013defe2d7c4e94b14e6e36742',      # every DSP and model step, and an Entry 0 renamer
 }
 
 
@@ -433,11 +433,6 @@ def test_build_runs_the_gate_between_the_metronome_and_the_gr_knobs(tmp_path, mo
 
 def test_build_without_the_flag_has_no_gate(tmp_path, monkeypatch):
     assert 'tools/patch_gate.py' not in build_steps(tmp_path, monkeypatch, 'HX_Stomp', {})
-
-
-@pytest.mark.parametrize('unit', ['HX_Stomp_XL', 'HX_Effects'])
-def test_gate_is_for_the_hx_stomp_only(tmp_path, monkeypatch, unit):
-    assert 'tools/patch_gate.py' not in build_steps(tmp_path, monkeypatch, unit, {'HX_FX_GATE': '1'})
 
 
 def test_web_worker_runs_the_gate_between_the_metronome_and_the_gr_knobs():

@@ -286,6 +286,48 @@ def test_tracks_give_press_intervals_and_signed_clicks():
         'fs4': {'down': [[1.5, 1.5]], 'turns': []}}}
 
 
+def blinks(starts, lit, colour=196863):
+    """A ring's changes: lit for lit seconds from each start, off between."""
+    return [e for t, d in zip(starts, lit) for e in ([t, colour, 1], [t + d, colour, 0])]
+
+
+def test_even_blinks_put_a_runs_starts_on_one_beat_each_lit_half_of_it():
+    # The unit's LED task ticks about every 67 ms: at 200 BPM a 0.3 s beat comes out 0.267 and 0.333 apart (seen on the unit)
+    starts = [0.4 + 0.3 * i + (0.033 if i % 2 else 0) for i in range(8)]
+    out = hm.even_blinks([[0, 196863, 0]] + blinks(starts, [0.133] * 8))
+    on = [e[0] for e in out if e[2] == 1]
+    assert [round(b - a, 3) for a, b in zip(on, on[1:])] == [round(on[1] - on[0], 3)] * 7
+    assert abs(on[1] - on[0] - 0.3) < 0.01
+    assert all(abs(b[0] - a[0] - (on[1] - on[0]) / 2) < 1e-9 for a, b in zip(out, out[1:]) if a[2] == 1)
+
+
+def test_even_blinks_start_a_new_run_at_a_new_tempo():
+    slow = [1 + 0.8 * i for i in range(5)]
+    fast = [slow[-1] + 0.8 + 0.4 * i for i in range(6)]
+    out = hm.even_blinks([[0, 196863, 0]] + blinks(slow, [0.4] * 5) + blinks(fast, [0.2] * 6))
+    on = [round(e[0], 3) for e in out if e[2] == 1]
+    assert on == [round(t, 3) for t in slow + fast]
+    lit = [round(b[0] - a[0], 3) for a, b in zip(out, out[1:]) if a[2] == 1]
+    assert lit[:5] == [0.4] * 5 and lit[6:] == [0.2] * 5            # fast[0] still lands on the slow beat, so it joins that run
+
+
+def test_even_blinks_leave_a_steady_ring_and_a_ring_lit_longer_than_a_beat():
+    steady = [[0, 790535, 1], [5, 790535, 1]]
+    assert hm.even_blinks(steady) == [[0, 790535, 1]]
+    out = hm.even_blinks(blinks([1, 1.5, 2, 2.5], [0.25, 0.25, 0.25, 3]))
+    assert out[-1][0] == 5.5                                    # the last one stayed lit until 5.5: not a blink
+    assert hm.even_blinks([]) == []
+
+
+def test_tracks_even_a_footswitchs_blinks():
+    timeline = {'frames': [0, 4], 'events': [], 'leds': [
+        {'t': t, 'leds': [[0, 0], [0, 0], [196863, int(on)]]}
+        for t, on in [(0, 0), (0.4, 1), (0.53, 0), (0.67, 1), (0.8, 0), (1.0, 1), (1.13, 0), (1.27, 1), (1.4, 0)]]}
+    led = hm.tracks(timeline, {'fs3': {'press': [1, 14]}})['controls']['fs3']['led']
+    gaps = [round(b[0] - a[0], 6) for a, b in zip(led[1:], led[2:])]
+    assert len(gaps) == 7 and len(set(gaps)) == 1 and abs(gaps[0] - 0.147) < 0.001
+
+
 def test_the_stomps_map_matches_what_learn_found_on_the_unit():
     learned = {'fs1': [ev(1, 9), ev(1, 9, 5), ev(1, 12), ev(1, 12, 2)], 'fs2': [ev(1, 10), ev(1, 13), ev(1, 13, 2)],
                'knob2_cw': [ev(2, 1, value=1)] * 3, 'knob2_press': [ev(1, 1), ev(1, 1, 2)]}

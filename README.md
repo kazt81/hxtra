@@ -8,7 +8,7 @@
 [![Last commit](https://img.shields.io/github/last-commit/wisemandenny/hxtra?style=flat-square)](https://github.com/wisemandenny/hxtra/commits/main)
 
 <!-- demo: tour, a short loop of the virtual HX Stomp from tools/hx_mirror.py -->
-<p><img src="https://github.com/user-attachments/assets/b804955a-3275-40b6-932b-d1ccf10c4d95" width="480" alt="A tour of HXtra on the HX Stomp: the BPM and tap colours, DSP usage in the Edit view and model browser, and six snapshots"></p>
+<p><img src="https://github.com/user-attachments/assets/99592c3e-ca54-4d37-9175-e349437fe3bb" width="480" alt="A tour of HXtra on the HX Stomp: the BPM display, the Breathing Line, DSP usage in the Edit view, six snapshots and the Rainbow TAP LED"></p>
 
 </div>
 
@@ -156,6 +156,8 @@ The meter also shows while you edit the compressor, so you can dial in Threshold
 
 - **Tap** (a Command for an FS slot, after Hotkey): the footswitch taps the tempo as TAP does, only in the presets where you put it, and its ring blinks the tempo. The footswitch must be a Stomp switch (Global Settings › Footswitches for FS3 … FS5). On stock firmware the footswitch doesn't tap.
 
+<a href="https://wisemandenny.github.io/hxtra/web/features.html#tap-command"><img src="docs/assets/icons/watch-demo.svg" width="124" height="28" alt="Watch demo"></a>
+
 ### <img src="docs/assets/icons/tap-color.svg" width="28" height="28" align="top" alt=""> TAP LED Color
 
 *Global Settings › Displays*
@@ -170,6 +172,8 @@ The meter also shows while you edit the compressor, so you can dial in Threshold
 
 - **This Preset** (None, Red, DkOrange, LtOrange, Yellow, Green, Teal, Blue, Violet, Pink, White): the current preset's own colour, kept when you save the preset. In Preset footswitch mode its ring and its switch icon on the Home screen are lit in that colour while it is selected, and dimmed while it is not.
 - **Preset LED Color** (Red, DkOrange, LtOrange, Yellow, Green, Teal, Blue, Violet, Pink, White): the colour of a preset without its own while it is selected. Such a preset's ring stays off while it is not, as stock.
+
+<a href="https://wisemandenny.github.io/hxtra/web/features.html#preset-led-color"><img src="docs/assets/icons/watch-demo.svg" width="124" height="28" alt="Watch demo"></a>
 
 ### <img src="docs/assets/icons/metronome.svg" width="35" height="28" align="top" alt=""> Metronome
 
@@ -208,6 +212,8 @@ The meter also shows while you edit the compressor, so you can dial in Threshold
 - A noise gate on what comes back from the loop, like the Input block's, so a noisy pedal in the loop no longer takes a Noise Gate block.
 - Each FX Loop and Return block then counts 0.2% (mono) or 0.4% (stereo) more toward the DSP limit.
 
+<a href="https://wisemandenny.github.io/hxtra/web/features.html#fx-loop-gate"><img src="docs/assets/icons/watch-demo.svg" width="124" height="28" alt="Watch demo"></a>
+
 ### <img src="docs/assets/icons/gate-sidechain.svg" width="28" height="28" align="top" alt=""> Noise Gate Input Sidechain
 
 *Input Sidechain knob on the Noise Gate block*
@@ -215,6 +221,8 @@ The meter also shows while you edit the compressor, so you can dial in Threshold
 - On, the Noise Gate opens and closes on your guitar as it comes in, so a gate after a high-gain drive follows the clean guitar.
 - Each Noise Gate block then counts 0.1% (mono) or 0.2% (stereo) more toward the DSP limit.
 - *Experimental:* tested with recorded signals, not yet with a played instrument, so it may need tuning. It works only with a cable in the HX Stomp's guitar input.
+
+<a href="https://wisemandenny.github.io/hxtra/web/features.html#gate-sidechain"><img src="docs/assets/icons/watch-demo.svg" width="124" height="28" alt="Watch demo"></a>
 
 ### <img src="docs/assets/icons/nam.svg" width="28" height="28" align="top" alt=""> NAM A2 Lite
 

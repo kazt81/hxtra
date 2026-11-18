@@ -256,8 +256,3 @@ def test_build_order(tmp_path, monkeypatch):
 
 def test_build_without_the_flag(tmp_path, monkeypatch):
     assert 'tools/patch_usbmon.py' not in build_steps(tmp_path, monkeypatch, 'HX_Stomp', {})
-
-
-@pytest.mark.parametrize('unit', ['HX_Stomp_XL', 'HX_Effects'])
-def test_hx_stomp_only(tmp_path, monkeypatch, unit):
-    assert 'tools/patch_usbmon.py' not in build_steps(tmp_path, monkeypatch, unit, {'HX_USB_MONITOR': '1'})

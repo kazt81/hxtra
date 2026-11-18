@@ -1,6 +1,6 @@
 # Resource limits: how much more fits on the HX Stomp
 
-**Read this before planning a feature.** It says which of the HX Stomp's resources are nearly full, what typical changes cost, and where the remaining room is. Measured on 2026-11-03 against stock 3.80.0, the default `build.py` image (NAM A2 Lite, 3 slots) and the GR-meter image (`HX_GR=1 HX_FRAMEPROBE=1`, branch `gr-meter-experiment`). Setting IDs, glyph slots and M4 code were re-measured on 2026-11-04 on main, with an all-features build (`HX_BPM=1 HX_DSP_METER=1`, plus `--splash-text` with an emoji). Status tags are as in [research/conventions.md](research/conventions.md). The HX Stomp XL has the same Entries 2, 3 and 4, so it has the same DSP and model limits.
+**Read this before planning a feature.** It says which of the HX Stomp's resources are nearly full, what typical changes cost, and where the remaining room is. Measured on 2026-11-03 against stock 3.80.0, the default `build.py` image (NAM A2 Lite, 3 slots) and the GR-meter image (`HX_GR=1 HX_FRAMEPROBE=1`, branch `gr-meter-experiment`). Setting IDs, glyph slots and M4 code were re-measured on 2026-11-04 on main, with an all-features build (`HX_BPM=1 HX_DSP_METER=1`, plus `--splash-text` with an emoji). Status tags are as in [research/conventions.md](research/conventions.md).
 
 ## The short version
 

@@ -8,22 +8,16 @@ body:
         Thanks for taking the time to report this. Please check the README's [Known issues](https://github.com/wisemandenny/hxtra#known-issues) and the [open issues](https://github.com/wisemandenny/hxtra/issues) first.
 
         **HX Stomp stuck at the splash screen?** Power it off, hold Page Right while powering it on, and reinstall the stock firmware with Line 6 Updater. Then tell us what happened here.
-  - type: input
+  - type: dropdown
     id: version
     attributes:
       label: HXtra version
-      description: The boot screen shows it at power-on, or see the release you downloaded.
-      placeholder: v1.1.0
-    validations:
-      required: true
-  - type: dropdown
-    id: device
-    attributes:
-      label: Device
+      description: The boot screen shows it at power-on, or see the release you downloaded. Not the HX Stomp firmware version (3.80.0).
       options:
-        - HX Stomp
-        - HX Effects
-        - Other
+        - v1.2.0
+        - v1.1.1
+        - v1.1.0
+        - v1.0.0
     validations:
       required: true
   - type: dropdown
@@ -44,6 +38,31 @@ body:
         - build.py on the command line
     validations:
       required: true
+  - type: dropdown
+    id: nam-slots
+    attributes:
+      label: NAM A2 Lite slots in your build
+      description: The number you picked under NAM A2 Lite on the setup page (HX_NAM_SLOTS with build.py).
+      options:
+        - "3"
+        - "2"
+        - "1"
+        - "Off"
+        - Not sure
+    validations:
+      required: true
+  - type: checkboxes
+    id: enabled
+    attributes:
+      label: Optional features on in your build
+      description: Tick every one you left checked on the setup page (or switched on with build.py). Leave them all empty if you turned them all off.
+      options:
+        - label: Gain reduction meter (HX_GR)
+        - label: Metronome block (HX_CLICK)
+        - label: Noise gate in the FX Loop and Return blocks (HX_FX_GATE)
+        - label: Input Sidechain on the Noise Gate block (HX_GATE_SC)
+        - label: "USB monitoring: Path A Out (HX_USB_MONITOR)"
+        - label: Real block names (HX_REAL_NAMES)
   - type: dropdown
     id: features
     attributes:
@@ -102,4 +121,4 @@ body:
     id: more
     attributes:
       label: Anything else?
-      description: The preset you were using, MIDI gear connected, other features you changed, or build options you used.
+      description: The preset you were using, MIDI gear connected, or other settings you changed.

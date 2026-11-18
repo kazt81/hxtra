@@ -31,6 +31,7 @@ Before writing anything, read [conventions.md](conventions.md): the status tags,
 | [m4/text-and-fonts.md](m4/text-and-fonts.md) | the six fonts and their glyph tables, the text widget, anchors, glyph colour, the float formatter | drawing text |
 | [m4/boot-screen.md](m4/boot-screen.md) | the stock boot picture, drawn by the bootloader then by the app | changing the boot screen |
 | [m4/dsp-cost.md](m4/dsp-cost.md) | per-model DSP costs, block records and block objects, block IDs and slots, the preset total and its 90% limit | anything about DSP load, or finding a block's object from its slot |
+| [m4/block-limit.md](m4/block-limit.md) | the 8-block limit: block IDs and columns, the free-slot counter, the nine typed block objects a path, why a 9th block fails, what was tried | anyone asks for more than 8 blocks, or adding a block fails |
 | [m4/model-browser.md](m4/model-browser.md) | the model browser's view, rows, levels, categories and items | changing the model list, or adding a model to a category |
 | [m4/tempo-and-leds.md](m4/tempo-and-leds.md) | the tempo settings (IDs 14..16), the tap tempo screen, the footswitch LEDs and LED task, the stock beat, the µs clock | anything tempo-synced, or lighting the LEDs |
 | [m4/controls.md](m4/controls.md) | every front-panel control's key code, the stock shortcuts and button combinations (Save = VIEW + ACTION, Menu = PAGE◀ + PAGE▶, All Bypass, the tuner, footswitch-mode combos, action panels), and how to send each over USB | driving the UI from a script or a test, or reaching a screen the devtest doesn't |
@@ -103,5 +104,6 @@ Measurements and studies from building NAM A2 Lite into the stock firmware, copi
 | [KIT_UNIT_MEASUREMENTS.md](KIT_UNIT_MEASUREMENTS.md) | the DSP call rate and load word |
 | [KIT_EP_DMA.md](KIT_EP_DMA.md) | external-port DMA on the SHARC |
 | [STOCK_BITEXACT_OPT.md](STOCK_BITEXACT_OPT.md) | stock models' declared cost against their measured cycles |
+| [SHARC_VISA.md](SHARC_VISA.md) | upstream's copy of [sharc/visa.md](sharc/visa.md); read ours |
 | [KIT_NAM_A2_FULL.md](KIT_NAM_A2_FULL.md), [NAM_A2_FULL_STOCK_UNIT.md](NAM_A2_FULL_STOCK_UNIT.md) | NAM A2 Full, studied and stopped |
 | [HELIX_FLOOR_FEASIBILITY.md](HELIX_FLOOR_FEASIBILITY.md), [HELIX_FLOOR_KERNEL_COST.md](HELIX_FLOOR_KERNEL_COST.md), [HELIX_FLOOR_RECALL.md](HELIX_FLOOR_RECALL.md) | the Helix Floor / LT |

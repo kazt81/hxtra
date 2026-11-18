@@ -432,6 +432,37 @@ def controls_map(learned):
     return out
 
 
+def even_blinks(led):
+    """A ring's [t, colour, mode] changes with each run of blinks evened out: the unit's LED task steps in ~67 ms ticks, so at a fast
+    tempo its ons and offs come out uneven (0.13 s on, then 0.20 or 0.13 s off at 200 BPM), which looks glitchy in a video.
+    In a run (three or more lit starts, each gap within 0.1 s of the median of the four before: a tick of jitter, not a new
+    tempo), the starts go on a straight line fitted to them and each lasts half a beat; a ring left lit longer keeps its end."""
+    ch = [e for i, e in enumerate(led) if i == 0 or e[1:] != led[i - 1][1:]]
+    starts = [i for i in range(1, len(ch)) if ch[i][2] == 1 and ch[i - 1][2] != 1]
+    runs, run = [], starts[:1]
+    for a, b in zip(starts, starts[1:]):
+        gaps = sorted(ch[y][0] - ch[x][0] for x, y in list(zip(run, run[1:]))[-4:])
+        gap, prev = ch[b][0] - ch[a][0], gaps[len(gaps) // 2] if gaps else None
+        if gap < 1.5 and (prev is None or abs(gap - prev) <= 0.1):
+            run.append(b)
+        else:
+            runs.append(run)
+            run = [b]
+    runs.append(run)
+    out = [list(e) for e in ch]
+    for run in (r for r in runs if len(r) >= 3):
+        n = len(run)
+        ts = [ch[i][0] for i in run]
+        mx = (n - 1) / 2
+        beat = sum((j - mx) * (t - sum(ts) / n) for j, t in enumerate(ts)) / sum((j - mx) ** 2 for j in range(n))
+        first = sum(ts) / n - beat * mx
+        for j, i in enumerate(run):
+            out[i][0] = first + beat * j
+            if i + 1 < len(ch) and ch[i + 1][0] - ch[i][0] < beat:
+                out[i + 1][0] = out[i][0] + beat / 2
+    return sorted(out, key=lambda e: e[0])
+
+
 def tracks(timeline, cmap):
     """What stomp_render draws, from a recording's timeline and controls_map(): each control's press intervals and knob clicks."""
     end = timeline['frames'][-1] if timeline['frames'] else 0
@@ -459,7 +490,7 @@ def tracks(timeline, cmap):
             out[name]['touch'] = held(how['touch'])
         if name in ('fs1', 'fs2', 'fs3'):
             k = int(name[2]) - 1
-            out[name]['led'] = [[x['t'], *x['leds'][k]] for x in timeline.get('leds', [])]
+            out[name]['led'] = even_blinks([[x['t'], *x['leds'][k]] for x in timeline.get('leds', [])])
         if 'level' in how:
             out[name]['levels'] = [[ev['t'], round(struct.unpack('<f', bytes.fromhex(ev['event'])[4:8])[0], 4)]
                                    for ev in timeline['events'] if list(bytes.fromhex(ev['event'])[:2]) == how['level']]

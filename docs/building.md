@@ -4,11 +4,9 @@ Most people never need this page: the [setup page](https://wisemandenny.github.i
 
 ## Requirements
 
-- An **HX Stomp**: HXtra supports the HX Stomp only. `build.py` still builds upstream's NAM A2 Lite for the HX Stomp XL and the HX Effects (on the HX Effects NAM is in Distortion > Mono), untested, with none of HXtra's features.
-- Line 6's firmware 3.80.0 for your unit. The build checks the MD5 and refuses any other file:
-  - HX Stomp: `HX_Stomp_v3.80.0_0x103966115.hxf`, MD5 `a2cd8f4ae56f49415380270ebc484bf1`. Download it from [line6.com](https://line6.com/software/readeula.html?rid=12906); you need to sign in with a free Line 6 (Helix) account to get the download.
-  - HX Stomp XL: `HX_Stomp_XL_v3.80.0_0x103966115.hxf`, MD5 `329e3a26d60d3de1988b6785fa833ee1`
-  - HX Effects: `HX_Effects_v3.80.0_0xd97239907.hxf`, MD5 `7c2ebdf1bffb6bcc5f89dda97f91e40c`
+- An **HX Stomp**: HXtra is for the HX Stomp only, and `build.py` refuses any other firmware file.
+- Line 6's firmware 3.80.0 for the HX Stomp. The build checks the MD5 and refuses any other file:
+  - `HX_Stomp_v3.80.0_0x103966115.hxf`, MD5 `a2cd8f4ae56f49415380270ebc484bf1`. Download it from [line6.com](https://line6.com/software/readeula.html?rid=12906); you need to sign in with a free Line 6 (Helix) account to get the download.
 - Python 3.10 or newer with `numpy`: `pip install numpy`. To run a build from RAM from the command line, also `pyusb` and `dfu-util`.
 - For every feature but the boot screen and real block names, clang: their M4 code is assembled with it at build time. On a Mac, Apple's Command Line Tools (`xcode-select --install`); on Linux or WSL, `apt install clang` (clang 18 gives the same bytes as Apple's). `tools/m4asm.py` takes `HX_CLANG` (a path, or a name on `PATH`) first, then the Command Line Tools' clang, then `clang` on `PATH`. For the boot screen, macOS converts pictures (`sips`) and renders emoji (`swift`); elsewhere give a 320x240 PNG and `--splash-glyph` pictures.
 - **Line 6 Updater** to install, and **HX Edit** to import captures.
@@ -21,15 +19,15 @@ cd hxtra
 python3 build.py path/to/HX_Stomp_v3.80.0_0x103966115.hxf
 ```
 
-This writes `build/HX_Stomp_v3.80.0_HXtra.hxf` (from the XL's file, `build/HX_Stomp_XL_v3.80.0_HXtra.hxf`; from the HX Effects', `build/HX_Effects_v3.80.0_HXtra.hxf`). It takes about 2 minutes, most of it the kernel check of step 1. The build:
+This writes `build/HX_Stomp_v3.80.0_HXtra.hxf`. It takes about 2 minutes, most of it the kernel check of step 1. The build:
 
 1. Assembles the NAM kernel for the NAM slot count and runs it in the SHARC simulator, checking every block's output bit for bit against a reference NAM A2 implementation (`src/sharc/nam_a2.asm`). Add `--no-check` to skip this step.
-2. Adds NAM A2 Lite in place of Xenomorph Fuzz Mono (preset ID 555): `tools/patch_amp.py remove-model`, `add-fx-model --knobs eq`, `move-folder` (into Amp > NAM) and `ir-title --knob 6` (the IR name in the block title, from the Model knob). These are `build.py`'s `STEPS`; the HX Effects has its own one step, `effects-eq`.
+2. Adds NAM A2 Lite in place of Xenomorph Fuzz Mono (preset ID 555): `tools/patch_amp.py remove-model`, `add-fx-model --knobs eq`, `move-folder` (into Amp > NAM) and `ir-title --knob 6` (the IR name in the block title, from the Model knob). These are `build.py`'s `STEPS`.
 3. On the HX Stomp, adds the HXtra features that are turned on to the main application (`tools/patch_menu.py`, from `tools/features/`).
 4. Adds the kernel to the DSP's boot code (`patch_amp.py patch`).
 5. Recomputes and verifies every checksum: the container MD5, the archive Fletcher-32 and CRC-32, and the image CRCs.
 
-The build is deterministic. The default HX Stomp build (no switches) has MD5 `195682572258a3347d94ca7610a697b8`, pinned in `tests/test_firmware.py`.
+The build is deterministic. The default HX Stomp build (no switches) has MD5 `f3fbca667ba81933cd0ad29854a54098`, pinned in `tests/test_firmware.py`.
 
 A default build changes only 5 of the 15 parts of the firmware: the main application, the DSP program, the model list, the DSP graph library and the image store (the boot picture; emoji in the boot text also change the font table). **The bootloader is never touched**, which is what keeps [recovery](https://wisemandenny.github.io/hxtra/web/#recovery) possible.
 
@@ -75,7 +73,7 @@ python3 build.py path/to/HX_Stomp_v3.80.0_0x103966115.hxf --splash my_picture.jp
 - Without `--splash`, the boot picture is the stock one with "HX STOMP" relabelled "HXtra STOMP" (`tools/splash_hxtra.py`). It's made from the firmware's own pixels at build time, so the repo holds no Line 6 artwork.
 - `--splash` takes any picture macOS can open (PNG, JPEG, HEIC, ...) at any size. The screen is **320x240**; a 320x240 PNG is used exactly as it is, and anything else is converted to it with macOS's `sips`: scaled to cover the screen and cropped at the centre, or with `--splash-fit fit`, scaled to fit inside it on black. Off macOS, give a 320x240 PNG.
 - The loading bar crosses the picture about halfway down, and the text sits on it in the bottom 40 rows, in grey (`0xb1b1b1`), so keep the bottom darkish.
-- The boot text reads "v1.1.0", the HXtra version, in place of "Firmware 3.80.0". `--splash-text` replaces it with up to 23 characters: ASCII, and emoji, each of which counts as one, e.g. `--splash-text "HXS OS v0.1 🎸"`.
+- The boot text reads "v1.2.0", the HXtra version, in place of "Firmware 3.80.0". `--splash-text` replaces it with up to 23 characters: ASCII, and emoji, each of which counts as one, e.g. `--splash-text "HXS OS v0.1 🎸"`.
 - Each emoji becomes a colour glyph of the line's font, 18 px tall, level with the capitals. On macOS it's rendered from Apple Color Emoji; `--splash-glyph 🎸=guitar.png` (repeatable) gives your own picture instead, and off macOS it's required. A line with emoji is drawn white, not grey, as the firmware shows a glyph's own colours only on a white line.
 - The boot screen is an HXtra feature (`tools/features/splash.py`). The flags set its inputs `HX_SPLASH`, `HX_SPLASH_FIT`, `HX_SPLASH_TEXT` and `HX_SPLASH_GLYPHS`, which work as environment variables too, as the other features' flags do.
 - `python3 tools/splash_topo.py out.png [--seed N]` draws a neon contour-map picture to start from; `python3 tools/patch_splash.py export firmware.hxf out.png` saves the picture an image has now.
