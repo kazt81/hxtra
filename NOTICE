@@ -8,7 +8,7 @@ version. It is distributed WITHOUT ANY WARRANTY; see LICENSE.
 What is not here
 ----------------
 No Line 6 firmware, code or data is included or distributed. The build reads
-the user's own copy of the official HX Stomp, HX Stomp XL or HX Effects 3.80.0
+the user's own copy of the official HX Stomp 3.80.0
 firmware file and changes
 it on the user's computer. The patcher contains the offsets and table layouts
 it needs to do that, and checks the input's MD5 first. Firmware built with

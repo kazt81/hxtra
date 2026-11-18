@@ -58,6 +58,7 @@ tools/sharc/nam_lite.py       the model format (converter), test model, shared t
 tools/sharc/nam_pack.py       .nam loader, layer order
 tools/sharc/entry4_blob.py    DSP graph library parser
 tools/sharc/sasm.py, ssim.py  SHARC assembler and simulator
+tools/sharc/visa_dis.py       SHARC disassembler for Entry 2: 48-bit ISA and VISA (docs/research/sharc/visa.md)
 src/sharc/nam_a2.asm          reference NAM A2 implementation for the check
 src/ramboot/                  the RAM loader and its eMMC overlay hook (C, Cortex-M4; make -C src/ramboot)
 web/                          the setup page: build, RAM run and converter in the browser (published per release: .github/workflows/pages.yml)

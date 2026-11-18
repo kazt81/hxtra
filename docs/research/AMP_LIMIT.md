@@ -26,3 +26,5 @@ browser greys a third amp out or the drop only happens on load.
 
 Consequence: a third NAM block needs a model of another kind (an effect category, kind 1),
 not a Preamp copy.
+
+The 8-block limit, and the per-type rules at `0x28dfa9a4` (at most 2 of each heavy type): [m4/block-limit.md](m4/block-limit.md).

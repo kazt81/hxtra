@@ -411,8 +411,8 @@ def test_after_the_fx_gate_and_before_the_gr_knobs():
 
 
 SC_BUILT_MD5 = {
-    'HX_GATE_SC': '456d211eb1c4a13eac0aec17b37073d0',
-    'HX_GATE_SC HX_FX_GATE HX_GR HX_CLICK HX_USB_MONITOR HX_REAL_NAMES': '3d00298d044fc38d7c9d745b8b0aefec',  # every DSP step
+    'HX_GATE_SC': '3428d520953b3162e20385b5212f9bf7',
+    'HX_GATE_SC HX_FX_GATE HX_GR HX_CLICK HX_USB_MONITOR HX_REAL_NAMES': 'cdee641bda1f7e076dc9896ee6242072',  # every DSP step
 }
 
 
@@ -442,11 +442,6 @@ def test_build_runs_it_after_the_fx_gate_and_before_the_gr_knobs(tmp_path, monke
 def test_build_without_the_flag_has_no_sidechain(tmp_path, monkeypatch):
     monkeypatch.delenv('HX_GATE_SC', raising=False)
     assert 'tools/patch_sidechain.py' not in build_steps(tmp_path, monkeypatch, 'HX_Stomp', {})
-
-
-@pytest.mark.parametrize('unit', ['HX_Stomp_XL', 'HX_Effects'])
-def test_sidechain_is_for_the_hx_stomp_only(tmp_path, monkeypatch, unit):
-    assert 'tools/patch_sidechain.py' not in build_steps(tmp_path, monkeypatch, unit, {'HX_GATE_SC': '1'})
 
 
 def test_web_worker_runs_it_after_the_fx_gate_and_before_the_gr_knobs():
