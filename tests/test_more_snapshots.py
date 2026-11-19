@@ -934,7 +934,7 @@ def test_a_preset_load_forgets_the_last_presets_bank_b(mgr):
     assert [(new, old) for new, old, _, _ in mgr.selects] == [(0, 2)] and mgr.inits == [] and not mgr.bank_b_live()
 
 
-def test_snapshot_4_6_sel_is_a_footswitches_setting_on_a_virtual_id():
+def test_snapshot_bank_sel_is_a_footswitches_setting_on_a_virtual_id():
     """Hold (0) is the default, which a unit reads before the setting is ever stored; the HX Stomp shows 'Snapshot' over 'BankSel'."""
     assert ms.FLAG == 'HX_MORE_SNAPSHOTS' and ms.MENU == 'Footswitches'
     assert ms.SETTINGS == (Setting('bank_switch', b'BankSel\nSnapshot', (b'Hold', b'Tap'), 0),)
@@ -1022,6 +1022,7 @@ def test_a_click_selects_in_the_live_bank_on_its_release(hm):
     assert hm.selects == []
     hm.fs_click(1)
     assert [(new, old) for new, old, _, _ in hm.selects] == [(1, 0)] and hm.armed() == [0, 0, 0]
+    assert hm.data(VIEW) == 0 and hm.data(RELAYOUT) == 0, 'stock lays the labels out after its select'
 
 
 def test_a_short_tap_selects_once_on_its_click(hm):
@@ -1262,9 +1263,10 @@ def test_no_other_select_moves_the_footswitches(hm, how):
     elif how == 'action':
         hm.call('snaps_action_select', MGR, 2)
     else:
+        prev6 = hm.data(PREV6)
         hm.m.u8(MGR + BUSY, 1)
         hm.m.call(SELECT, MGR, 2)
-        assert hm.held == [2], 'refused by select, after its hook'
+        assert hm.held == [2] and hm.data(PREV6) == prev6 == 3, 'refused by select, after its hook, which keeps PREV6'
     cross = how in ('cc 4', 'cc wrap', 'fs wrap')
     assert hm.data(VIEW) == 1 and hm.bank_b_live() == cross and hm.data(RELAYOUT) == int(cross)
     hm.tick()
@@ -1582,10 +1584,15 @@ def test_the_layout_reads_follow_the_bank_the_footswitches_select_in(hm):
     hm.m.u8(MGR + CUR, 1)
     stock = [(1, 3 + i, f'A{i + 1}'.encode(), int(i == 1)) for i in range(3)]
     assert [layout(hm, i) for i in range(3)] == stock, 'the live bank: the stock reads'
+    shadow = CODE + hm.sym['snaps_shadow']
+    for i in range(3):
+        r = bytearray(REC)
+        r[COLOUR], r[RENAMED] = 9, 1
+        r[NAME:NAME + 3] = b'OLD'
+        hm.m.write(shadow + REC * i, r)
     hm.data(VIEW, 1)
     assert [layout(hm, i) for i in range(3)] == [(NONE, 0, f'SNAPSHOT {i + 4}'.encode(), 0) for i in range(3)], \
-        'bank B not made yet: its defaults, none lit'
-    shadow = CODE + hm.sym['snaps_shadow']
+        'bank B not made yet: its defaults, none lit, whatever the last preset left in the shadow'
     for i in range(3):
         r = bytearray(REC)
         r[COLOUR], r[RENAMED] = 7 + i, int(i == 2)
@@ -1706,7 +1713,7 @@ def test_build_sends_the_snapshot_footswitch_to_the_module_and_wraps_load_and_sa
 
 @pytest.mark.firmware
 @pytest.mark.parametrize('env', [{}, {'HX_LONG_PRESS': '1'}], ids=['alone', 'with long press'])
-def test_build_serves_snapshot_4_6_sel_from_footswitches(env):
+def test_build_serves_snapshot_bank_sel_from_footswitches(env):
     """A virtual setting in Global Settings > Footswitches: after FS5 Function, or after long press's ten, whose pages stay put."""
     e0 = built_e0({'HX_MORE_SNAPSHOTS': '1', **env})
     assert_virtual(e0, ms, ms.SETTINGS[0])
