@@ -47,11 +47,26 @@ PRESS, RELEASE, CLICK, HOLD = 1, 2, 3, 5
 PENDING, PENDING_FS, IMMEDIATE, PRESSED = 0x4f, 0x50, 0x6d, 0x78
 LISTS_GET, CTRLS_GET, LISTS, CTRLS = 0x28d96084, 0x28d9608c, 0x28128b4c, 0x28125d30    # the footswitch lists, the controllers
 FS_LEARNING, CC_LEARNING = 0x28dd87a0, 0x28dde9ec    # (lists), (controllers) -> set while a learn waits
-SAVING, VIEW, WRAP, RELAYOUT, PREV6, NONE, STEP = 2, 4, 5, 7, 8, 0xff, 3     # in snaps_data
+SAVING, VIEW, WRAP, RELAYOUT, PREV6, NONE, STEP, DSP_HELD = 2, 4, 5, 7, 8, 0xff, 3, 9     # in snaps_data
+DSP_LOCK, DSP_UNLOCK, DSP_MODEL = 0x28e07844, 0x28e0785c, 0x28449e78   # D, the DSP model's lock: (engine), at [DSP_MODEL] + 8
+# What PRESET (0x28d92a98) returns here, the DSP index D's calls take: 0 on the unit, any other value here, so the D stubs can tell
+# it came from that call (the ROM would lock address 8 with it); a DSP model, made
+DSP_ENGINE, MODEL = 0x28710000, 0x28770000
+GET_EDIT_BUFFER = 0x28760000                # HX Edit's Get edit buffer as 0x28e1c55c runs a serializer: D taken around it
+LOAD = 0x287b0000                           # a preset load as 0x28df2038 or 0x28df22f8 runs the parser's chain: under D
+MANAGERS = []                               # every Manager a test made, for the check that D is let go
+STACKS = {'key': 0x8000, 'request': 0x10000, 'transport': 0x18000}     # each task's stack, below the one m4emu's call() takes
 
 
 def record(i):
     return MGR + RECS + REC * i
+
+
+def clobber(m, *more):
+    """What a ROM call may leave in the caller-saved registers (r1-r3, r12, and the others named): the D stubs and the DSP
+    index's getter write junk there, so a caller that needs them kept has to keep them."""
+    for i, r in enumerate(('r1', 'r2', 'r3', 'r12', *more)):
+        m.reg(r, 0xdead0001 + i)
 
 
 def bank_a(i):
@@ -66,12 +81,27 @@ class Manager:
     """The module in unicorn, with the manager's records, the lock, select doing what stock does to them behind the select hook
     (snaps_selecting, as the build chains it), a serializer behind snaps_saving and snaps_saved, the settings (Snapshot BankSel on
     Tap unless a test sets Hold; Reselect Snapshot unset, so it recalls), the current view, the Home layout, and the footswitch
-    event handler's object and its call of snaps_event."""
+    event handler's object and its call of snaps_event. D, the DSP model's lock, is the ROM's recursive mutex: an owner (the task
+    a test says is running) and a depth; a task that would wait for it stops the emulation (start, resume), and stock select
+    waits for it too, as it takes it first (0x28de2fd0)."""
 
     def __init__(self, m4emu, at=CODE, bank_switch=TAP_SEL):
         code, self.sym = m4emu.assemble('src/m4/more_snapshots.s', MODS, IDS)
-        self.at = at
+        self.at, self.emu = at, m4emu
         self.m = m4emu.M4(code, at)
+        MANAGERS.append(self)
+        self.task, self.d_owner, self.d_depth, self.d_log, self.waiting, self.waits = 'key', None, 0, [], None, []
+        self.boot_window = False
+        self.m.u32(DSP_MODEL, MODEL)
+        self.m.stub(DSP_LOCK, self._dsp_lock)
+        self.m.stub(DSP_UNLOCK, self._dsp_unlock)
+        data = at + self.sym['snaps_data']
+        click = (at + self.sym['snaps_click'], at + self.sym['snaps_back'])
+        self.m.uc.hook_add(m4emu.unicorn.UC_HOOK_MEM_READ, lambda uc, kind, addr, size, value, _: (
+            click[0] <= self.m.reg('pc') < click[1] and self.d_log.append(('click reads SAVING', self.task, self.d_depth))),
+            begin=data + SAVING, end=data + SAVING)
+        self.m.uc.hook_add(m4emu.unicorn.UC_HOOK_MEM_WRITE, lambda uc, kind, addr, size, value, _: (
+            self.d_log.append(('byte 0', self.task, self.d_depth))), begin=data, end=data)
         self.settings = {FS_MODE: SNAPSHOT_MODE, BANK_SWITCH: bank_switch}
         self.view, self.layouts, self.during_layout = HOME_VIEW, [], None
         self.m.stub(pm.GET_VALUE, self._get_value)
@@ -90,7 +120,8 @@ class Manager:
         self.m.load(SELECT, pm.chain_cave(SELECT, STOCK_SELECT, [at + self.sym['snaps_selecting']], []))
         self.m.load(SAVE, pm.chain_cave(SAVE, WRITER, [at + self.sym['snaps_saving']], [at + self.sym['snaps_saved']]))
         self.saved = []                     # the bank live, the current snapshot and bank A's records, as each write saw them
-        self.m.stub(WRITER, lambda m: (self.saved.append((self.bank_b_live(), self.cur(), [self.rec(i) for i in range(3)])),
+        self.m.stub(WRITER, lambda m: (self.d_held('the write'), self.saved.append((self.bank_b_live(), self.cur(),
+                                                                                     [self.rec(i) for i in range(3)])),
                                        m.reg('r0', 1)))
         a = pm.Asm(EVENT_TRAMPOLINE)        # r4 the event, r5 the object, r0 the getter's out, as the handler calls it; r4, r5 after
         a.h(0xb5f8, 0x4604, 0x460d, 0x4610, 0x461f)        # push {r3-r7,lr}; mov r4,r0; mov r5,r1; mov r0,r2; mov r7,r3
@@ -109,12 +140,26 @@ class Manager:
         self.m.stub(STOCK_SELECT, self._select)
         self.m.stub(RECORD_INIT, self._init)
         self.written, self.section, self.flag = [], b'', 0
-        self.m.stub(WRITE_FN, lambda m: self.written.append(m.read(m.reg('r1'), m.reg('r2'))))
+        self.write_held = []                # per write: D held by the task running, once the DSP model is made
+        self.m.stub(WRITE_FN, lambda m: (self.written.append(m.read(m.reg('r1'), m.reg('r2'))),
+                                         self.write_held.append(self.d_owner == self.task and self.d_depth > 0)))
         self.m.u32(STREAM, SINK)
         self.m.u32(STREAM + 4, WRITE_FN | 1)
         self.m.stub(SERIALIZE, lambda m: m.reg('r0', 5))
         self.m.stub(TOC_WRITE, lambda m: m.reg('r0', 0))
-        self.m.stub(PRESET, lambda m: m.reg('r0', 0x28710000))
+        self.m.stub(PRESET, lambda m: (m.reg('r0', DSP_ENGINE), clobber(m)))
+        a = pm.Asm(GET_EDIT_BUFFER)         # 0x28e1c55c: D (0x28e1c566, 0x28e1c56a), the serializer (0x28e1c5b2), D let go
+        a.h(0xb510)                         # push {r4,lr}
+        a.bl(PRESET)
+        a.bl(DSP_LOCK)
+        a.movw_movt(0, STREAM)
+        a.movw_movt(1, HEADER)
+        a.bl(SAVE)
+        a.h(0x4604)                         # mov r4,r0
+        a.bl(PRESET)
+        a.bl(DSP_UNLOCK)
+        a.h(0x4620, 0xbd10)                 # mov r0,r4; pop {r4,pc}
+        self.m.load(GET_EDIT_BUFFER, a.bytes())
         self.m.stub(PRESET_FLAG, lambda m: m.reg('r0', self.flag))
         self.m.stub(SECTION_READ, self._section)
         self.events = []
@@ -187,18 +232,59 @@ class Manager:
         m.reg('r0', len(self.section) or -0x2a)
 
     def _lock(self, m):
-        assert m.reg('r0') == MGR + 4 and self.depth == 0, 'the manager lock, once: it may not be recursive'
+        """The manager lock is the same recursive ROM mutex as D; the module never nests it: select takes it after D, so the
+        module lets it go before select (which takes D again, nested, then this lock) and takes it only under D itself."""
+        assert m.reg('r0') == MGR + 4 and self.depth == 0, 'the manager lock, once'
+        self.d_held('the manager lock')
         self.depth += 1
 
     def _unlock(self, m):
         assert m.reg('r0') == MGR + 4 and self.depth == 1
         self.depth -= 1
 
+    def model(self):
+        return self.m.u32(DSP_MODEL)
+
+    def d_held(self, what):
+        """D is held by the task running, once the DSP model is made (unless a test makes it during a call: boot_window)."""
+        if self.model() and not self.boot_window:
+            assert self.d_owner == self.task and self.d_depth > 0, f'{what} under D, the DSP model lock'
+
+    def _dsp_lock(self, m):
+        """The ROM mutex (0x10000500): the owner again adds to its depth; another task waits, with no timeout."""
+        assert m.reg('r0') == DSP_ENGINE, 'the DSP index, as stock select and Get edit buffer pass it'
+        assert self.model(), 'D at the DSP model + 8: never taken before the boot makes the model'
+        assert m.reg('sp') % 8 == 0, 'the stack 8-byte aligned at the call'
+        if self.d_owner not in (None, self.task):
+            self.waiting = self.task
+            self.waits.append((self.task, 'D', m.reg('lr') & ~1))
+            m.uc.emu_stop()
+            return
+        self.d_owner, self.d_depth = self.task, self.d_depth + 1
+        self.d_log.append(('lock', self.task, self.d_depth))
+        clobber(m, 'r0')
+
+    def _dsp_unlock(self, m):
+        assert m.reg('r0') == DSP_ENGINE and m.reg('sp') % 8 == 0
+        assert self.d_owner == self.task and self.d_depth > 0, 'D let go by the task that holds it'
+        self.d_depth -= 1
+        if not self.d_depth:
+            self.d_owner = None
+        self.d_log.append(('unlock', self.task, self.d_depth))
+        clobber(m, 'r0')
+
     def _select(self, m):
         """Stock: an unused record gets the old one's sound (not its name); then the old index becomes the previous one. The current
-        index again recalls it, or with Reselect Snapshot set swaps the current and previous ones (0x28de340a..0x28de3426)."""
+        index again recalls it, or with Reselect Snapshot set swaps the current and previous ones (0x28de340a..0x28de3426). It
+        takes D first and lets it go last, so it waits while another task holds D."""
         mgr, new = m.reg('r0'), m.reg('r1')
         assert mgr == MGR and self.depth == 0, 'select takes the lock itself'
+        if self.model() and self.d_owner not in (None, self.task):
+            self.waiting = self.task
+            self.waits.append((self.task, 'select', new))
+            m.uc.emu_stop()
+            return
+        self.d_log.append(('select', self.task, self.d_depth))
         if self.during_select:
             self.during_select()
         if self.m.read(MGR + BUSY, 1)[0]:
@@ -218,6 +304,7 @@ class Manager:
 
     def _init(self, m):
         assert m.reg('r0') == MGR and self.depth == 0, 'the record defaults take the lock themselves'
+        self.d_held('the record defaults, which take the manager lock and then D (0x28de14c2, 0x28e04044),')
         rec, name = m.reg('r1'), m.read(m.reg('r2'), 11)
         self.inits.append(name.rstrip(b'\0'))
         m.write(rec + VALID, b'\0')
@@ -379,9 +466,52 @@ class Manager:
         """A preset serializer through its chain: a save on the unit, or HX Edit's Get edit buffer (command 0x16)."""
         assert self.m.call(SAVE, STREAM, HEADER) == 1, "the serializer's result"
 
+    def start(self, task, fn, *args, top=None, until=None):
+        """task runs fn(args) on its own stack (top) until it returns (-> None), waits for D, or reaches until (-> its state, for
+        resume)."""
+        for i, a in enumerate(args):
+            self.m.reg(f'r{i}', a)
+        top = top or self.stack_top - STACKS[task]
+        self.m.reg('sp', top)
+        self.m.reg('lr', self.emu.RETURN | 1)
+        return self._run(task, fn, top, until)
+
+    def resume(self, state, until=None):
+        task, ctx, top = state
+        self.m.uc.context_restore(ctx)
+        return self._run(task, self.m.reg('pc'), top, until)
+
+    def _run(self, task, at, top, until):
+        uc, reached = self.m.uc, []
+        self.task, self.waiting, self.m.stray = task, None, None
+
+        def stop(uc, addr, size, data):
+            if not reached:
+                reached.append(addr)
+                uc.emu_stop()
+        hook = until and uc.hook_add(self.emu.unicorn.UC_HOOK_CODE, stop, begin=until, end=until)
+        uc.emu_start(at | 1, self.emu.RETURN, count=self.emu.STEPS)
+        if hook:
+            uc.hook_del(hook)
+        assert self.m.stray is None, f'ran {self.m.stray:#x}, outside the code and the stubs'
+        if self.waiting or reached:
+            return task, uc.context_save(), top
+        assert self.m.reg('pc') == self.emu.RETURN and self.m.reg('sp') == top, f'{task} returned, its stack balanced'
+        self.task = 'key'
+        return None
+
     def at_snapshot(self):
         """1..6: the live one."""
         return self.cur() + 3 * self.bank_b_live() + 1
+
+
+@pytest.fixture(autouse=True)
+def d_let_go():
+    """After every test, D is free again in every Manager it made: each lock had its unlock."""
+    MANAGERS.clear()
+    yield
+    for m in MANAGERS:
+        assert (m.d_owner, m.d_depth) == (None, 0), f'D still held: {m.d_log[-6:]}'
 
 
 @pytest.fixture
@@ -648,8 +778,12 @@ def test_a_flip_matches_the_incoming_banks_entries_to_the_outgoing_ones(mgr):
 
 
 def appended(mgr):
+    """What pk_serialize writes after the map (the serializer itself a stub here); key 0x64 is written under D once the DSP model
+    is made, and with no D before."""
     mgr.written.clear()
+    mgr.write_held.clear()
     assert mgr.engine('pk_serialize', STREAM, HEADER) == 5, "the serializer's result"
+    assert all(mgr.write_held) if mgr.model() else not any(mgr.write_held), 'key 0x64 written under D'
     return b''.join(mgr.written)
 
 
@@ -1349,10 +1483,12 @@ def test_a_save_leaves_the_footswitches_and_the_previous_snapshot_alone(hm, bank
 
 
 @pytest.mark.parametrize('held, cc', [(1, 0), (0, 0), (1, 1)], ids=['on bank b', 'on bank a', 'cc 51'])
-def test_a_tap_during_a_serializers_flips_selects_nothing(hm, held, cc):
-    """On 5 a serializer flips to bank A and back (a save, or HX Edit's Get edit buffer from the request task); a tap of FS3 between
-    the flips, or MIDI CC 51's, selects nothing and leaves the footswitches where they were: byte 0 is bank A's there, and the
-    records are the ones the serializer reads. After the flip back the same tap selects 6, or 3 with FS1 held."""
+def test_without_d_a_tap_during_a_serializers_flips_selects_nothing(hm, held, cc):
+    """Before the boot makes the DSP model nothing takes D, so a tap can land between a serializer's flips on 5 (with D it waits
+    for the flip back: test_a_cross_waits_for_the_serializer): FS3's, or MIDI CC 51's, selects nothing and leaves the footswitches
+    where they were, as byte 0 is bank A's there and the records are the ones the serializer reads. After the flip back the same
+    tap selects 6, or 3 with FS1 held."""
+    hm.m.u32(DSP_MODEL, 0)
     bank_b_ready(hm)
     hm.hold_fs(1)
     hm.tap(1)
@@ -1368,13 +1504,16 @@ def test_a_tap_during_a_serializers_flips_selects_nothing(hm, held, cc):
     assert hm.at_snapshot() == 5 and hm.data(VIEW) == held and hm.data(SAVING) == 0
     hm.tap(2)
     assert hm.at_snapshot() == (6 if held else 3) and hm.data(VIEW) == held
+    assert hm.m.calls(DSP_LOCK) == hm.m.calls(DSP_UNLOCK) == [], 'no D before the DSP model is made'
 
 
 @pytest.mark.parametrize('during', [True, False], ids=['between the flips', 'outside them'])
 def test_a_select_during_a_serializers_flips_keeps_the_previous_snapshot_in_bank_b(hm, during):
-    """Reselect Snapshot set to go back. On 5, HX Edit's snapshot 3 between a serializer's flips selects record 2 of bank A's, which
-    the flip back makes 6: the snapshot it left is 5, in bank B, so the lit FS3 goes back to 5 within the bank, as the same select
-    does outside the flips."""
+    """Reselect Snapshot set to go back. On 5, a select that does not wait for D, from another task (stock select takes D only
+    while two state bytes are 2, 0x28e023b2..0x28e023c4, and nothing takes it before the boot makes the model), selects snapshot 3
+    between a serializer's flips: record 2 of bank A's, which the flip back makes 6. The snapshot it left is 5, in bank B, so the
+    lit FS3 goes back to 5 within the bank, as the same select does outside the flips."""
+    hm.m.u32(DSP_MODEL, 0)
     bank_b_ready(hm)
     hm.settings[RESELECT] = 1
     hm.hold_fs(1)
@@ -1387,6 +1526,311 @@ def test_a_select_during_a_serializers_flips_keeps_the_previous_snapshot_in_bank
     assert hm.at_snapshot() == 6 and hm.data(PREV6) == 4 and hm.prev() == 1
     hm.tap(2)
     assert hm.at_snapshot() == 5 and hm.bank_b_live() and hm.data(VIEW) == 1
+
+
+def records(m):
+    """(bank A's three records, bank B's three records), wherever each is."""
+    shadow = m.at + m.sym['snaps_shadow']
+    live = [m.rec(i) for i in range(3)]
+    other = [m.m.read(shadow + REC * i, REC) for i in range(3)]
+    return (other, live) if m.bank_b_live() else (live, other)
+
+
+def held_from_check_to_flip(log, task):
+    """The click's read of SAVING and the cross's write of byte 0, both by task under D, and D not let go in between."""
+    kinds = [e[:2] for e in log]
+    check = kinds.index(('click reads SAVING', task))
+    flip = kinds.index(('byte 0', task), check)
+    return all(e[1] == task and e[2] > 0 for e in log[check:flip + 1])
+
+
+def test_a_click_holds_d_from_its_saving_check_through_byte_0s_flip(hm):
+    """The click's cross, 2 to 6: D taken before the click reads SAVING, kept through select and the swaps (the manager lock is
+    taken only under it) until byte 0 says bank B, and let go after; select runs nested in it, as stock select takes D again."""
+    bank_b_ready(hm)
+    hm.go(1)
+    hm.hold_fs(1)
+    hm.d_log.clear()
+    hm.tap(2)
+    assert hm.at_snapshot() == 6
+    assert held_from_check_to_flip(hm.d_log, 'key')
+    assert ('select', 'key', 2) in hm.d_log, "select inside the click's D and the cross's"
+    assert hm.d_log[-1] == ('unlock', 'key', 0)
+
+
+@pytest.mark.parametrize('how', ['save', 'get edit buffer'])
+def test_a_serializer_in_bank_b_holds_d_through_both_flips(hm, how):
+    """On 5 a serializer, a save or HX Edit's Get edit buffer (which holds D around it, so snaps_saving's is nested): D from
+    before the flip to bank A until after the flip back, the write in between (the writer's stub checks it)."""
+    bank_b_ready(hm)
+    hm.hold_fs(1)
+    hm.tap(1)
+    hm.d_log.clear()
+    if how == 'save':
+        hm.save()
+    else:
+        assert hm.start('transport', GET_EDIT_BUFFER) is None
+    flips = [e for e in hm.d_log if e[0] in ('byte 0', 'select')]
+    assert len(flips) == 4 and all(task == ('key' if how == 'save' else 'transport') and depth > 0 for _, task, depth in flips)
+    assert [e[2] for e in hm.d_log if e[0] == 'lock'] == ([1, 2, 2] if how == 'save' else [1, 2, 3, 3])
+    assert hm.d_log[-1][0] == 'unlock' and hm.d_log[-1][2] == 0
+    assert len(hm.saved) == 1 and hm.at_snapshot() == 5 and hm.data(DSP_HELD) == 0
+
+
+def crosser(m, how):
+    """A move between the banks set up as it would come, with the task that runs it, its entry and arguments, and where it lands:
+    a click of FS1 from 5 (Hold, the footswitches on bank A) or of FS3 from 2 (on bank B); the lit FS2 pressed again on 5 on
+    Tap; CC 69's value 1 from 5; MIDI CC 51 from 2 with the footswitches on bank B."""
+    bank_b_ready(m)
+    if how in ('click 5 to 1', 'tap 5 to 2', 'cc 69 5 to 2'):
+        m.hold_fs(1)
+        m.tap(1)
+    if how == 'click 5 to 1':
+        m.hold_fs(0)
+        m.fs_press(0)
+        m.fs_fire()
+        m.fs_release(0)
+        m.m.write(EVENT, bytes([1, 12, 0, 0]) + struct.pack('<I', CLICK))
+        return 'key', (EVENT_TRAMPOLINE, EVENT, OBJ, OUT, KEPT), 1
+    if how == 'tap 5 to 2':
+        m.settings[BANK_SWITCH] = TAP_SEL
+        return 'request', (m.at + m.sym['snaps_select'], MGR, 1), 2
+    if how == 'cc 69 5 to 2':
+        m.call('snaps_cc_value')
+        return 'request', (m.at + m.sym['snaps_cc_select'], MGR, 1), 2
+    m.go(1)
+    m.hold_fs(1)
+    if how == 'click 2 to 6':
+        m.fs_press(2)
+        m.fs_fire()
+        m.fs_release(2)
+        m.m.write(EVENT, bytes([1, 14, 0, 0]) + struct.pack('<I', CLICK))
+        return 'key', (EVENT_TRAMPOLINE, EVENT, OBJ, OUT, KEPT), 6
+    m.obj(IMMEDIATE, 1)
+    m.m.write(EVENT, bytes([1, 14, 0, 0]) + struct.pack('<I', PRESS))
+    return 'request', (EVENT_TRAMPOLINE, EVENT, OBJ, OUT, KEPT), 6
+
+
+CROSSES = ['click 5 to 1', 'click 2 to 6', 'tap 5 to 2', 'cc 69 5 to 2', 'cc 51 2 to 6']
+
+
+@pytest.mark.parametrize('how', ['save', 'get edit buffer'])
+@pytest.mark.parametrize('cross', CROSSES)
+def test_the_serializer_waits_for_a_cross(hm, cross, how):
+    """The review's race: a serializer (transport task) starts while a cross is past its swap, at its call of select. Its first
+    call is the D lock, which waits for the cross; let run after it, it writes bank A's records and leaves both banks as they
+    were, the cross on its snapshot (without D, 5 to 1 left bank A as A1, A1, A3)."""
+    task, (fn, *args), target = crosser(hm, cross)
+    a0, b0 = records(hm)
+    hm.saved.clear()
+    cross_state = hm.start(task, fn, *args, until=SELECT)
+    assert cross_state and hm.d_owner == task and hm.d_depth == 2, 'stopped at its select, under its D and the cross\'s'
+    entry = (SAVE, STREAM, HEADER) if how == 'save' else (GET_EDIT_BUFFER,)
+    save_state = hm.start('transport', *entry)
+    assert save_state and hm.waits == [('transport', 'D', hm.waits[0][2])] and hm.saved == []
+    assert hm.waits[0][2] in (range(hm.at, hm.at + 0x2000) if how == 'save' else range(GET_EDIT_BUFFER, GET_EDIT_BUFFER + 0x40)), \
+        "its first D lock: snaps_saving's, or Get edit buffer's own"
+    assert hm.resume(cross_state) is None and hm.d_owner is None
+    assert hm.resume(save_state) is None
+    assert records(hm) == (a0, b0), 'both banks as they were'
+    assert hm.saved and all(not live and recs == a0 for live, _, recs in hm.saved), 'the write saw bank A live'
+    assert hm.at_snapshot() == target and hm.data(SAVING) == 0
+
+
+@pytest.mark.parametrize('how', ['save', 'get edit buffer'])
+@pytest.mark.parametrize('cross, target', [('click', 6), ('click to bank a', 1), ('cc 69 5 to 6', 6), ('cc 69 5 to 1', 1),
+                                           ('tap', 2), ('cc 51', 6)])
+def test_a_cross_waits_for_the_serializer(hm, cross, target, how):
+    """On 5 a serializer is between its flips (bank A live, byte 0 bank A's) when a move comes from another task: a click of FS3
+    with the footswitches on bank B, or of FS1 on bank A; CC 69's value 5 or 0; the lit FS2 again on Tap; MIDI CC 51. Each waits
+    for D before it reads anything, so it decides on the bank heard once the serializer has flipped back: CC 69's 5 stays in
+    bank B, where its value read between the flips would have crossed to 3."""
+    bank_b_ready(hm)
+    hm.hold_fs(1)
+    hm.tap(1)
+    if cross == 'click to bank a':
+        hm.hold_fs(0)
+    elif cross == 'tap':
+        hm.settings[BANK_SWITCH] = TAP_SEL
+    a0, b0 = records(hm)
+    hm.saved.clear()
+    entry = (SAVE, STREAM, HEADER) if how == 'save' else (GET_EDIT_BUFFER,)
+    save_state = hm.start('transport', *entry, until=hm.at + hm.sym['snaps_saved'])
+    assert save_state and len(hm.saved) == 1 and not hm.bank_b_live() and hm.d_owner == 'transport'
+    hm.selects.clear()
+    if cross in ('click', 'click to bank a', 'cc 51'):
+        k = 0 if cross == 'click to bank a' else 2
+        hm.obj(IMMEDIATE, int(cross == 'cc 51'))
+        if cross != 'cc 51':
+            hm.fs_press(k)
+            hm.fs_fire()
+            hm.fs_release(k)
+        hm.m.write(EVENT, bytes([1, 12 + k, 0, 0]) + struct.pack('<I', PRESS if cross == 'cc 51' else CLICK))
+        entry = (EVENT_TRAMPOLINE, EVENT, OBJ, OUT, KEPT)
+    elif cross == 'tap':
+        entry = (hm.at + hm.sym['snaps_select'], MGR, 1)
+    else:
+        hm.call('snaps_cc_value')
+        entry = (hm.at + hm.sym['snaps_cc_select'], MGR, 5 if target == 6 else 0)
+    task = 'key' if cross.startswith('click') else 'request'
+    cross_state = hm.start(task, *entry)
+    assert cross_state and [w[:2] for w in hm.waits] == [(task, 'D')] and hm.selects == [], 'it waits before it reads'
+    assert hm.resume(save_state) is None and hm.at_snapshot() == 5 and hm.d_owner is None
+    assert hm.resume(cross_state) is None
+    hm.obj(IMMEDIATE, 0)
+    assert hm.at_snapshot() == target and records(hm) == (a0, b0)
+    assert hm.saved and all(not live and recs == a0 for live, _, recs in hm.saved)
+
+
+@pytest.mark.parametrize('source', ['fs', 'cc'])
+def test_a_wrap_waits_for_the_serializers_flip(hm, source):
+    """On 6 a serializer is inside its flip to bank A, at its select, where CUR is the stand-in index and BUSY is cleared, when
+    next's wrap (marked before it started, as the footswitch's or CC 69's read of the current snapshot marks it) comes to select:
+    it waits for D before it reads them, then crosses from 6 to 1, from 6's own record."""
+    bank_b = bank_b_ready(hm)
+    hm.cc(5)
+    assert hm.at_snapshot() == 6
+    a0, b0 = records(hm)
+    if source == 'fs':
+        assert hm.call('snaps_next_cur', MGR) == 2
+        entry = hm.at + hm.sym['snaps_select']
+    else:
+        assert hm.call('snaps_cc_wrap') == MGR
+        entry = hm.at + hm.sym['snaps_cc_select']
+    save_state = hm.start('transport', SAVE, STREAM, HEADER, until=SELECT)
+    assert save_state and hm.cur() != 2 and hm.d_owner == 'transport', "the flip's stand-in index, before its select"
+    hm.selects.clear()
+    cross_state = hm.start('request', entry, MGR, 0)
+    assert cross_state and [w[:2] for w in hm.waits] == [('request', 'D')]
+    assert hm.resume(save_state) is None and hm.at_snapshot() == 6
+    hm.selects.clear()
+    assert hm.resume(cross_state) is None
+    (new, _, old_rec, new_rec), = hm.selects
+    assert (new, old_rec, new_rec) == (0, bank_b[2], bank_a(0)) and hm.at_snapshot() == 1 and records(hm) == (a0, b0)
+
+
+def writer_past_its_read(m, task):
+    """pk_serialize (0x28df20f2 in 0x28df2060) in task: the serializer's call (a stub here, its chain let D go), then key 0x64's
+    writer, stopped once it has read bytes 0 and 1 and chosen the records to copy."""
+    m.written.clear()
+    m.write_held.clear()
+    return m.start(task, ENGINE + m.esym['pk_serialize'], STREAM, HEADER, until=m.at + m.sym['snaps_key_put'])
+
+
+@pytest.mark.parametrize('cross', CROSSES)
+def test_a_cross_waits_for_key_0x64s_writer(hm, cross):
+    """A save (0x28df25a4: on the unit, HX Edit's save-to-slot, MIDI) holds no D around pk_serialize, which runs key 0x64's
+    writer after the serializer has let D go. A cross from another task while the writer is past its read of byte 0 waits for
+    D: the writer copies bank B, and the cross then lands (without D it ran through, and key 0x64 got bank A, as the map has)."""
+    task, (fn, *args), target = crosser(hm, cross)
+    a0, b0 = records(hm)
+    writer = writer_past_its_read(hm, 'transport')
+    assert writer and hm.d_owner == 'transport', 'the writer under D'
+    cross_state = hm.start(task, fn, *args)
+    assert cross_state and [w[:2] for w in hm.waits] == [(task, 'D')], 'the cross waits before it reads'
+    assert hm.resume(writer) is None and hm.d_owner is None
+    assert b''.join(hm.written) == head() + b''.join(b0) and all(hm.write_held)
+    assert hm.resume(cross_state) is None
+    assert hm.at_snapshot() == target and records(hm) == (a0, b0)
+
+
+@pytest.mark.parametrize('cross', CROSSES)
+def test_a_cross_between_the_serializer_and_key_0x64s_writer_keeps_both_banks_in_the_file(hm, cross):
+    """Nothing holds D between the serializer and key 0x64's writer, so a cross can run there. The map already has bank A, as the
+    serializer wrote it under D, and the writer reads under D where bank B is after the cross."""
+    task, (fn, *args), target = crosser(hm, cross)
+    a0, b0 = records(hm)
+    hm.saved.clear()
+    hm.save()
+    assert [(live, recs) for live, _, recs in hm.saved] == [(False, a0)] and hm.d_owner is None, 'the map: bank A, bank A live'
+    assert hm.start(task, fn, *args) is None and hm.at_snapshot() == target
+    assert appended(hm) == head() + b''.join(b0)
+
+
+def test_a_load_waits_for_key_0x64s_writer(hm):
+    """HX Edit's 0x28e1c1c2 loads a preset through 0x28df2038, which parses under D without the save lock, so it can come during a
+    save on the unit. One that comes while key 0x64's writer copies bank B waits for D: the file gets this preset's bank B, and
+    the load then takes the next preset's (without D the writer copied the next preset's)."""
+    bank_b_ready(hm)
+    hm.cc(4)
+    a0, b0 = records(hm)
+    a = pm.Asm(LOAD)                        # D, the parser (its chain's snaps_loaded), D let go
+    a.h(0xb510)                             # push {r4,lr}
+    a.bl(PRESET)
+    a.bl(DSP_LOCK)
+    a.movw_movt(0, MGR)
+    a.h(0x2100, 0x2200, 0x2300)             # movs r1,#0; movs r2,#0; movs r3,#0
+    a.bl(hm.at + hm.sym['snaps_loaded'])
+    a.bl(PRESET)
+    a.bl(DSP_UNLOCK)
+    a.h(0xbd10)                             # pop {r4,pc}
+    hm.m.load(LOAD, a.bytes())
+    writer = writer_past_its_read(hm, 'key')
+    assert writer and hm.d_owner == 'key'
+    new = b''.join(bytes([0xc0 + i]) * REC for i in range(3))
+    hm.section = bank_b_file(new)
+    hm.read_section()                       # the next preset's section 10, which only snaps_staged takes
+    load = hm.start('transport', LOAD)
+    assert load and [w[:2] for w in hm.waits] == [('transport', 'D')]
+    assert hm.resume(writer) is None
+    assert b''.join(hm.written) == head() + b''.join(b0) and all(hm.write_held)
+    assert hm.resume(load) is None
+    assert hm.m.read(hm.at + hm.sym['snaps_shadow'], 3 * REC) == new and not hm.bank_b_live()
+
+
+@pytest.mark.parametrize('how', ['click', 'cc 69', 'tap', 'save', 'key 0x64'])
+def test_before_the_dsp_model_is_made_nothing_takes_d(hm, how):
+    """[0x28449e78] still 0, as early in the boot: D would be at address 8, so no cross, serializer or key 0x64 writer locks or
+    unlocks it, and each does what it does with D."""
+    hm.m.u32(DSP_MODEL, 0)
+    bank_b_ready(hm)
+    hm.saved.clear()
+    if how == 'click':
+        hm.hold_fs(1)
+        hm.tap(2)
+        assert hm.at_snapshot() == 6
+    elif how == 'cc 69':
+        hm.cc(4)
+        assert hm.at_snapshot() == 5
+    elif how == 'tap':
+        hm.settings[BANK_SWITCH] = TAP_SEL
+        hm.press(0)
+        assert hm.at_snapshot() == 4
+    elif how == 'save':
+        hm.cc(4)
+        hm.save()
+        assert len(hm.saved) == 1 and hm.at_snapshot() == 5
+    else:
+        hm.cc(4)
+        assert appended(hm) == head() + b''.join(hm.rec(i) for i in range(3))
+    assert hm.m.calls(DSP_LOCK) == hm.m.calls(DSP_UNLOCK) == [] and hm.data(DSP_HELD) == 0
+
+
+@pytest.mark.parametrize('made', [True, False], ids=['made during the call', 'gone during the call'])
+@pytest.mark.parametrize('how', ['click', 'cc 69', 'save'])
+def test_the_boot_check_is_made_once_a_call(hm, how, made):
+    """Each lock and its unlock follow the one check of the DSP model at the lock: a model made while the call runs gets no
+    unlock of a D never taken, and one taken is let go whatever the pointer says by then."""
+    bank_b_ready(hm)
+    hm.boot_window = True
+    hm.m.u32(DSP_MODEL, 0 if made else MODEL)
+    if how == 'save':
+        hm.cc(4)
+    hm.m.log.clear()
+    hm.saved.clear()
+    hm.during_select = lambda: hm.m.u32(DSP_MODEL, MODEL if made else 0)
+    if how == 'click':
+        hm.hold_fs(1)
+        hm.tap(2)
+        assert hm.at_snapshot() == 6
+    elif how == 'cc 69':
+        hm.cc(4)
+        assert hm.at_snapshot() == 5
+    else:
+        hm.save()
+        assert len(hm.saved) == 1 and hm.at_snapshot() == 5
+    locks, unlocks = hm.m.calls(DSP_LOCK), hm.m.calls(DSP_UNLOCK)
+    assert len(locks) == len(unlocks) == {'click': (0, 2), 'cc 69': (0, 2), 'save': (1, 2)}[how][not made]
 
 
 @pytest.mark.parametrize('why', ['stomp mode', 'tap', 'tuner'])

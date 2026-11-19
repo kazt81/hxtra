@@ -3,6 +3,9 @@
 @ footswitch's snapshot through the stock select. Snapshot BankSel picks how the footswitches cross: Hold (the default) holds back
 @ their presses and selects on the click, in the bank a 1 s hold of FS1 (A) or FS2 (B) points them at, which only a hold, their own
 @ select and a preset load change; Tap flips on the lit one pressed again. tools/features/more_snapshots.py places the hooks.
+@ A cross, and the reads that decide one, run under the DSP model's lock D, which stock select and HX Edit's Get edit buffer take
+@ (the serializer in between), and so do every serializer here and key 0x64's writer: none interleaves with a cross, whichever task
+@ runs it.
 .syntax unified
 .thumb
 .include "hxtra.inc"
@@ -69,6 +72,11 @@
 .equ TUNER_VIEW, 5
 .equ HOME_GET, 0x28d960f5           @ () -> the Home view
 .equ LAYOUT, 0x28dc87cd             @ (Home, 0): its labels for the Footswitch Mode, as the stomp toggle lays them out from the key task
+.equ ENGINE_GET, 0x28d92a99         @ () -> the DSP index D's calls take (0 on the unit), as select (0x28de2fc6) and Get edit buffer pass it
+.equ DSP_LOCK, 0x28e07845           @ (engine): D, the recursive ROM mutex at [DSP_MODEL] + 8 (0x28e1c56a in Get edit buffer)
+.equ DSP_UNLOCK, 0x28e0785d         @ (engine): D let go once (0x28e1c5be)
+.equ DSP_MODEL, 0x28449e78          @ the DSP model, 0 until the boot makes it: D's lock would write at address 8 then
+.equ DSP_HELD, 9                    @ in snaps_data: 1 while snaps_saving holds D for its serializer, for snaps_saved to let it go
 
 snaps_select:                       @ the footswitch functions' call of select (manager, index): snapshot k, next and previous
     adr.w r2, snaps_data
@@ -84,7 +92,18 @@ snaps_select:                       @ the footswitch functions' call of select (
     mov r3, r0
     pop {r0, r1, r2, lr}
     cbnz r3, snaps_held
-    ldrb r3, [r2]                   @ Tap: the footswitches on the live bank, where a switch to Hold then finds them
+    adr.w r12, snaps_tap            @ Tap: decided under D
+    b snaps_locked
+snaps_stock:
+    ldr r12, =SELECT
+    bx r12
+snaps_held:                         @ Hold: snapshot k's press selects nothing; its click does (snaps_click)
+    movs r0, #0
+    bx lr
+
+snaps_tap:                          @ (manager, index) on Tap, under D: the lit one flips the bank, another is stock select
+    adr.w r2, snaps_data
+    ldrb r3, [r2]                   @ the footswitches on the live bank, where a switch to Hold then finds them
     strb r3, [r2, #VIEW]
     ldrb.w r2, [r0, #CUR]
     cmp r2, r1
@@ -92,11 +111,42 @@ snaps_select:                       @ the footswitch functions' call of select (
     ldrb.w r2, [r0, #BUSY]
     cmp r2, #0
     beq snaps_flip
-snaps_stock:
-    ldr r12, =SELECT
-    bx r12
-snaps_held:                         @ Hold: snapshot k's press selects nothing; its click does (snaps_click)
-    movs r0, #0
+    b snaps_stock
+
+snaps_locked:                       @ (manager, index; r12 a routine of them ending in select or snaps_cross) -> its result: the
+    push {r0, r1, r4, lr}           @ routine under D, so what it reads (bytes 0 and 1, CUR, BUSY) is no serializer's flip to
+    bl snaps_dsp_lock               @ bank A, and what it decides runs before the next serializer
+    mov r4, r0
+    ldm sp, {r0, r1}
+    orr r12, r12, #1
+    blx r12
+    str r0, [sp]
+    mov r0, r4
+    bl snaps_dsp_unlock
+    pop {r0, r1, r4, pc}
+
+snaps_dsp_lock:                     @ () -> r0 1 with D taken, 0 before the boot makes the DSP model (no lock); keeps r1-r3 and r12
+    push {r1, r2, r3, r4, r12, lr}
+    ldr r0, =DSP_MODEL
+    ldr r0, [r0]
+    cbz r0, snaps_dsp_lock_done
+    ldr r3, =ENGINE_GET
+    blx r3
+    ldr r3, =DSP_LOCK
+    blx r3
+    movs r0, #1
+snaps_dsp_lock_done:
+    pop {r1, r2, r3, r4, r12, pc}
+
+snaps_dsp_unlock:                   @ (r0 what snaps_dsp_lock returned): D let go if it was taken; keeps r1-r3 and r12
+    cbz r0, snaps_dsp_unlock_none
+    push {r1, r2, r3, r4, r12, lr}
+    ldr r3, =ENGINE_GET
+    blx r3
+    ldr r3, =DSP_UNLOCK
+    blx r3
+    pop {r1, r2, r3, r4, r12, pc}
+snaps_dsp_unlock_none:
     bx lr
 
 snaps_step:                         @ (manager, index, snaps_data) a next or previous within the bank: stock
@@ -126,6 +176,10 @@ snaps_cc_select:                    @ MIDI CC 69's call of select (manager, inde
 snaps_wrap:                        @ (manager, index, snaps_data): the other bank's first or last, if this preset has a bank B
     movs r3, #0
     strb r3, [r2, #WRAP]
+    adr.w r12, snaps_wrap_locked
+    b snaps_locked
+snaps_wrap_locked:                  @ (manager, index), under D
+    adr.w r2, snaps_data
     ldrb r3, [r2, #1]
     cmp r3, #0
     beq snaps_stock
@@ -141,6 +195,10 @@ snaps_cc_cross:
 snaps_value:                        @ (manager, value, snaps_data): 0..2 snapshots 1..3 and 3..5 snapshots 4..6, from either bank
     movs r3, #0
     strb r3, [r2, #WRAP]
+    adr.w r12, snaps_value_locked
+    b snaps_locked
+snaps_value_locked:                 @ (manager, value), under D
+    adr.w r2, snaps_data
     ldrb r3, [r2]
     cmp r1, #3
     itt hs
@@ -180,11 +238,13 @@ snaps_mark_as:
 
 snaps_flip:                         @ the lit one again: the other bank, then select(index) from the record the sound came from
     mov r2, r1
-snaps_cross:                        @ (manager, index, the index being left)
-    push {r3-r11, lr}
+snaps_cross:                        @ (manager, index, the index being left): under D from bank B's making to byte 0's flip, then
+    push {r3-r11, lr}               @ the manager lock around the swaps, so D before it, as select takes them
     mov r4, r0
     mov r5, r1
     mov r11, r2
+    bl snaps_dsp_lock
+    mov r8, r0
     adr.w r6, snaps_data
     ldrb r0, [r6, #1]
     cbnz r0, snaps_ready
@@ -258,6 +318,8 @@ snaps_flipped:
     add.w r0, r4, #4
     ldr r3, =UNLOCK
     blx r3
+    mov r0, r8
+    bl snaps_dsp_unlock
     bl snaps_hold_sel
     cbnz r0, snaps_crossed
     ldrb r0, [r6]                   @ Tap: the footswitches follow the live bank, where a switch to Hold then finds them
@@ -363,9 +425,12 @@ snaps_matched:
 
 .thumb_func
 .global snaps_key_write
-snaps_key_write:                    @ preset_keys.s's writer (stream): bank B after the map, as key 0x64; -> the keys written
-    push {r4, r5, r6, lr}
-    mov r4, r0
+snaps_key_write:                    @ preset_keys.s's writer (stream): bank B after the map, as key 0x64; -> the keys written. Under
+    push {r4, r5, r6, r7, r8, lr}   @ D from its read of byte 0 to its last write: the serializer before it has let D go, and a
+    mov r4, r0                      @ cross must not swap the records it copies
+    bl snaps_dsp_lock
+    mov r8, r0
+    movs r7, #0
     ldr r5, =MANAGER + RECS         @ bank B live: the manager's records
     adr.w r6, snaps_data
     ldrb r0, [r6]
@@ -380,9 +445,12 @@ snaps_key_put:
     mov r1, r5
     movw r2, #3 * REC
     bl snaps_file_put
-    movs r0, #1
+    movs r7, #1
 snaps_key_written:
-    pop {r4, r5, r6, pc}
+    mov r0, r8
+    bl snaps_dsp_unlock
+    mov r0, r7
+    pop {r4, r5, r6, r7, r8, pc}
 
 snaps_file_put:                     @ (r4 the stream, r1 bytes, r2 length): the stream's write(context, bytes, length)
     ldr r0, [r4]
@@ -577,29 +645,35 @@ snaps_camera_done:
     add sp, #28
     pop {r4-r7, pc}
 
-snaps_saving:                       @ before a preset serializer: bank A live, as a load takes the blocks' live values for its snapshot;
-    ldr r0, =MANAGER                @ SAVING from before this flip until after the flip back
+snaps_saving:                       @ before a preset serializer: D until snaps_saved, so no cross runs while it reads the records;
+    push {r3, lr}                   @ in bank B, bank A live, as a load takes the blocks' live values for its snapshot, and SAVING
+    bl snaps_dsp_lock               @ from before this flip until after the flip back
     adr.w r1, snaps_data
+    strb r0, [r1, #DSP_HELD]
     ldrb r2, [r1]
-    cbz r2, snaps_none
+    cbz r2, snaps_saving_done
     movs r2, #1
     strb r2, [r1, #SAVING]
-    b snaps_flip_now
-snaps_none:
-    bx lr
+    ldr r0, =MANAGER
+    bl snaps_flip_now
+snaps_saving_done:
+    pop {r3, pc}
 
-snaps_saved:                        @ after it: bank B again
+snaps_saved:                        @ after it: bank B again, then D let go; keeps r4 and r5, the serializer's result in its chain
+    push {r3, lr}
     adr.w r1, snaps_data
     ldrb r2, [r1, #SAVING]
-    cmp r2, #0
-    it eq
-    bxeq lr
-    push {r3, lr}
+    cbz r2, snaps_saved_done
     ldr r0, =MANAGER
     bl snaps_flip_now
     adr.w r1, snaps_data
     movs r2, #0
     strb r2, [r1, #SAVING]
+snaps_saved_done:
+    ldrb r0, [r1, #DSP_HELD]
+    movs r2, #0
+    strb r2, [r1, #DSP_HELD]
+    bl snaps_dsp_unlock
     pop {r3, pc}
 
 snaps_flip_now:                    @ (manager): a flip on the current snapshot; select allowed for it, as the load path allows its own
@@ -779,7 +853,9 @@ snaps_hold_sel:                     @ () -> r0 1 when Snapshot BankSel is Hold, 
 
 snaps_click:                        @ (k) a click of footswitch k in Hold mode: snapshot k of the bank the footswitches select in; in
     push {r4, r5, r6, lr}           @ the live bank stock select, bar the lit one going back to the other bank; then the footswitches
-    mov r5, r0                      @ select in the bank now live
+    mov r5, r0                      @ select in the bank now live. Under D throughout: a serializer waits for it, and it for one
+    bl snaps_dsp_lock
+    mov r6, r0
     adr.w r0, snaps_data
     ldrb r0, [r0, #SAVING]
     cmp r0, #0
@@ -815,6 +891,8 @@ snaps_click_done:
     movs r1, #1                     @ laid out by snaps_tick, in the key task: CC 49..51 click from the request task
     strb r1, [r0, #RELAYOUT]
 snaps_click_shown:
+    mov r0, r6
+    bl snaps_dsp_unlock
     pop {r4, r5, r6, pc}
 
 snaps_back:                         @ -> r0 1 and r1 its index when Reselect Snapshot goes back and the previous snapshot is in the
@@ -1017,7 +1095,7 @@ snaps_names:                        @ bank B's default names, 16 bytes apart
 snaps_file_head:                    @ key 0x64, bin16 of FILE_LEN (big-endian), "HX6B", version 1, 3 spare
     .byte FILE_KEY, 0xc5, FILE_LEN >> 8, FILE_LEN & 0xff, 'H', 'X', '6', 'B', 1, 0, 0, 0
 snaps_data:                         @ 0 bank B live, 1 snaps_shadow holds bank B, 2 SAVING, 3 cameras to redraw,
-    .byte 0, 0, 0, 0, 0, 0, 0, 0    @ 4 VIEW, 5 WRAP, 6 bank B read from a file, 7 RELAYOUT, 8 PREV6, 9..11 spare
+    .byte 0, 0, 0, 0, 0, 0, 0, 0    @ 4 VIEW, 5 WRAP, 6 bank B read from a file, 7 RELAYOUT, 8 PREV6, 9 DSP_HELD, 10..11 spare
     .byte NONE, 0, 0, 0
 snaps_armed:                        @ per footswitch 0..2: a lone press made in Snapshot mode on Hold, its click or hold still to come
     .space 4
