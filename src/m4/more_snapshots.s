@@ -1,6 +1,6 @@
 @ more_snapshots.s - snapshots 4 to 6: a second bank on the snapshot footswitches. Bank A (snapshots 1-3) and bank B (4-6) share
 @ the snapshot manager's three 0x260-byte records; the other bank waits in snaps_shadow, and a cross swaps the two and recalls the
-@ footswitch's snapshot through the stock select. Snapshot 4-6 Sel picks how the footswitches cross: Hold (the default) holds back
+@ footswitch's snapshot through the stock select. Snapshot BankSel picks how the footswitches cross: Hold (the default) holds back
 @ their presses and selects on the click, in the bank a 1 s hold of FS1 (A) or FS2 (B) points them at, which only a hold, their own
 @ select and a preset load change; Tap flips on the lit one pressed again. tools/features/more_snapshots.py places the hooks.
 .syntax unified
@@ -63,7 +63,7 @@
 .equ CC_LEARNING, 0x28dde9ed        @ (controllers) -> set while Bypass Assign's or Controller Assign's learn waits
 .equ FS_MODE, 0x15                  @ setting 21, Footswitch Mode
 .equ SNAPSHOT_MODE, 3
-.equ HOLD_SEL, 0                    @ Snapshot 4-6 Sel's Hold; 1 is Tap
+.equ HOLD_SEL, 0                    @ Snapshot BankSel's Hold; 1 is Tap
 .equ VIEW_IS, 0x28d96135            @ (view) -> 1 when it is the current view
 .equ HOME_VIEW, 0
 .equ TUNER_VIEW, 5
@@ -742,7 +742,7 @@ snaps_learning:                     @ () -> r0 non-zero while a learn waits: the
 snaps_learning_done:
     pop {r3, pc}
 
-snaps_gate:                         @ (k) -> r0 1 when footswitch k selects snapshot k (Snapshot mode), Snapshot 4-6 Sel is Hold, and
+snaps_gate:                         @ (k) -> r0 1 when footswitch k selects snapshot k (Snapshot mode), Snapshot BankSel is Hold, and
     push {r4, lr}                   @ the tuner is not open (a press there only leaves it)
     ldr r1, =FS_FUNCTIONS
     ldrb.w r1, [r1, r0, lsl #1]
@@ -765,7 +765,7 @@ snaps_gate_no:
     movs r0, #0
     pop {r4, pc}
 
-snaps_hold_sel:                     @ () -> r0 1 when Snapshot 4-6 Sel is Hold, which a unit that never stored it reads
+snaps_hold_sel:                     @ () -> r0 1 when Snapshot BankSel is Hold, which a unit that never stored it reads
     push {r3, lr}
     movs r0, #SETTING_MORE_SNAPSHOTS_BANK_SWITCH
     movs r1, #SETTING_MORE_SNAPSHOTS_BANK_SWITCH_MAX

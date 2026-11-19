@@ -1,4 +1,4 @@
-"""More snapshots: a second bank of snapshots, 4-6, on the three snapshot footswitches (src/m4/more_snapshots.s). With Snapshot 4-6 Sel
+"""More snapshots: a second bank of snapshots, 4-6, on the three snapshot footswitches (src/m4/more_snapshots.s). With Snapshot BankSel
 on Hold (the default), holding FS1 for 1 s points the footswitches at snapshots 1-3 and holding FS2 at 4-6, a tap selects on its
 release, and they stay on that bank until a hold, a tap or a preset load moves them; the lit one with Reselect Snapshot set to go
 back goes back across the banks too. On Tap, pressing the lit snapshot footswitch again flips between 1-3 and 4-6. In 4-6 the
@@ -11,7 +11,7 @@ FLAG = 'HX_MORE_SNAPSHOTS'
 MENU = 'Footswitches'
 # Hold: a 1 s hold of FS1 or FS2 picks the bank the snapshot footswitches select in, and a tap selects on its release; Tap: the lit
 # one again flips the bank, as before the setting (both in src/m4/more_snapshots.s)
-SETTINGS = (Setting('bank_switch', b'4-6 Sel\nSnapshot', (b'Hold', b'Tap')),)
+SETTINGS = (Setting('bank_switch', b'BankSel\nSnapshot', (b'Hold', b'Tap')),)
 
 SELECT = 0x28de2f90                 # (manager, index): recalls a snapshot; chained before, for the snapshot it leaves
 SELECT_STOCK = bytes.fromhex('2de9 f04f')                         # push.w {r4-r11,lr}

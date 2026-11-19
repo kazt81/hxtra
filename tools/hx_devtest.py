@@ -693,7 +693,7 @@ def snapshot_flips(u, there, back):
 @case('more_snapshots', 'More snapshots: in Snapshot mode, FS2 held then the lit footswitch tapped is 4..6; FS1 held and a tap, back')
 def t_more_snapshots(u):
     def there(fs, unchanged):
-        foot_hold(u, 'fs2', settle=0.6)         # Snapshot 4-6 Sel on Hold, the default: the footswitches select in 4..6
+        foot_hold(u, 'fs2', settle=0.6)         # Snapshot BankSel on Hold, the default: the footswitches select in 4..6
         if not unchanged():
             raise Fail('the camera icon changed when FS2 was held: a hold changes no snapshot')
         foot_tap(u, fs, settle=0.6)
@@ -704,17 +704,17 @@ def t_more_snapshots(u):
     snapshot_flips(u, there, back)
 
 
-@case('more_snapshots_tap', 'More snapshots, Snapshot 4-6 Sel on Tap: in Snapshot mode the lit footswitch again flips to 4..6 '
+@case('more_snapshots_tap', 'More snapshots, Snapshot BankSel on Tap: in Snapshot mode the lit footswitch again flips to 4..6 '
       'and back')
 def t_more_snapshots_tap(u):
     sel = ('Hold', 'Tap')
     u.global_settings('Footswitches')
-    was = u.dial(label_knob(u, '4-6 Sel'), 'Tap', sel)
+    was = u.dial(label_knob(u, 'BankSel'), 'Tap', sel)
     try:
         snapshot_flips(u, lambda fs, unchanged: foot_tap(u, fs, settle=0.6), lambda fs: foot_tap(u, fs, settle=0.6))
     finally:
         u.global_settings('Footswitches')
-        u.dial(label_knob(u, '4-6 Sel'), was, sel)
+        u.dial(label_knob(u, 'BankSel'), was, sel)
         u.home()
 
 

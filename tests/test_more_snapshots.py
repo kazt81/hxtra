@@ -64,7 +64,7 @@ def bank_a(i):
 
 class Manager:
     """The module in unicorn, with the manager's records, the lock, select doing what stock does to them behind the select hook
-    (snaps_selecting, as the build chains it), a serializer behind snaps_saving and snaps_saved, the settings (Snapshot 4-6 Sel on
+    (snaps_selecting, as the build chains it), a serializer behind snaps_saving and snaps_saved, the settings (Snapshot BankSel on
     Tap unless a test sets Hold; Reselect Snapshot unset, so it recalls), the current view, the Home layout, and the footswitch
     event handler's object and its call of snaps_event."""
 
@@ -391,7 +391,7 @@ def mgr(m4emu):
 
 @pytest.fixture
 def hm(m4emu):
-    """Snapshot 4-6 Sel on Hold, as a unit that never stored it reads."""
+    """Snapshot BankSel on Hold, as a unit that never stored it reads."""
     m = Manager(m4emu, bank_switch=HOLD_SEL)
     del m.settings[BANK_SWITCH]
     return m
@@ -935,14 +935,14 @@ def test_a_preset_load_forgets_the_last_presets_bank_b(mgr):
 
 
 def test_snapshot_4_6_sel_is_a_footswitches_setting_on_a_virtual_id():
-    """Hold (0) is the default, which a unit reads before the setting is ever stored; the HX Stomp shows 'Snapshot' over '4-6 Sel'."""
+    """Hold (0) is the default, which a unit reads before the setting is ever stored; the HX Stomp shows 'Snapshot' over 'BankSel'."""
     assert ms.FLAG == 'HX_MORE_SNAPSHOTS' and ms.MENU == 'Footswitches'
-    assert ms.SETTINGS == (Setting('bank_switch', b'4-6 Sel\nSnapshot', (b'Hold', b'Tap'), 0),)
+    assert ms.SETTINGS == (Setting('bank_switch', b'BankSel\nSnapshot', (b'Hold', b'Tap'), 0),)
     assert IDS['more_snapshots.bank_switch'] == 0xe6 and setting_ids.packing()[0xe6] == (114, 0, 2)
 
 
 def bank_b_ready(m):
-    """A preset with a bank B (each of 4..6 holding a sound of its own), bank A live on snapshot 1, then Snapshot 4-6 Sel on Hold;
+    """A preset with a bank B (each of 4..6 holding a sound of its own), bank A live on snapshot 1, then Snapshot BankSel on Hold;
     bank B's records."""
     m.settings[BANK_SWITCH] = TAP_SEL
     bank_b = with_bank_b(m)
@@ -1455,7 +1455,7 @@ def test_touches_leave_the_footswitches_alone(hm, code):
 
 
 def test_on_tap_the_hooks_follow_the_live_bank_and_keep_the_footswitches_on_it(hm):
-    """Snapshot 4-6 Sel on Tap: the layout's reads and the labels' numbers are the live bank's, whatever bank a hold left the
+    """Snapshot BankSel on Tap: the layout's reads and the labels' numbers are the live bank's, whatever bank a hold left the
     footswitches on. A snapshot footswitch press and every move between the banks put them on the live bank, where Hold finds
     them; with neither, the bank held stays held."""
     viewing_b(hm)
@@ -1758,7 +1758,7 @@ CC_HANDLER, CC_HANDLER_END = 0x28d9b120, 0x28d9b700
 @pytest.mark.parametrize('sel', [HOLD_SEL, TAP_SEL], ids=['hold', 'tap'])
 def test_the_built_cc_handler_selects_all_six_snapshots_by_cc_69(m4emu, sel):
     """The built firmware's CC handler (cc, value), from its entry: CC 69's 0..5 land on snapshots 1..6 from either bank, 6 and 7
-    still do nothing, and next and previous still run through all six, whatever Snapshot 4-6 Sel says."""
+    still do nothing, and next and previous still run through all six, whatever Snapshot BankSel says."""
     code, sym = m4emu.assemble('src/m4/more_snapshots.s', MODS, IDS)
     read, on = built({'HX_MORE_SNAPSHOTS': '1'})
     assert 'more_snapshots' in on and read(ms.CC_RANGE, 2) == ms.CC_RANGE_SIX
@@ -2154,7 +2154,7 @@ def test_the_built_handler_leaves_the_bank_held_for_a_copy_or_swap(m4emu):
 
 @pytest.mark.firmware
 def test_the_built_handler_on_tap_flips_as_before(m4emu):
-    """Snapshot 4-6 Sel on Tap: nothing armed; a press selects at the deferred dispatch, the lit one flips there, a hold changes
+    """Snapshot BankSel on Tap: nothing armed; a press selects at the deferred dispatch, the lit one flips there, a hold changes
     no bank shown, and clicks select nothing more."""
     b = BuiltHandler(m4emu, bank_switch=TAP_SEL)
     b.post(13, PRESS)
