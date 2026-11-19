@@ -1,4 +1,4 @@
-@ long_press.s - long-press footswitch actions: in Stomp mode, a latching stomp footswitch 1..5 with a Hold action set acts on release
+@ long_press.s - long-press footswitch actions: in Stomp mode, a latching stomp footswitch 1..5 with a Hold action set and no looper acts on release
 @ when tapped (its press is held back and replayed on the click) and runs the action when held for 1 s: the tuner, a press of FS4/FS5,
 @ or a press of a virtual footswitch FS6..FS10, which runs its FS6..FS10 Function: as Stomp it toggles the blocks assigned to MIDI CC 20..24
 @ (Bypass Assign > MIDI In, where they read FS6..FS10 under the label FootswIn), GlobalEQ opens Global EQ, and any other function
@@ -35,6 +35,9 @@
 .equ TUNER_VIEW, 5                  @ gTunerViewID
 .equ GLOBAL_EQ_VIEW, 6              @ gGlobalEQViewID, with panel 8, as Global Settings' Global EQ item requests it
 .equ GLOBAL_EQ_PANEL, 8
+.equ INFO_SIZE, 0x34                @ a block's info, as the stock press clears it; preset model ID at +1
+.equ IS_LOOPER, 0x28de778d          @ (preset ID) -> 1 for the 1 Switch Looper, 504/505
+.equ IS_SHUFFLING_LOOPER, 0x28de779d    @ (preset ID) -> 1 for the Shuffling Looper, 570/571 and 616/617
 
 .thumb_func
 lp_event:                           @ r0 event {1 key, code, -, -, type}, r1 the handler's object, r2 the stock handler
@@ -385,6 +388,10 @@ mode_ok:
     blx r3
     cmp r0, #0
     bne none
+    mov r0, r4
+    bl hosts_looper
+    cmp r0, #0
+    bne none
     mov r0, r5
     b action_out
 none:
@@ -392,6 +399,56 @@ none:
 action_out:
     add sp, #12
     pop {r4, r5, pc}
+
+hosts_looper:                       @ r0 footswitch 0..4 -> r0 1 when a looper is among its blocks: it latches on the press and holds only then
+    push {r4-r7, lr}
+    sub sp, #INFO_SIZE
+    mov r4, r0
+    movs r7, #0
+    ldr r3, =0x28e24971             @ the widget lock, as the stock press walks the list under it (0x28dd10e8)
+    blx r3
+    ldr r3, =0x28d96085
+    blx r3
+    add.w r6, r0, r4, lsl #5
+    adds r6, #0x20                  @ footswitch k's list head, as 0x28dd71e4 finds it
+    mov r5, r6
+walk:
+    ldr r5, [r5]
+    cmp r5, r6
+    beq walked
+    ldrb r0, [r5, #9]
+    cmp r0, #1                      @ a block's node
+    bne walk
+    mov r0, sp
+    movs r1, #0
+    movs r2, #INFO_SIZE
+    ldr r3, =0x28e24b79             @ cleared first, as the stock press does: the lookup can succeed without filling it
+    blx r3
+    ldr r3, =0x28d92a99
+    blx r3
+    ldr r1, [r5, #0xc]
+    mov r2, sp
+    ldr r3, =0x28e0fe95
+    blx r3
+    cmp r0, #0
+    blt walk
+    ldrh.w r0, [sp, #1]
+    ldr r3, =IS_LOOPER
+    blx r3
+    cbnz r0, found
+    ldrh.w r0, [sp, #1]
+    ldr r3, =IS_SHUFFLING_LOOPER
+    blx r3
+    cmp r0, #0
+    beq walk
+found:
+    movs r7, #1
+walked:
+    ldr r3, =0x28e24ae9
+    blx r3
+    mov r0, r7
+    add sp, #INFO_SIZE
+    pop {r4-r7, pc}
 
 .thumb_func
 lp_cc_text:                         @ after the itoa that puts a CC's digits after "CC" (r0 the CC, r1 the digits, at buffer + 2): CC 20..24 read FS6..FS10

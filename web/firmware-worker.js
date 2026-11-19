@@ -1,6 +1,6 @@
 // firmware-worker.js - build.py in the browser: the stock .hxf in, the HXtra
-// .hxf out, with NAM A2 Lite and, on the HX Stomp, the release's HXtra
-// features. Pyodide runs the repository's own Python tools, the same
+// .hxf out, with NAM A2 Lite and the release's HXtra features, for the
+// HX Stomp only. Pyodide runs the repository's own Python tools, the same
 // commands build.py runs (without --check, the simulator run, which takes
 // minutes here). The features' M4 code comes from the release's m4cache.json
 // (tools/m4cache.py), next to the page, since there is no clang here. The
@@ -24,20 +24,16 @@ var PYODIDE = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
 // tests/test_firmware.py's BUILT_MD5.
 var STOCK_MD5 = {
   "a2cd8f4ae56f49415380270ebc484bf1": "HX_Stomp",
-  "329e3a26d60d3de1988b6785fa833ee1": "HX_Stomp_XL",
-  "7c2ebdf1bffb6bcc5f89dda97f91e40c": "HX_Effects",
 };
 var BUILT_MD5 = {
-  "HX_Stomp": "195682572258a3347d94ca7610a697b8",
-  "HX_Stomp_XL": "8918ab60ebff62ebfccd4fccb2bed85a",
-  "HX_Effects": "2efb98791581b67116ba82c5ecd30ea2",
+  "HX_Stomp": "9d804d5e99f19b0223f2f3d866e60807",
 };
 
-// build.py's KERNEL, STEPS and E3_MAX (tests/test_web_build.py keeps them equal): per unit, the kernel
+// build.py's KERNEL, STEPS and E3_MAX (tests/test_web_build.py keeps them equal): the kernel
 // command and the patch_amp.py steps, each "patch_amp.py CMD IN OUT ARGS..." on the previous output.
 // build.py's kernel(unit, slots) adds "--slots" to the kernel's command for fewer than 3 NAM slots.
 var E3_MAX = 0xf10f0;
-var KERNEL = {"HX_Stomp": ["tools/sharc/nam_multi.py", "--mid-sweep"], "HX_Stomp_XL": ["tools/sharc/nam_multi.py", "--mid-sweep"], "HX_Effects": ["tools/sharc/nam_multi.py", "--mid-sweep", "--effects"]};
+var KERNEL = {"HX_Stomp": ["tools/sharc/nam_multi.py", "--mid-sweep"]};
 var STEPS = {
   "HX_Stomp": [
     ["remove-model", "--preset-id", "555"],
@@ -45,15 +41,6 @@ var STEPS = {
     ["move-folder", "--name", "NAM", "--from", "2", "--to", "12"],
     ["ir-title", "--fx-preset-id", "555", "--knob", "6"],
     ["model-int"],
-  ],
-  "HX_Stomp_XL": [
-    ["remove-model", "--preset-id", "555"],
-    ["add-fx-model", "--knobs", "eq", "--name", "HD2_DistNAMLite", "--display-name", "NAM A2 Lite", "--category", "distortion", "--folder", "NAM", "--preset-id", "555", "--dsp-cost", "2275", "--sdram-words", "0x5000", "--dm-words", "0x303", "--pm-words", "0x147"],
-    ["move-folder", "--name", "NAM", "--from", "2", "--to", "12"],
-    ["ir-title", "--fx-preset-id", "555", "--knob", "6"],
-  ],
-  "HX_Effects": [
-    ["effects-eq"],
   ],
 };
 
@@ -140,13 +127,16 @@ var SOURCES = [
 // The release's M4 code for the features (tools/m4cache.py); a page from a checkout has none, and offers no features.
 var CACHE = "m4cache.json";
 
-// One command of build.py: run a script as __main__ with argv, return its output.
+// One command of build.py: run a script as __main__ with argv, its folder on sys.path as `python script.py` has it.
 var DRIVER = [
   "import contextlib, io, os, runpy, sys",
   "os.chdir('/repo')",
   "def run(argv):",
   "    out = io.StringIO()",
   "    sys.argv = list(argv)",
+  "    here = os.path.dirname(os.path.abspath(argv[0]))",
+  "    if here not in sys.path:",
+  "        sys.path.insert(0, here)",
   "    try:",
   "        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):",
   "            runpy.run_path(argv[0], run_name='__main__')",
@@ -207,12 +197,12 @@ async function build(stock, flags, slots) {
   var md5 = p.runPython("import hashlib; hashlib.md5(open('/repo/build/stock.hxf','rb').read()).hexdigest()");
   var unit = STOCK_MD5[md5];
   if (!unit) {
-    throw new Error("This is not the stock HX Stomp, HX Stomp XL or HX Effects 3.80.0 firmware (its MD5 is " + md5 +
-                    "). The patch is made for those three files only.");
+    throw new Error("This is not the stock HX Stomp 3.80.0 firmware, HX_Stomp_v3.80.0_0x103966115.hxf (its MD5 is " + md5 +
+                    "). HXtra is for the HX Stomp only.");
   }
   post({ type: "log", text: "stock firmware: " + unit.replace(/_/g, " ") + " 3.80.0 (MD5 " + md5 + ")\n" });
-  flags = unit === "HX_Stomp" ? (flags || []) : [];
-  slots = unit === "HX_Stomp" && cache ? (slots === undefined ? 3 : slots) : 3;
+  flags = flags || [];
+  slots = cache ? (slots === undefined ? 3 : slots) : 3;
   if (flags.length && !cache) throw new Error("This page has no feature code (" + CACHE + "): build without features.");
   var dsp = (cache && cache.dsp) || { features: [], slots: [3], room: {}, cost: {} };
   flags.forEach(function (f) {
@@ -222,7 +212,7 @@ async function build(stock, flags, slots) {
   });
   if (dsp.slots.indexOf(slots) < 0) throw new Error("This release has no build with " + slots + " NAM slots.");
   var need = flags.reduce(function (n, f) { return n + (dsp.cost[f] || 0); }, 0);
-  if (unit === "HX_Stomp" && cache && need > dsp.room[slots]) {
+  if (cache && need > dsp.room[slots]) {
     throw new Error("The DSP features take " + need + " words; " + slots + " NAM slots leave " + dsp.room[slots] + ".");
   }
   setFeatures(p, flags, slots);
@@ -247,11 +237,9 @@ async function build(stock, flags, slots) {
       if (base !== "build/stock.hxf") p.FS.unlink("/repo/" + base);
       base = out;
     });
-    if (unit === "HX_Stomp") {
-      step(4, "Adding NAM A2 Lite…", ["tools/patch_menu.py", base, "build/nam_lite_menu.l6ia"]);
-      if (base !== "build/stock.hxf") p.FS.unlink("/repo/" + base);
-      base = "build/nam_lite_menu.l6ia";
-    }
+    step(4, "Adding NAM A2 Lite…", ["tools/patch_menu.py", base, "build/nam_lite_menu.l6ia"]);
+    if (base !== "build/stock.hxf") p.FS.unlink("/repo/" + base);
+    base = "build/nam_lite_menu.l6ia";
     if (slots) {
       step(5, "Adding the kernel to the DSP program…",
            ["tools/patch_amp.py", "patch", base, "build/nam_lite.l6ia", "--asm", "build/nam_lite.asm"]);
@@ -285,12 +273,12 @@ async function build(stock, flags, slots) {
       p.FS.rename("/repo/build/nam_lite_comp.l6ia", "/repo/build/nam_lite.l6ia");
     }
     var report = step(6, "Checking every checksum and packing the file…",
-                      ["tools/l6ia_verify.py", "build/nam_lite.l6ia"].concat(unit === "HX_Stomp" ? ["--e3-max", "0x" + E3_MAX.toString(16)] : []));
+                      ["tools/l6ia_verify.py", "build/nam_lite.l6ia", "--e3-max", "0x" + E3_MAX.toString(16)]);
     if (report.indexOf("ALL OK") < 0) throw new Error("The built image failed its check.");
     var file = "hxtra.hxf";
     step(6, "Checking every checksum and packing the file…",
          ["tools/hxf.py", "pack", "build/nam_lite.l6ia", "build/" + file, "--donor", "build/stock.hxf"]);
-    var ram = ramPlan(p, step, unit, file);
+    var ram = ramPlan(p, step, file);
   } finally {
     run.destroy();
   }
@@ -300,7 +288,7 @@ async function build(stock, flags, slots) {
     try { p.FS.unlink("/repo/build/" + f); } catch (e) { /* gone */ }
   });
   var buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-  var want = unit === "HX_Stomp" && cache ? (cache.md5[unit] || {})[flags.concat(["HX_NAM_SLOTS=" + slots]).sort().join("+")]
+  var want = cache ? (cache.md5[unit] || {})[flags.concat(["HX_NAM_SLOTS=" + slots]).sort().join("+")]
       : BUILT_MD5[unit];
   var name = "HXtra" + (cache && cache.release ? "_" + cache.release : "") + ".hxf";     // a checkout's page has no release
   post({ type: "done", unit: unit, file: name, bytes: buf, md5: outMd5, pinned: want ? outMd5 === want : null, ram: ram },
@@ -309,11 +297,7 @@ async function build(stock, flags, slots) {
 
 // The RAM run of the built file: what tools/hxf_ram.py run would send. A failure here leaves the
 // build as it is; the page then offers no RAM run.
-function ramPlan(p, step, unit, file) {
-  if (unit === "HX_Effects") {      // the RAM loader is the HX Stomp's and XL's only
-    post({ type: "log", text: "RAM run: HX Stomp and HX Stomp XL only.\n" });
-    return {};
-  }
+function ramPlan(p, step, file) {
   var dir = "/repo/build/ram";
   try {
     step(6, "Checking every checksum and packing the file…",

@@ -56,6 +56,22 @@ def e3_strings(e3):
     return str_off, recs, data, index
 
 
+def move_offsets(out, h, mv):
+    """Every Entry 3 offset past a moved region, through mv: the model table's, its parameters' and the h[8] table's."""
+    for i in range(h[7]):
+        d = h[6] + 56 * i
+        w = list(struct.unpack_from('<14I', out, d))
+        for j in (1, 10, 11, 12):
+            w[j] = mv(w[j])
+        struct.pack_into('<14I', out, d, *w)
+        for p in range(w[7]):
+            po = w[11] + 32 * p + 4
+            struct.pack_into('<I', out, po, mv(struct.unpack_from('<I', out, po)[0]))
+    for k in range(h[9]):
+        lo = h[8] + 32 * k + 24
+        struct.pack_into('<I', out, lo, mv(struct.unpack_from('<I', out, lo)[0]))
+
+
 def e3_add_strings(e3, wanted):
     """Entry 3 with the strings of `wanted` it lacks appended to its section, and {string: index} for them all.
     Indices never change. A stock section (at 0x200) is copied past the end. Once add-model has copied the section and
@@ -84,28 +100,21 @@ def e3_add_strings(e3, wanted):
         out = e3 + bytes(pa._align(len(e3), 0x200) - len(e3))
         h[3] = len(out)
         out += section
+    elif h[6] < str_off:
+        # Copied past the end by an earlier call with no add-model (NAM off, no Metronome): a second copy would make Entry 3 too big
+        old_end, new_end = pa._align(str_off + h[5], 4), pa._align(str_off + len(section), 4)
+        delta = new_end - old_end
+        out = e3[:str_off] + section + bytes(new_end - str_off - len(section)) + e3[old_end:]
+        move_offsets(out, h, lambda v: v + delta if v >= old_end else v)
     else:
         old_mtab = h[6]
-        assert old_mtab > str_off, 'the model table is not after the string section'
         assert STR_HOME + len(section) <= h[8] < STOCK_E3_END, 'the section does not fit in the stock tables\' place'
         new_mtab = str_off
         delta = new_mtab - old_mtab
         out = e3[:STR_HOME] + section + bytes(h[8] - STR_HOME - len(section)) + e3[h[8]:str_off] + e3[old_mtab:]
-        mv = lambda v: v + delta if v >= old_mtab else v
         h[3] = STR_HOME
         h[6] = new_mtab
-        for i in range(h[7]):
-            d = new_mtab + 56 * i
-            w = list(struct.unpack_from('<14I', out, d))
-            for j in (1, 10, 11, 12):
-                w[j] = mv(w[j])
-            struct.pack_into('<14I', out, d, *w)
-            for p in range(w[7]):
-                po = w[11] + 32 * p + 4
-                struct.pack_into('<I', out, po, mv(struct.unpack_from('<I', out, po)[0]))
-        for k in range(h[9]):
-            lo = h[8] + 32 * k + 24
-            struct.pack_into('<I', out, lo, mv(struct.unpack_from('<I', out, lo)[0]))
+        move_offsets(out, h, lambda v: v + delta if v >= old_mtab else v)
     out += bytes(pa._align(len(out), 4) - len(out))
     h[2], h[5] = len(out), len(section)
     h[4] = zlib.crc32(out[h[3]:h[3] + len(section)]) & 0xffffffff

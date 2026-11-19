@@ -476,6 +476,27 @@ def test_comp_patch_puts_the_strings_back_in_the_stock_tables_place(added_then_c
     assert len(after) < len(before) - 0x10000
 
 
+@pytest.fixture(scope='module')
+def gated_then_comp():
+    """(Entry 3 after patch_gate, after patch_comp too), with no add-model first: a NAM-off build with no Metronome."""
+    import patch_gate
+    gated = patch_gate.patch_gate(stock_l6ia(), log=lambda *_: None)
+    return pa.get_entry_swapped(gated, 3), pa.get_entry_swapped(pc.patch_comp(gated, log=lambda *_: None), 3)
+
+
+@pytest.mark.firmware
+def test_comp_patch_grows_a_tail_string_section_in_place(gated_then_comp):
+    # The v1.2.0 release's HX_NAM_SLOTS=0 HX_GR HX_FX_GATE build failed here: the section was at the tail, the model table home
+    before, after = gated_then_comp
+    h0, h1 = struct.unpack_from('<10I', before, 0), struct.unpack_from('<10I', after, 0)
+    assert h0[3] > pc.STOCK_E3_END and h0[6] < h0[3] and (h1[3], h1[6]) == (h0[3], h0[6]) and h1[5] > h0[5]
+    assert len(after) < DEFAULT_E3
+    comps = {m for m, _ in pc.COMP_MODELS}
+    view = lambda e3: [pc.models_view({'models': [m]}) for m in pa.parse_entry3_full(e3)['models'] if m['name'] not in comps]
+    assert view(before) == view(after)
+    assert pc.slot_lists(before) == pc.slot_lists(after)
+
+
 @pytest.mark.firmware
 def test_comp_patch_keeps_every_other_model_and_slot_list(added_then_comp):
     before, after = added_then_comp
@@ -495,8 +516,8 @@ def test_comp_patch_refuses_a_second_run(comp_patched):
 # ---- the whole GR build, pinned as tests/test_firmware.py pins the default one
 
 GR_BUILT_MD5 = {
-    'HX_GR': '2e1a4e2c5eb18fd9c9808de83fc81eeb',
-    'HX_GR HX_CLICK': '9cbbfb3b75d648d0fda5a4f131d2c86a',    # patch_click.py adds a model, which would drop knobs written before it
+    'HX_GR': '58c63d2dbc0b3ad7a0e866fb22f9b2be',
+    'HX_GR HX_CLICK': '40d3c0e61c427897d332e317c428d535',    # patch_click.py adds a model, which would drop knobs written before it
 }
 
 
@@ -543,13 +564,6 @@ def build_steps(tmp_path, monkeypatch, unit, env):
     monkeypatch.setattr(build, 'run', lambda *a: ran.append(a[1:]) or 'ALL OK')
     build.main()
     return ran
-
-
-@pytest.mark.parametrize('unit', ['HX_Stomp_XL', 'HX_Effects'])
-def test_gr_is_for_the_hx_stomp_only(tmp_path, monkeypatch, unit):
-    ran = build_steps(tmp_path, monkeypatch, unit, {'HX_GR': '1'})
-    assert '--slots' not in next(a for a in ran if a[0] == 'tools/sharc/nam_multi.py')
-    assert not any(a[0] == 'tools/patch_comp.py' for a in ran)
 
 
 @pytest.mark.parametrize('env', [{}, {'HX_CLICK': '1'}])
