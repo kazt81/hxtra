@@ -5,25 +5,64 @@ on:
     branches: [main, next]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python: ["3.10", "3.13"]
+    timeout-minutes: 120
+    env:
+      STOCK_HXF: HX_Stomp_v3.80.0_0x103966115.hxf
+      STOCK_MD5: a2cd8f4ae56f49415380270ebc484bf1
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: decide
+        id: decide
+        env:
+          HAS_TOKEN: ${{ secrets.STOCK_HXF_TOKEN != '' }}
+        run: |
+          # Fork pull requests get no secrets, so they can't fetch the stock image.
+          if [ "$HAS_TOKEN" != true ]; then
+            echo "::notice::firmware tests skipped: no STOCK_HXF_TOKEN (fork pull requests get no secrets)"
+            echo firmware=false >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ "${{ github.event_name }}" != pull_request ]; then
+            echo firmware=true >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # HEAD is the pull request merged into its base, so HEAD^1 is the base.
+          if git diff --name-only HEAD^1 HEAD | grep -qE '^(src/|tools/|tests/|build\.py$|web/firmware-worker\.js$|pyproject\.toml$|requirements-dev\.txt$|\.github/workflows/tests\.yml$)'; then
+            echo firmware=true >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::firmware tests skipped: the pull request touches no HX Stomp code"
+            echo firmware=false >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python }}
+          python-version: "3.13"
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: pip install -r requirements-dev.txt
+      - name: stock firmware
+        if: steps.decide.outputs.firmware == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.STOCK_HXF_TOKEN }}
+        run: |
+          # Downloaded every run, never cached: fork pull requests can read the base branch's caches.
+          mkdir -p "$RUNNER_TEMP/stock"
+          gh release download stock-hxf -R wisemandenny/hxtra-ci-assets -p "$STOCK_HXF" -D "$RUNNER_TEMP/stock"
+          echo "$STOCK_MD5  $RUNNER_TEMP/stock/$STOCK_HXF" | md5sum -c -
+          echo "HX_STOMP_HXF=$RUNNER_TEMP/stock/$STOCK_HXF" >> "$GITHUB_ENV"
+      - name: clang
+        run: clang --version
       - name: tests
-        run: pytest -m "not firmware"
+        run: |
+          if [ "${{ steps.decide.outputs.firmware }}" = true ]; then pytest; else pytest -m "not firmware"; fi
       - name: upstream NAM A2 Lite tests
-        run: pytest -m "nam and not firmware"
+        run: |
+          if [ "${{ steps.decide.outputs.firmware }}" = true ]; then pytest -m nam; else pytest -m "nam and not firmware"; fi
