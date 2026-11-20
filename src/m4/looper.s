@@ -63,7 +63,7 @@ release:
     blx r3
 window:
     ldrb r3, [r7, #SECOND]
-    cbnz r3, stock                  @ the release of the press that stopped: the stock release clears SECOND
+    cbnz r3, stock                  @ the release of the press that stopped, even after MIDI's Play: the stock release clears SECOND
     ldrb r3, [r7, #STATE]           @ not r1: the held-back Play has changed the state since
     cmp r3, #PLAYING
     bne stock

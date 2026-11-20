@@ -346,7 +346,8 @@ class Machine:
     log their call and move the state as the stock verbs do on these paths; the tick's post logs the flags it posts (the deferred
     overdub, 0x20) and keeps the tick it came in (self.posts, counted from the reset). With worker, the post also runs the work the
     worker task would before the next event: the overdub's toggle (0x28de7b24 from 0x28de7c1e), playing to overdubbing. With
-    worker 'queue', the toggle waits for a WORKER step, which logs 'worker', as the worker task runs it after the tick."""
+    worker 'queue', the toggle waits for a WORKER step, which logs 'worker', as the worker task runs it after the tick. A MIDI_PLAY
+    step logs 'midi' and calls the Play stand-in from outside the footswitch, as MIDI CC 61 or a Command Center Play does."""
 
     def __init__(self, m4emu, e0, settings=None, worker=False):
         data, va = code_segment(e0)
@@ -418,13 +419,17 @@ class Machine:
             self.m.u8(self.pending, 0)
 
     def run(self, *steps):
-        """Each step an event (PRESS, RELEASE, HOLD), ('tick', n) or WORKER -> (the verbs and posts, the looper object after)."""
+        """Each step an event (PRESS, RELEASE, HOLD), ('tick', n), WORKER or MIDI_PLAY -> (the verbs and posts, the looper object
+        after)."""
         for s in steps:
             if s == WORKER:
                 if self.queued:
                     self.queued = False
                     self.log.append('worker')
                     self._toggle()
+            elif s == MIDI_PLAY:
+                self.log.append('midi')
+                self._play(self.m)
             elif isinstance(s, tuple):
                 for _ in range(s[1]):
                     self.now += 1
@@ -439,6 +444,7 @@ def ticks(n):
 
 
 WORKER = ('worker',)                        # the worker task runs the overdub's toggle that a tick queued
+MIDI_PLAY = ('midi',)                       # MIDI CC 61 or a Command Center command plays the loop, not the footswitch
 
 
 @pytest.fixture
@@ -737,11 +743,25 @@ def test_dbl_press_release_lets_a_double_press_and_hold_clear_until_the_overdub(
 @pytest.mark.firmware
 @pytest.mark.parametrize('sp', [PRESS_PLAYS, RELEASE_PLAYS])
 def test_dbl_press_release_leaves_the_window_shut_after_the_release_of_the_press_that_stopped(pairs, sp):
-    """So a third press right after a double-press stop starts the loop again, as stock."""
+    """The Stop leaves the loop stopped, so that release finds it not playing: a third press right after a double-press stop starts
+    the loop again, as stock."""
     stock, built = pairs
     steps = (PRESS, RELEASE, ticks(10), PRESS, RELEASE, ticks(1), PRESS, RELEASE, ticks(OVERDUB_TICKS + 1))
     got, want = outcome(built[sp, DBL_RELEASE], FROM_STOPPED, steps), outcome(stock, FROM_STOPPED, steps)
     assert got == want and want[0] == ['play', 'stop', 'play']
+
+
+@pytest.mark.firmware
+@pytest.mark.parametrize('obj', [FROM_PLAYING, FROM_STOPPED])
+def test_a_play_from_midi_while_the_press_that_stopped_is_down_leaves_the_window_shut(pairs, obj):
+    """The release of the press that stopped then finds the loop playing, and only SECOND keeps the window shut: a third press right
+    after is a plain press on a playing loop and its release arms the overdub, as stock, not a second double-press Stop."""
+    stock, built = pairs
+    steps = (PRESS, RELEASE, ticks(5), PRESS, MIDI_PLAY, RELEASE, ticks(5), PRESS, RELEASE, ticks(OVERDUB_TICKS + 1))
+    want = outcome(stock, obj, steps)
+    assert want[0].count('stop') == 1 and want[0][-1] == OVERDUB and want[1][STATE] == OVERDUBBING
+    for sp in (PRESS_PLAYS, RELEASE_PLAYS):
+        assert outcome(built[sp, DBL_RELEASE], obj, steps) == want, sp
 
 
 @pytest.mark.firmware
