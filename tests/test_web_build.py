@@ -263,6 +263,25 @@ def test_page_copy_builds_features_from_the_cache(tmp_path, combo):
     assert out["cache"].read_bytes() == out["clang"].read_bytes()
 
 
+def worker_driver(repo):
+    """The worker's DRIVER as Python, with the page's /repo at `repo`."""
+    lines = WORKER.split("var DRIVER = [")[1].split('].join("\\n");')[0]
+    return "\n".join(ast.literal_eval("[" + lines + "]")).replace("/repo", str(repo))
+
+
+@pytest.mark.parametrize("script", ["tools/patch_menu.py", "tools/patch_amp.py"])
+def test_worker_runs_each_script_with_its_folder_on_sys_path(tmp_path, script):
+    # A 0-slot build runs patch_menu.py first, before patch_amp.py had put tools/ on sys.path: "No module named 'features'"
+    page = tmp_path / "repo"
+    for p in listed_sources():
+        (page / p).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(ROOT / p, page / p)
+    code = worker_driver(page) + f"\nprint(run([{script!r}, '--help']).splitlines()[0])"
+    r = subprocess.run([sys.executable, "-I", "-c", code], cwd=tmp_path, capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert r.stdout.startswith("usage:")
+
+
 def test_pages_publishes_every_source():
     # the page fetches each of SOURCES from the site, which has only what .github/workflows/pages.yml copies there
     site = ROOT / ".github/workflows/pages.yml"
