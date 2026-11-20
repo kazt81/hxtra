@@ -5,7 +5,7 @@
 @ select and a preset load change; Tap flips on the lit one pressed again. tools/features/more_snapshots.py places the hooks.
 @ A cross, and the reads that decide one, run under the DSP model's lock D, which stock select and HX Edit's Get edit buffer take
 @ (the serializer in between), and so do every serializer here and key 0x64's writer: none interleaves with a cross, whichever task
-@ runs it.
+@ runs it. A select under that D holds back its posts to the editor (snaps_quiet), so none waits for a free event block there.
 .syntax unified
 .thumb
 .include "hxtra.inc"
@@ -77,6 +77,13 @@
 .equ DSP_UNLOCK, 0x28e0785d         @ (engine): D let go once (0x28e1c5be)
 .equ DSP_MODEL, 0x28449e78          @ the DSP model, 0 until the boot makes it: D's lock would write at address 8 then
 .equ DSP_HELD, 9                    @ in snaps_data: 1 while snaps_saving holds D for its serializer, for snaps_saved to let it go
+.equ HELD, 10                       @ in snaps_data: how many times the module holds D; only the task holding D writes it
+.equ REPOST, 11                     @ in snaps_data: a select under the module's D had its post of 0x2102 held back
+.equ LEDS, 12                       @ in snaps_data: the footswitch rings are to be refreshed (snaps_tick); only ever stored whole
+.equ QUIET, 0x28d99729              @ (1 or 0): one more or one less (not below 0) on stock's count 0x281caa8c, which while above 0
+                                    @ drops the editor's event posts 0x28d99820 and 0x28d99888, the ones that wait for a free block
+.equ SELECTED, 0x28d99889           @ (): the editor's event 0x2102, which select posts last, after it lets D go (0x28de32d8)
+.equ LED_REFRESH, 0x28dd0b3d        @ (the handler's object, 0): the footswitch rings, as the handler's events call it (0x28dd26cc)
 
 snaps_select:                       @ the footswitch functions' call of select (manager, index): snapshot k, next and previous
     adr.w r2, snaps_data
@@ -107,11 +114,11 @@ snaps_tap:                          @ (manager, index) on Tap, under D: the lit 
     strb r3, [r2, #VIEW]
     ldrb.w r2, [r0, #CUR]
     cmp r2, r1
-    bne snaps_stock
+    bne snaps_quiet
     ldrb.w r2, [r0, #BUSY]
     cmp r2, #0
     beq snaps_flip
-    b snaps_stock
+    b snaps_quiet
 
 snaps_locked:                       @ (manager, index; r12 a routine of them ending in select or snaps_cross) -> its result: the
     push {r0, r1, r4, lr}           @ routine under D, so what it reads (bytes 0 and 1, CUR, BUSY) is no serializer's flip to
@@ -122,7 +129,7 @@ snaps_locked:                       @ (manager, index; r12 a routine of them end
     blx r12
     str r0, [sp]
     mov r0, r4
-    bl snaps_dsp_unlock
+    bl snaps_dsp_unlock_post
     pop {r0, r1, r4, pc}
 
 snaps_dsp_lock:                     @ () -> r0 1 with D taken, 0 before the boot makes the DSP model (no lock); keeps r1-r3 and r12
@@ -134,6 +141,10 @@ snaps_dsp_lock:                     @ () -> r0 1 with D taken, 0 before the boot
     blx r3
     ldr r3, =DSP_LOCK
     blx r3
+    adr.w r1, snaps_data
+    ldrb r0, [r1, #HELD]
+    adds r0, #1
+    strb r0, [r1, #HELD]
     movs r0, #1
 snaps_dsp_lock_done:
     pop {r1, r2, r3, r4, r12, pc}
@@ -141,6 +152,10 @@ snaps_dsp_lock_done:
 snaps_dsp_unlock:                   @ (r0 what snaps_dsp_lock returned): D let go if it was taken; keeps r1-r3 and r12
     cbz r0, snaps_dsp_unlock_none
     push {r1, r2, r3, r4, r12, lr}
+    adr.w r1, snaps_data
+    ldrb r0, [r1, #HELD]
+    subs r0, #1
+    strb r0, [r1, #HELD]
     ldr r3, =ENGINE_GET
     blx r3
     ldr r3, =DSP_UNLOCK
@@ -148,6 +163,51 @@ snaps_dsp_unlock:                   @ (r0 what snaps_dsp_lock returned): D let g
     pop {r1, r2, r3, r4, r12, pc}
 snaps_dsp_unlock_none:
     bx lr
+
+snaps_dsp_unlock_post:              @ (r0 what snaps_dsp_lock returned): D let go, then the post of 0x2102 a select under it held
+    push {r4, lr}                   @ back, so the editor hears of the select once, from outside D, as select itself posts it
+    adr.w r3, snaps_data
+    ldrb r4, [r3, #REPOST]
+    movs r2, #0
+    strb r2, [r3, #REPOST]
+    bl snaps_dsp_unlock
+    cbz r4, snaps_dsp_unlock_post_done
+    ldr r3, =SELECTED
+    blx r3
+snaps_dsp_unlock_post_done:
+    pop {r4, pc}
+
+snaps_quiet:                        @ (manager, index) -> select's result: every select under the module's D, with stock's count
+    adr.w r2, snaps_data            @ up around it (QUIET), as select puts it up around its own copy of an unused record
+    ldrb r3, [r2, #HELD]            @ (0x28de3296..0x28de32c4): no post of select's waits for a free event block while the module
+    cmp r3, #0                      @ holds D. Before the boot makes the DSP model the module holds none: stock select as is
+    beq snaps_stock
+    push {r4, r5, r6, lr}
+    mov r4, r0
+    mov r5, r1
+    movs r0, #1
+    ldr r3, =QUIET
+    blx r3
+    mov r0, r4
+    mov r1, r5
+    ldr r3, =SELECT
+    blx r3
+    mov r6, r0
+    movs r0, #0
+    ldr r3, =QUIET
+    blx r3
+    adr.w r2, snaps_data
+    ldrb r3, [r2, #SAVING]
+    cbnz r3, snaps_quiet_done       @ a serializer's flip, which the editor is not told of
+    ldrb.w r3, [r4, #BUSY]
+    cbnz r3, snaps_quiet_done       @ refused: only a load sets BUSY, under D, so select found it set
+    cmp r6, #0
+    blt snaps_quiet_done            @ failed before its post (0x28de3272, 0x28de36d0, 0x28de371a)
+    movs r3, #1
+    strb r3, [r2, #REPOST]
+snaps_quiet_done:
+    mov r0, r6
+    pop {r4, r5, r6, pc}
 
 snaps_step:                         @ (manager, index, snaps_data) a next or previous within the bank: stock
     movs r3, #0
@@ -182,13 +242,13 @@ snaps_wrap_locked:                  @ (manager, index), under D
     adr.w r2, snaps_data
     ldrb r3, [r2, #1]
     cmp r3, #0
-    beq snaps_stock
+    beq snaps_quiet
     cmp r1, #2
-    bhi snaps_stock
+    bhi snaps_quiet
 snaps_cc_cross:
     ldrb.w r3, [r0, #BUSY]
     cmp r3, #0
-    bne snaps_stock
+    bne snaps_quiet
     ldrb.w r2, [r0, #CUR]
     b snaps_cross
 
@@ -205,7 +265,7 @@ snaps_value_locked:                 @ (manager, value), under D
     subhs r1, #3
     eorhs r3, r3, #1                @ r3 set: the value's bank is not the live one
     cmp r3, #0
-    beq snaps_stock
+    beq snaps_quiet
     b snaps_cc_cross
 
 snaps_next_cur:                    @ in place of footswitch next's read of the current snapshot (manager): marks a wrap past 3 or 6,
@@ -295,8 +355,7 @@ snaps_ready:
     blx r3
     mov r0, r4
     mov r1, r5
-    ldr r3, =SELECT
-    blx r3
+    bl snaps_quiet
     mov r10, r0
     add.w r0, r4, #4
     ldr r3, =LOCK
@@ -325,8 +384,9 @@ snaps_flipped:
     ldrb r0, [r6]                   @ Tap: the footswitches follow the live bank, where a switch to Hold then finds them
     strb r0, [r6, #VIEW]
 snaps_crossed:
-    movs r0, #1                     @ the labels laid out again once the cross is whole (snaps_tick): select's own layout, from
-    strb r0, [r6, #RELAYOUT]        @ another task, may have read the records and banks halfway
+    movs r0, #1                     @ the rings and the labels again once the cross is whole (snaps_tick): select's own, from
+    strb r0, [r6, #LEDS]            @ another task, may have read the records and banks halfway
+    strb r0, [r6, #RELAYOUT]
     movs r0, #0
     movs r1, #1
     ldr r3, =REDRAW
@@ -365,6 +425,7 @@ snaps_loaded_done:                  @ stock lays the labels out after the load; 
     cbz r0, snaps_loaded_out
     adr.w r0, snaps_data
     movs r1, #1
+    strb r1, [r0, #LEDS]
     strb r1, [r0, #RELAYOUT]
 snaps_loaded_out:
     pop {r4, pc}
@@ -879,8 +940,7 @@ snaps_click_cross:                  @ r1 the index in the other bank
 snaps_click_stock:
     mov r0, r4
     mov r1, r5
-    ldr r3, =SELECT
-    blx r3
+    bl snaps_quiet
 snaps_click_done:
     adr.w r0, snaps_data
     ldrb r1, [r0]
@@ -888,11 +948,12 @@ snaps_click_done:
     cmp r1, r2
     beq snaps_click_shown
     strb r1, [r0, #VIEW]
-    movs r1, #1                     @ laid out by snaps_tick, in the key task: CC 49..51 click from the request task
+    movs r1, #1                     @ refreshed and laid out by snaps_tick, in the key task: CC 49..51 click from the request task
+    strb r1, [r0, #LEDS]
     strb r1, [r0, #RELAYOUT]
 snaps_click_shown:
     mov r0, r6
-    bl snaps_dsp_unlock
+    bl snaps_dsp_unlock_post
     pop {r4, r5, r6, pc}
 
 snaps_back:                         @ -> r0 1 and r1 its index when Reselect Snapshot goes back and the previous snapshot is in the
@@ -917,8 +978,8 @@ snaps_back_done:
     pop {r3, pc}
 
 snaps_hold:                         @ (k) a 1 s hold of footswitch k in Hold mode: FS1 points the footswitches at bank A, FS2 at
-    cmp r0, #2                      @ bank B, FS3 at nothing; the labels show that bank, none lit unless it is the live one
-    it hs
+    cmp r0, #2                      @ bank B, FS3 at nothing; the labels and the rings (on the next tick) show that bank, none lit
+    it hs                           @ unless it is the live one
     bxhs lr
     adr.w r1, snaps_data
     ldrb r2, [r1, #VIEW]
@@ -926,6 +987,8 @@ snaps_hold:                         @ (k) a 1 s hold of footswitch k in Hold mod
     it eq
     bxeq lr
     strb r0, [r1, #VIEW]
+    movs r2, #1
+    strb r2, [r1, #LEDS]
     b snaps_relayout
 
 snaps_viewed:                       @ -> r3 0 while the footswitches select in the live bank (on Tap, which ignores VIEW, or VIEW the
@@ -946,12 +1009,31 @@ snaps_viewed:                       @ -> r3 0 while the footswitches select in t
 snaps_viewed_done:
     pop {r0, r1, r12, pc}
 
-snaps_tick:                         @ after the footswitch tick (event, the handler's object), in the key task: a layout that is due
+snaps_tick:                         @ after the footswitch tick (event, the handler's object), in the key task: a refresh of the
+    push {r4, lr}                   @ rings and a layout that are due; both wait between a serializer's flips, whose flip back asks
+    mov r4, r1                      @ again, and the rings while the tuner is open, as stock's refreshes do (0x28dd26be)
+    adr.w r0, snaps_data
+    ldrb r1, [r0, #SAVING]
+    cbnz r1, snaps_tick_done
+    ldrb r0, [r0, #LEDS]
+    cbz r0, snaps_tick_labels
+    movs r0, #TUNER_VIEW
+    ldr r3, =VIEW_IS
+    blx r3
+    cbnz r0, snaps_tick_labels
+    adr.w r1, snaps_data
+    strb r0, [r1, #LEDS]            @ cleared before the refresh reads the banks, so a change during it refreshes again
+    mov r0, r4
+    movs r1, #0
+    ldr r3, =LED_REFRESH
+    blx r3
+snaps_tick_labels:
     adr.w r0, snaps_data
     ldrb r0, [r0, #RELAYOUT]
-    cmp r0, #0
-    it eq
-    bxeq lr
+    cbz r0, snaps_tick_done
+    bl snaps_relayout
+snaps_tick_done:
+    pop {r4, pc}
 
 snaps_relayout:                     @ the Home view's labels laid out again: at once when it is the current view, else by snaps_tick
     push {r4, lr}
@@ -1001,8 +1083,8 @@ snaps_left:
 snaps_selecting_done:
     bx lr
 
-snaps_layout_cur:                   @ in place of the Snapshot-mode label layout's reads of the current snapshot (manager): none lit
-    mov r12, lr                     @ while the footswitches select in the other bank
+snaps_layout_cur:                   @ in place of the Snapshot-mode label layout's and ring refresh's reads of the current snapshot
+    mov r12, lr                     @ (manager): none lit while the footswitches select in the other bank
     bl snaps_viewed
     mov lr, r12
     cbnz r3, snaps_layout_none
@@ -1012,8 +1094,8 @@ snaps_layout_none:
     movs r0, #NONE
     bx lr
 
-snaps_layout_colour:                @ in place of its reads of snapshot k's colour (manager, k): the other bank's, if the footswitches
-    mov r12, lr                     @ select in it; the default for a bank B not made yet
+snaps_layout_colour:                @ in place of their reads of snapshot k's colour (manager, k): the other bank's, if the
+    mov r12, lr                     @ footswitches select in it; the default for a bank B not made yet
     bl snaps_viewed
     mov lr, r12
     cbnz r3, snaps_layout_colour_other
@@ -1094,9 +1176,9 @@ snaps_names:                        @ bank B's default names, 16 bytes apart
     .space 6
 snaps_file_head:                    @ key 0x64, bin16 of FILE_LEN (big-endian), "HX6B", version 1, 3 spare
     .byte FILE_KEY, 0xc5, FILE_LEN >> 8, FILE_LEN & 0xff, 'H', 'X', '6', 'B', 1, 0, 0, 0
-snaps_data:                         @ 0 bank B live, 1 snaps_shadow holds bank B, 2 SAVING, 3 cameras to redraw,
-    .byte 0, 0, 0, 0, 0, 0, 0, 0    @ 4 VIEW, 5 WRAP, 6 bank B read from a file, 7 RELAYOUT, 8 PREV6, 9 DSP_HELD, 10..11 spare
-    .byte NONE, 0, 0, 0
+snaps_data:                         @ 0 bank B live, 1 snaps_shadow holds bank B, 2 SAVING, 3 cameras to redraw, 4 VIEW,
+    .byte 0, 0, 0, 0, 0, 0, 0, 0    @ 5 WRAP, 6 bank B read from a file, 7 RELAYOUT, 8 PREV6, 9 DSP_HELD, 10 HELD, 11 REPOST,
+    .byte NONE, 0, 0, 0, 0, 0, 0, 0 @ 12 LEDS, 13..15 spare
 snaps_armed:                        @ per footswitch 0..2: a lone press made in Snapshot mode on Hold, its click or hold still to come
     .space 4
 snaps_temp:

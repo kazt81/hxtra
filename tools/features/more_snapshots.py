@@ -1,10 +1,10 @@
 """More snapshots: a second bank of snapshots, 4-6, on the three snapshot footswitches (src/m4/more_snapshots.s). With Snapshot BankSel
 on Hold (the default), holding FS1 for 1 s points the footswitches at snapshots 1-3 and holding FS2 at 4-6, a tap selects on its
-release, and they stay on that bank until a hold, a tap or a preset load moves them; the lit one with Reselect Snapshot set to go
-back goes back across the banks too. On Tap, pressing the lit snapshot footswitch again flips between 1-3 and 4-6. In 4-6 the
-snapshot icon at the top right and the footswitch labels show 4, 5 or 6. Once a preset has a bank B, the next and previous
-snapshot footswitches and MIDI CC 69 run through all six: next on 3 goes to 4, next on 6 to 1, previous on 1 to 6, previous on 4
-to 3. MIDI CC 69's values 0..2 select snapshots 1..3 and 3..5 snapshots 4..6, from either bank."""
+release, and they stay on that bank until a hold, a tap or a preset load moves them, no label or ring lit while it is not the bank
+heard; the lit one with Reselect Snapshot set to go back goes back across the banks too. On Tap, pressing the lit snapshot footswitch
+again flips between 1-3 and 4-6. In 4-6 the snapshot icon at the top right and the footswitch labels show 4, 5 or 6. Once a preset
+has a bank B, the next and previous snapshot footswitches and MIDI CC 69 run through all six: next on 3 goes to 4, next on 6 to 1,
+previous on 1 to 6, previous on 4 to 3. MIDI CC 69's values 0..2 select snapshots 1..3 and 3..5 snapshots 4..6, from either bank."""
 from features import Setting
 
 FLAG = 'HX_MORE_SNAPSHOTS'
@@ -46,6 +46,9 @@ LAYOUT_CUR_CALLS = (0x28dc8a02, 0x28dc8a16, 0x28dc8a60, 0x28dc8c42)
 LAYOUT_COLOUR_CALLS, COLOUR_GET = (0x28dc89e6, 0x28dc89f4, 0x28dc8c38), 0x28de2f80
 LAYOUT_NAME_CALL, NAME_GET = 0x28dc8a2c, 0x28de3864
 LAYOUT_RENAMED_CALL, RENAMED_GET = 0x28dc8a3e, 0x28de3874
+# The footswitch LED refresh 0x28dd0b3c's Snapshot case (function 14, 0x28dd0bae): its read of the current snapshot, and its read of
+# a snapshot's colour for a ring that is not the current one (the current one's, 0x28dd0daa, is the live bank's)
+LED_REFRESH, LED_CUR_CALL, LED_COLOUR_CALL = 0x28dd0b3c, 0x28dd0bb2, 0x28dd0bc2
 
 
 def apply(p):
@@ -77,3 +80,6 @@ def apply(p):
     p.own_call(LAYOUT_NAME_CALL, NAME_GET, "the Snapshot-mode label layout's read of a snapshot's name", m['snaps_layout_name'])
     p.own_call(LAYOUT_RENAMED_CALL, RENAMED_GET, "the Snapshot-mode label layout's test for a renamed snapshot",
                m['snaps_layout_renamed'])
+    p.own_call(LED_CUR_CALL, CUR_GET, "the footswitch LED refresh's read of the current snapshot", m['snaps_layout_cur'])
+    p.own_call(LED_COLOUR_CALL, COLOUR_GET, "the footswitch LED refresh's read of an unlit snapshot's colour",
+               m['snaps_layout_colour'])

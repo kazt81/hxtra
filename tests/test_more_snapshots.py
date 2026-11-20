@@ -56,6 +56,12 @@ GET_EDIT_BUFFER = 0x28760000                # HX Edit's Get edit buffer as 0x28e
 LOAD = 0x287b0000                           # a preset load as 0x28df2038 or 0x28df22f8 runs the parser's chain: under D
 MANAGERS = []                               # every Manager a test made, for the check that D is let go
 STACKS = {'key': 0x8000, 'request': 0x10000, 'transport': 0x18000}     # each task's stack, below the one m4emu's call() takes
+HELD, REPOST, LEDS = 10, 11, 12             # in snaps_data: the module's D depth, a held-back 0x2102, the rings to refresh
+# Stock's count of held-back editor posts, its one more or one less (0x28d99728), and the post of event 0x2102 (0x28d99888), which
+# select makes last, after it lets D go; both posts (and 0x28d99820's) do nothing while the count is above 0
+COUNT, QUIET, SELECTED_POST = 0x281caa8c, 0x28d99728, 0x28d99888
+SELECTED_EV, SWITCH_EV, BEGIN_EV, COPY_EV = 0x2102, 0x24112, 0x44113, 0x44115    # select's posts: end, footswitch entry, start, copy
+LED_REFRESH = ms.LED_REFRESH
 
 
 def record(i):
@@ -83,15 +89,24 @@ class Manager:
     Tap unless a test sets Hold; Reselect Snapshot unset, so it recalls), the current view, the Home layout, and the footswitch
     event handler's object and its call of snaps_event. D, the DSP model's lock, is the ROM's recursive mutex: an owner (the task
     a test says is running) and a depth; a task that would wait for it stops the emulation (start, resume), and stock select
-    waits for it too, as it takes it first (0x28de2fd0)."""
+    waits for it too, as it takes it first (0x28de2fd0). Select posts to the editor as stock does (_post), unless stock's count
+    holds the posts back; a post with data takes a block of the event pool, which a test can run out (pool)."""
 
     def __init__(self, m4emu, at=CODE, bank_switch=TAP_SEL):
         code, self.sym = m4emu.assemble('src/m4/more_snapshots.s', MODS, IDS)
-        self.at, self.emu = at, m4emu
+        self.at, self.emu, self.code_end = at, m4emu, at + len(code)
         self.m = m4emu.M4(code, at)
         MANAGERS.append(self)
         self.task, self.d_owner, self.d_depth, self.d_log, self.waiting, self.waits = 'key', None, 0, [], None, []
+        self.module_d = 0                   # how many of D's locks are the module's
         self.boot_window = False
+        self.posts, self.dropped, self.quiet_log, self.leds = [], [], [], []
+        self.pool, self.pool_blocks, self.pool_waits, self.count_kept = None, False, [], 0
+        self.select_fails = None            # select's error exits: 'count' through 0x28de326c (the count one less), 'plain' not
+        self.m.stub(QUIET, self._quiet)
+        self.m.stub(SELECTED_POST, lambda m: self._post(m, SELECTED_EV, True, 'module'))
+        self.during_leds = None
+        self.m.stub(LED_REFRESH, self._led_refresh)
         self.m.u32(DSP_MODEL, MODEL)
         self.m.stub(DSP_LOCK, self._dsp_lock)
         self.m.stub(DSP_UNLOCK, self._dsp_unlock)
@@ -202,6 +217,11 @@ class Manager:
         v = m.read(m.reg('r0') + REC * m.reg('r1') + off, 1)[0]
         return int(v != 0) if fn == ms.RENAMED_GET else v
 
+    def _led_refresh(self, m):
+        self.leds.append((m.reg('r0'), m.reg('r1')))
+        if self.during_leds:
+            self.during_leds()
+
     def _layout(self, m):
         assert (m.reg('r0'), m.reg('r1')) == (HOME, 0), 'the Home layout, as the stomp toggle calls it'
         self.layouts.append(self.data(VIEW))
@@ -261,6 +281,7 @@ class Manager:
             m.uc.emu_stop()
             return
         self.d_owner, self.d_depth = self.task, self.d_depth + 1
+        self.module_d += self._from_module(m)
         self.d_log.append(('lock', self.task, self.d_depth))
         clobber(m, 'r0')
 
@@ -268,15 +289,69 @@ class Manager:
         assert m.reg('r0') == DSP_ENGINE and m.reg('sp') % 8 == 0
         assert self.d_owner == self.task and self.d_depth > 0, 'D let go by the task that holds it'
         self.d_depth -= 1
+        self.module_d -= self._from_module(m)
+        assert 0 <= self.module_d <= self.d_depth
         if not self.d_depth:
             self.d_owner = None
         self.d_log.append(('unlock', self.task, self.d_depth))
         clobber(m, 'r0')
 
+    def _from_module(self, m):
+        return self.at <= (m.reg('lr') & ~1) < self.code_end
+
+    def module_holds_d(self):
+        """The task running holds D through the module's own lock (not only Get edit buffer's or a load's)."""
+        return self.d_owner == self.task and self.module_d > 0
+
+    def count(self, value=None):
+        """Stock's count of held-back editor posts at 0x281caa8c, or set it (and expect it back there after the test)."""
+        if value is None:
+            return self.m.u32(COUNT)
+        self.m.u32(COUNT, value)
+        self.count_kept = value
+
+    def _count(self, on):
+        n = self.m.u32(COUNT)
+        self.m.u32(COUNT, n + 1 if on else max(n - 1, 0))
+
+    def _quiet(self, m):
+        """0x28d99728(on): the count one more, or one less unless it is 0 (a load, an add and a store, no lock): the module changes
+        it only while it holds D, which select and the loads hold when they change it."""
+        if not self.boot_window:
+            assert self.module_holds_d(), "stock's count changed only under the module's D (none before the DSP model is made)"
+        self.quiet_log.append((self.task, m.reg('r0')))
+        self._count(m.reg('r0'))
+        clobber(m, 'r0')
+
+    def _post(self, m, event, data, origin='select'):
+        """0x28d99820(event, data) or 0x28d99888 (event 0x2102, which has data): nothing while the count is above 0; else an event
+        for the editor's notify listener, the only listener of these events, and with data a block of the pool at 0x28120060 first,
+        which the poster waits for while every block is taken (0x28d93b14: no timeout). pool None: blocks enough; a number: the free
+        blocks, a wait recorded (task, event, the module's D held) when there is none, and with pool_blocks the poster stops there
+        (a wait under the module's D is the dev4 hang: whatever takes D then waits too)."""
+        if self.m.u32(COUNT):
+            self.dropped.append((event, origin))
+            return
+        held = self.module_holds_d()
+        if data and self.pool is not None:
+            if not self.pool:
+                self.pool_waits.append((self.task, event, held))
+                if self.pool_blocks:
+                    self.waiting = self.task
+                    self.waits.append((self.task, 'pool', event))
+                    m.uc.emu_stop()
+                    return
+            else:
+                self.pool -= 1
+        self.posts.append((event, self.task, held, origin, data, self.d_owner == self.task and self.d_depth > 0))
+
     def _select(self, m):
         """Stock: an unused record gets the old one's sound (not its name); then the old index becomes the previous one. The current
         index again recalls it, or with Reselect Snapshot set swaps the current and previous ones (0x28de340a..0x28de3426). It
-        takes D first and lets it go last, so it waits while another task holds D."""
+        takes D first and lets it go last, so it waits while another task holds D. An index above 2 does nothing and returns
+        -0x2e (0x28de36d0). Its posts: 0x44113 with no data (0x28de3006); for an unused record the copy with the count up and
+        0x44115 (0x28de3294..0x28de32c4), else 0x24112 under its own D for each footswitch entry that changes (0x28de678e); then,
+        after it lets its D go, 0x2102 (0x28de32d8)."""
         mgr, new = m.reg('r0'), m.reg('r1')
         assert mgr == MGR and self.depth == 0, 'select takes the lock itself'
         if self.model() and self.d_owner not in (None, self.task):
@@ -292,14 +367,32 @@ class Manager:
             m.reg('r0', 0)
             return
         old = self.cur()
+        if new > 2:
+            self.selects.append((new, old, self.rec(old), self.rec(new)))
+            m.reg('r0', -0x2e)
+            return
+        self._post(m, BEGIN_EV, False)
+        if self.select_fails:               # 0x28de326c or 0x28de3272..0x28de3290: 0x44118 with no data, no 0x2102
+            self.selects.append((new, old, self.rec(old), self.rec(new)))
+            if self.select_fails == 'count':
+                self._count(0)
+            self._post(m, 0x44118, False)
+            m.reg('r0', -4)
+            return
         if new == old and self.settings.get(RESELECT):
             new = self.prev()
         self.selects.append((new, old, self.rec(old), self.rec(new)))
         if not self.rec(new)[VALID]:
+            self._count(1)
             m.write(record(new), self.rec(old)[:VALID] + b'\1' + self.rec(new)[VALID + 1:])
+            self._post(m, COPY_EV, True)
+            self._count(0)
+        elif self.rec(new)[0x1e8:0x1e8 + 9] != self.rec(old)[0x1e8:0x1e8 + 9]:
+            self._post(m, SWITCH_EV, True)
         if new != old:
             m.u8(MGR + PREV, old)
         m.u8(MGR + CUR, new)
+        self._post(m, SELECTED_EV, True)
         m.reg('r0', 1)
 
     def _init(self, m):
@@ -507,11 +600,16 @@ class Manager:
 
 @pytest.fixture(autouse=True)
 def d_let_go():
-    """After every test, D is free again in every Manager it made: each lock had its unlock."""
+    """After every test, D is free again in every Manager it made: each lock had its unlock. No post with data (one that waits for
+    a free block of the event pool) was made while the module held D, stock's count is back where the test left it, and no
+    held-back post of 0x2102 is left over."""
     MANAGERS.clear()
     yield
     for m in MANAGERS:
-        assert (m.d_owner, m.d_depth) == (None, 0), f'D still held: {m.d_log[-6:]}'
+        assert (m.d_owner, m.d_depth, m.module_d) == (None, 0, 0), f'D still held: {m.d_log[-6:]}'
+        assert m.data(HELD) == 0 and m.data(REPOST) == 0
+        assert not [p for p in m.posts if p[2] and p[4]], f'a post that waits for the pool under the module\'s D: {m.posts}'
+        assert m.count() == m.count_kept, "stock's count of held-back posts back where it was"
 
 
 @pytest.fixture
@@ -1833,6 +1931,374 @@ def test_the_boot_check_is_made_once_a_call(hm, how, made):
     assert len(locks) == len(unlocks) == {'click': (0, 2), 'cc 69': (0, 2), 'save': (1, 2)}[how][not made]
 
 
+def fresh(m, pool=None):
+    """The posts, selects and stock count's changes so far forgotten; pool: the event pool's free blocks from here (None: enough)."""
+    for log in (m.posts, m.dropped, m.pool_waits, m.selects, m.held, m.quiet_log, m.waits):
+        log.clear()
+    m.pool = pool
+
+
+def told_once(m, task):
+    """The editor heard of the select once: the module's post of 0x2102, with no D held by the task that made it; select's own
+    posts were held back (and no post of select's reached the editor)."""
+    assert [(e, t, held, origin, d) for e, t, held, origin, _, d in m.posts] == [(SELECTED_EV, task, False, 'module', False)]
+    assert SELECTED_EV in [e for e, origin in m.dropped if origin == 'select']
+
+
+def quiet_around_each_select(m, task):
+    """Stock's count one up before each select under the module's D and one down after it, by the task holding D."""
+    assert m.quiet_log == [(task, 1), (task, 0)] * len(m.selects + m.held)
+
+
+@pytest.mark.parametrize('busy', [0, 1], ids=['', 'busy'])
+@pytest.mark.parametrize('setup', ['no bank b', 'bank a live', 'bank b live'])
+@pytest.mark.parametrize('value', range(6))
+def test_cc_69_posts_nothing_under_d_and_tells_the_editor_once(hm, value, setup, busy):
+    """The dev4 hang: CC 69's selects ran stock select under the module's D, and select's posts waited there for a free block of
+    the event pool, which only HX Edit reading its notify frees. Now each value, without a bank B, from bank A or from bank B, with
+    the pool full: nothing posted under the module's D, stock's count up around the select and back to 0, and the editor told
+    once, after D (where stock select posts it too). Select held off: refused, nothing posted, nothing told."""
+    if setup != 'no bank b':
+        bank_b_ready(hm)
+    if setup == 'bank b live':
+        hm.cc(4)
+    hm.m.u8(MGR + BUSY, busy)
+    before = hm.at_snapshot()
+    fresh(hm, pool=0)
+    assert hm.call('snaps_cc_value') == MGR
+    assert hm.start('request', hm.at + hm.sym['snaps_cc_select'], MGR, value) is None
+    quiet_around_each_select(hm, 'request')
+    assert len(hm.selects + hm.held) == 1
+    if busy:
+        assert hm.posts == [] and hm.pool_waits == [] and hm.at_snapshot() == before and hm.held
+    else:
+        told_once(hm, 'request')
+        assert hm.at_snapshot() == value + 1
+        assert hm.pool_waits == [('request', SELECTED_EV, False)], 'the one wait for a block: after D, as stock select waits'
+    assert hm.count() == 0
+
+
+@pytest.mark.parametrize('busy', [0, 1], ids=['', 'busy'])
+@pytest.mark.parametrize('source', ['fs', 'cc'], ids=['click', 'cc 49..51'])
+@pytest.mark.parametrize('how, k, target', [('same bank', 1, 2), ('cross', 2, 6), ('back', 2, 2), ('lit', 0, 1)])
+def test_a_hold_click_posts_nothing_under_d_and_tells_the_editor_once(hm, how, k, target, source, busy):
+    """A click in Hold, from the key task or MIDI CC 49..51's press from the request task, with the event pool full: within the
+    live bank (2), across to the bank held (FS2 held, then FS3: 6), back across with Reselect Snapshot (on 6 from 2, the lit FS3
+    again: 2), the lit one recalled (1). The editor told once, after D; select held off: nothing."""
+    bank_b_ready(hm)
+    if how == 'cross':
+        hm.hold_fs(1)
+    elif how == 'back':
+        hm.settings[RESELECT] = 1
+        hm.go(1)
+        hm.hold_fs(1)
+        hm.tap(2)
+        assert hm.at_snapshot() == 6
+    hm.m.u8(MGR + BUSY, busy)
+    before = hm.at_snapshot()
+    task = 'key' if source == 'fs' else 'request'
+    if source == 'fs':
+        hm.fs_press(k)
+        hm.fs_fire()
+        hm.fs_release(k)
+    fresh(hm, pool=0)
+    hm.obj(IMMEDIATE, int(source == 'cc'))
+    hm.m.write(EVENT, bytes([1, 12 + k, 0, 0]) + struct.pack('<I', CLICK if source == 'fs' else PRESS))
+    assert hm.start(task, EVENT_TRAMPOLINE, EVENT, OBJ, OUT, KEPT) is None
+    hm.obj(IMMEDIATE, 0)
+    quiet_around_each_select(hm, task)
+    if busy:
+        assert hm.posts == [] and hm.at_snapshot() == before and hm.held == [k]
+    else:
+        told_once(hm, task)
+        assert hm.at_snapshot() == target and hm.pool_waits == [(task, SELECTED_EV, False)]
+
+
+@pytest.mark.parametrize('how', ['flip', 'within', 'fs wrap', 'cc wrap', 'action flip', 'cc 8 within', 'flip held off',
+                                 'stray wrap above 2'])
+def test_tap_and_the_wraps_post_nothing_under_d_and_tell_the_editor_once(mgr, how):
+    """Tap's press from the request task's deferred dispatch (the lit one flips, another selects within the bank), next past the
+    bank's end from a footswitch or CC 69, the Command Center's lit snapshot on Tap, CC 69's next within the bank: the editor told
+    once, after D. Every select under the module's D has the count up around it, also one select refuses (the lit one while a
+    load holds select off) or one with an index above 2 (a wrap's mark left for a call with one), which tell the editor nothing."""
+    with_bank_b(mgr)
+    if 'wrap' in how and how != 'stray wrap above 2':
+        mgr.go(2)
+    if how == 'flip held off':
+        mgr.m.u8(MGR + BUSY, 1)
+    fresh(mgr, pool=0)
+    task = 'key' if how == 'action flip' else 'request'
+    if how in ('flip', 'within'):
+        entry = (mgr.at + mgr.sym['snaps_select'], MGR, 0 if how == 'flip' else 1)
+    elif how == 'fs wrap':
+        assert mgr.call('snaps_next_cur', MGR) == 2
+        entry = (mgr.at + mgr.sym['snaps_select'], MGR, 0)
+    elif how == 'cc wrap':
+        assert mgr.call('snaps_cc_wrap') == MGR
+        entry = (mgr.at + mgr.sym['snaps_cc_select'], MGR, 0)
+    elif how == 'action flip':
+        entry = (mgr.at + mgr.sym['snaps_action_select'], MGR, 0)
+    elif how == 'flip held off':
+        entry = (mgr.at + mgr.sym['snaps_select'], MGR, 0)
+    elif how == 'stray wrap above 2':
+        mgr.data(WRAP, 1)
+        entry = (mgr.at + mgr.sym['snaps_select'], MGR, 5)
+    else:
+        entry = (mgr.at + mgr.sym['snaps_cc_select'], MGR, 1)
+    assert mgr.start(task, *entry) is None
+    if how in ('flip held off', 'stray wrap above 2'):
+        quiet_around_each_select(mgr, task)
+        assert mgr.posts == [] and mgr.at_snapshot() == 1 and (mgr.held, [s[0] for s in mgr.selects]) == (
+            ([0], []) if how == 'flip held off' else ([], [5]))
+        return
+    if how == 'cc 8 within':
+        assert mgr.quiet_log == [] and [p[:4] for p in mgr.posts] == [(BEGIN_EV, task, False, 'select'),
+                                                                      (SWITCH_EV, task, False, 'select'),
+                                                                      (SELECTED_EV, task, False, 'select')], \
+            'a step within the bank takes no D of the module: stock select, which posts as stock'
+        assert mgr.at_snapshot() == 2
+        return
+    quiet_around_each_select(mgr, task)
+    told_once(mgr, task)
+    assert mgr.at_snapshot() == {'flip': 4, 'within': 2, 'fs wrap': 4, 'cc wrap': 4, 'action flip': 4}[how]
+
+
+@pytest.mark.parametrize('how', ['save', 'get edit buffer'])
+@pytest.mark.parametrize('bank', ['a', 'b'])
+def test_a_serializer_posts_nothing_and_tells_the_editor_nothing(hm, how, bank):
+    """A save (key task) or HX Edit's Get edit buffer (transport task), with the event pool full: in bank B both flips select under
+    the module's D with stock's count up, so nothing reaches the editor and nothing waits for a block, and the module tells the
+    editor nothing, as the snapshot heard is the same after; in bank A nothing is selected."""
+    bank_b_ready(hm)
+    if bank == 'b':
+        hm.cc(4)
+    fresh(hm, pool=0)
+    task = 'key' if how == 'save' else 'transport'
+    if how == 'save':
+        hm.save()
+    else:
+        assert hm.start(task, GET_EDIT_BUFFER) is None
+    assert hm.posts == [] and hm.pool_waits == [] and hm.data(REPOST) == 0
+    assert len(hm.selects) == (2 if bank == 'b' else 0)
+    quiet_around_each_select(hm, task)
+    assert [e for e, _ in hm.dropped] == ([BEGIN_EV, SWITCH_EV, SELECTED_EV] * 2 if bank == 'b' else [])
+    assert hm.at_snapshot() == (5 if bank == 'b' else 1) and hm.count() == 0
+
+
+@pytest.mark.parametrize('how', ['click', 'cc 69', 'tap', 'cc 51', 'save', 'get edit buffer'])
+def test_stocks_count_comes_back_to_where_it_was(hm, how):
+    """Someone else has the count up (a load's 0x28de039c, the boot's 0x28d96a76): the module adds one and takes one off around
+    each select under its D, so it comes back to 2, and while it is up the module's post of 0x2102 is dropped too, as select's
+    own would be."""
+    if how in ('save', 'get edit buffer'):
+        bank_b_ready(hm)
+        hm.cc(4)
+        hm.count(2)
+        fresh(hm)
+        if how == 'save':
+            hm.save()
+        else:
+            assert hm.start('transport', GET_EDIT_BUFFER) is None
+        assert len(hm.selects) == 2
+    else:
+        task, (fn, *args), target = crosser(hm, {'click': 'click 2 to 6', 'cc 69': 'cc 69 5 to 2', 'tap': 'tap 5 to 2',
+                                                  'cc 51': 'cc 51 2 to 6'}[how])
+        hm.count(2)
+        fresh(hm)
+        assert hm.start(task, fn, *args) is None
+        assert ('module' in [o for _, o in hm.dropped]) and hm.selects and hm.at_snapshot() == target
+    assert hm.count() == 2 and hm.posts == [] and hm.quiet_log
+    assert [on for _, on in hm.quiet_log] == [1, 0] * (len(hm.quiet_log) // 2)
+
+
+@pytest.mark.parametrize('cross', CROSSES)
+def test_a_full_pool_stops_no_task_inside_the_modules_d(hm, cross):
+    """The dev4 hang, with the event pool full and HX Edit reading nothing back: a cross stops only at its post of 0x2102, after it
+    has let D go, so HX Edit's Get edit buffer (transport task) runs to its end meanwhile, and the cross ends once a block is free.
+    With select's posts under the module's D (c026be1), the cross stopped holding D and Get edit buffer waited for D, as did
+    everything else that takes D on the unit."""
+    task, (fn, *args), target = crosser(hm, cross)
+    fresh(hm, pool=0)
+    hm.pool_blocks = True
+    state = hm.start(task, fn, *args)
+    assert state and hm.waits == [(task, 'pool', SELECTED_EV)] and hm.d_owner is None, 'stopped at its post, D let go'
+    assert hm.at_snapshot() == target
+    hm.saved.clear()
+    assert hm.start('transport', GET_EDIT_BUFFER) is None and len(hm.saved) == 1, 'Get edit buffer ran to its end meanwhile'
+    hm.pool = 1
+    assert hm.resume(state) is None and hm.waits == [(task, 'pool', SELECTED_EV)]
+    told_once(hm, task)
+    assert hm.at_snapshot() == target
+
+
+@pytest.mark.parametrize('fails', ['count', 'plain'])
+@pytest.mark.parametrize('how', ['flip', 'click', 'cc 69'])
+def test_a_select_that_fails_under_d_tells_the_editor_nothing(hm, how, fails):
+    """Select's error exits (a DSP or setting call failed) post 0x44118 and no 0x2102; those through 0x28de326c take one off the
+    count first, the module's, so their 0x44118 goes out, with no data (no block to wait for), and the others' is dropped. The
+    module tells the editor nothing, and the count is back at 0."""
+    bank_b_ready(hm)
+    fresh(hm, pool=0)
+    hm.select_fails = fails
+    if how == 'flip':
+        hm.settings[BANK_SWITCH] = TAP_SEL
+        hm.press(0)
+    elif how == 'click':
+        hm.tap(1)
+    else:
+        hm.cc(4)
+    assert len(hm.selects) == 1 and hm.count() == 0 and hm.data(REPOST) == 0 and hm.pool_waits == []
+    if fails == 'count':
+        assert [e for e, _ in hm.dropped] == [BEGIN_EV] and [(e, data) for e, _, _, _, data, _ in hm.posts] == [(0x44118, False)]
+    else:
+        assert [e for e, _ in hm.dropped] == [BEGIN_EV, 0x44118] and hm.posts == []
+
+
+def literal_users(code, sym, word):
+    """The labels whose code loads word from a literal pool (ldr rN, =word), by the nearest label before each load."""
+    labels = sorted((v, k) for k, v in sym.items())
+    users = set()
+    for i in range(0, len(code) - 3, 2):
+        h1, h2 = struct.unpack_from('<2H', code, i)
+        if (h1 & 0xf800) == 0x4800:
+            t = ((i + 4) & ~3) + ((h1 & 0xff) << 2)
+        elif (h1 & 0xff7f) == 0xf85f:
+            t = ((i + 4) & ~3) + ((h2 & 0xfff) if h1 & 0x80 else -(h2 & 0xfff))
+        else:
+            continue
+        if 0 <= t <= len(code) - 4 and struct.unpack_from('<I', code, t)[0] == word:
+            users.add(max((v, k) for v, k in labels if v <= i)[1])
+    return users
+
+
+def test_the_module_selects_changes_the_count_and_posts_from_their_own_routines_only(m4emu):
+    """The module's code itself: select is called only from snaps_stock (the selects that hold no D of the module) and
+    snaps_quiet; stock's count only from snaps_quiet; the post of 0x2102 only from snaps_dsp_unlock_post. A new call of select
+    under D would have to go through snaps_quiet to be quiet."""
+    code, sym = m4emu.assemble('src/m4/more_snapshots.s', MODS, IDS)
+    assert literal_users(code, sym, ms.SELECT | 1) == {'snaps_stock', 'snaps_quiet'}
+    assert literal_users(code, sym, QUIET | 1) == {'snaps_quiet'}
+    assert literal_users(code, sym, SELECTED_POST | 1) == {'snaps_dsp_unlock_post'}
+    assert literal_users(code, sym, LED_REFRESH | 1) == {'snaps_tick'}
+
+
+@pytest.mark.parametrize('how', ['hold away', 'hold back', 'cc 69 cross', 'click cross', 'refused click', 'load off bank b',
+                                 'tap flip'])
+def test_the_tick_refreshes_the_rings_once_the_footswitches_or_the_banks_move(hm, how):
+    """The rings follow the bank the footswitches select in (the refresh's reads go to the layout's hooks): a hold, a cross from any
+    task and a load that takes Hold's footswitches off bank B ask the next tick (key task) for one refresh of the rings, as the
+    handler's events call it (the handler's object, 0); a second tick refreshes nothing more."""
+    bank_b_ready(hm)
+    hm.tick()
+    if how == 'hold back':
+        hm.hold_fs(1)
+        hm.tick()
+    hm.leds.clear()
+    if how in ('hold away', 'hold back'):
+        hm.hold_fs(0 if how == 'hold back' else 1)
+    elif how == 'cc 69 cross':
+        hm.cc(4)
+    elif how in ('click cross', 'refused click'):
+        hm.hold_fs(1)
+        hm.tick()
+        hm.leds.clear()
+        hm.m.u8(MGR + BUSY, int(how == 'refused click'))
+        hm.tap(2)
+        assert hm.data(VIEW) == int(how == 'click cross') and hm.bank_b_live() == (how == 'click cross')
+    elif how == 'load off bank b':
+        hm.hold_fs(1)
+        hm.tick()
+        hm.leds.clear()
+        hm.call('snaps_loaded', MGR, 0, 0, 0)
+    else:
+        hm.settings[BANK_SWITCH] = TAP_SEL
+        hm.press(0)
+    assert hm.data(LEDS) == 1 and hm.leds == [], 'asked for, not done: the rings are refreshed in the key task'
+    hm.tick()
+    assert hm.leds == [(OBJ, 0)] and hm.data(LEDS) == 0
+    hm.tick()
+    assert hm.leds == [(OBJ, 0)]
+
+
+def test_the_rings_wait_while_the_tuner_is_open(hm):
+    """Stock refreshes no ring while the tuner is open (0x28dd26be); the refresh a hold asked for waits for the tuner to close."""
+    bank_b_ready(hm)
+    hm.tick()
+    hm.leds.clear()
+    hm.hold_fs(1)
+    hm.view = TUNER_VIEW
+    hm.tick()
+    assert hm.leds == [] and hm.data(LEDS) == 1
+    hm.view = HOME_VIEW
+    hm.tick()
+    assert hm.leds == [(OBJ, 0)] and hm.data(LEDS) == 0
+
+
+def test_the_rings_are_refreshed_on_any_view_but_the_tuner(hm):
+    """The rings show on every view, so a hold away from Home (a hold is taken on any view but the tuner's) is refreshed by the
+    next tick there; the labels wait for Home."""
+    bank_b_ready(hm)
+    hm.tick()
+    hm.leds.clear()
+    hm.layouts.clear()
+    hm.view = EDIT_VIEW
+    hm.hold_fs(1)
+    hm.tick()
+    assert hm.leds == [(OBJ, 0)] and hm.data(LEDS) == 0
+    assert hm.layouts == [] and hm.data(RELAYOUT) == 1
+
+
+def test_a_change_during_the_ring_refresh_refreshes_again(hm):
+    """The tick clears LEDS before the refresh reads the banks: a cross in another task storing LEDS during it is refreshed by
+    the next tick."""
+    bank_b_ready(hm)
+    hm.tick()
+    hm.leds.clear()
+    hm.hold_fs(1)
+    hm.during_leds = lambda: hm.data(LEDS, 1)
+    hm.tick()
+    hm.during_leds = None
+    assert hm.leds == [(OBJ, 0)] and hm.data(LEDS) == 1
+    hm.tick()
+    assert hm.leds == [(OBJ, 0)] * 2 and hm.data(LEDS) == 0
+
+
+@pytest.mark.parametrize('sel', [HOLD_SEL, TAP_SEL], ids=['hold on bank b', 'tap'])
+def test_the_tick_waits_between_a_serializers_flips(hm, sel):
+    """With bank B heard, a serializer (a save, HX Edit's Get edit buffer) flips to bank A and back; each flip asks for the rings
+    and the labels. Between the flips the hooks read bank A as live, so the tick refreshes and lays out nothing there; the flip
+    back asks again and the next tick shows bank B."""
+    bank_b_ready(hm)
+    hm.cc(4)
+    hm.hold_fs(1)
+    hm.settings[BANK_SWITCH] = sel
+    hm.tick()
+    hm.leds.clear()
+    hm.layouts.clear()
+    assert hm.bank_b_live() and hm.data(VIEW) == 1
+    hm.call('snaps_saving', STREAM, HEADER)
+    assert hm.data(SAVING) == 1 and hm.data(LEDS) == 1 and hm.data(RELAYOUT) == 1
+    hm.tick()
+    assert hm.leds == [] and hm.layouts == [] and hm.data(LEDS) == 1 and hm.data(RELAYOUT) == 1
+    hm.call('snaps_saved', STREAM, HEADER)
+    assert hm.data(SAVING) == 0 and hm.bank_b_live()
+    hm.tick()
+    assert hm.leds == [(OBJ, 0)] and hm.layouts == [1] and hm.data(LEDS) == 0 and hm.data(RELAYOUT) == 0
+
+
+def test_a_select_within_the_bank_and_a_hold_of_the_bank_shown_ask_for_no_ring_refresh(hm):
+    """Within the live bank stock refreshes the rings itself after its select; holding the bank already shown moves nothing."""
+    bank_b_ready(hm)
+    hm.tick()
+    hm.leds.clear()
+    hm.tap(1)
+    hm.hold_fs(0)
+    hm.cc(2)
+    assert hm.data(LEDS) == 0
+    hm.tick()
+    assert hm.leds == []
+
+
 @pytest.mark.parametrize('why', ['stomp mode', 'tap', 'tuner'])
 def test_leaving_snapshot_mode_hold_or_home_leaves_the_footswitches_alone(hm, why):
     """Back in Snapshot mode, on Hold or out of the tuner, the footswitches are still on the bank held: the tick only lays out."""
@@ -2144,7 +2610,8 @@ def test_build_sends_the_snapshot_footswitch_to_the_module_and_wraps_load_and_sa
              (ms.PREV_CUR, 'snaps_prev_cur'), (ms.CC_SELECT, 'snaps_cc_select'), (ms.CC_VALUE_CALL, 'snaps_cc_value'),
              *((s, 'snaps_cc_wrap') for s in ms.CC_WRAP_CALLS), (ms.EVENT_CALL, 'snaps_event'),
              *((s, 'snaps_layout_cur') for s in ms.LAYOUT_CUR_CALLS), *((s, 'snaps_layout_colour') for s in ms.LAYOUT_COLOUR_CALLS),
-             (ms.LAYOUT_NAME_CALL, 'snaps_layout_name'), (ms.LAYOUT_RENAMED_CALL, 'snaps_layout_renamed'))
+             (ms.LAYOUT_NAME_CALL, 'snaps_layout_name'), (ms.LAYOUT_RENAMED_CALL, 'snaps_layout_renamed'),
+             (ms.LED_CUR_CALL, 'snaps_layout_cur'), (ms.LED_COLOUR_CALL, 'snaps_layout_colour'))
     assert [branch_target(s, read(s, 4)) for s, _ in hooks] == [module + sym[h] for _, h in hooks]
     for fn, before, after in ((ms.SELECT, 'snaps_selecting', None), (ms.PARSE, 'snaps_loaded', None),
                               *((fn, 'snaps_saving', 'snaps_saved') for fn, _ in ms.SERIALIZERS)):
@@ -2299,6 +2766,8 @@ def test_without_the_flag_the_sites_stay_stock():
     assert all(read(s, 4) == pm.bl(s, ms.COLOUR_GET) for s in ms.LAYOUT_COLOUR_CALLS)
     assert read(ms.LAYOUT_NAME_CALL, 4) == pm.bl(ms.LAYOUT_NAME_CALL, ms.NAME_GET)
     assert read(ms.LAYOUT_RENAMED_CALL, 4) == pm.bl(ms.LAYOUT_RENAMED_CALL, ms.RENAMED_GET)
+    assert read(ms.LED_CUR_CALL, 4) == pm.bl(ms.LED_CUR_CALL, ms.CUR_GET)
+    assert read(ms.LED_COLOUR_CALL, 4) == pm.bl(ms.LED_COLOUR_CALL, ms.COLOUR_GET)
     assert read(ms.NEXT_CUR, 4) == pm.bl(ms.NEXT_CUR, ms.CUR_GET) and read(ms.PREV_CUR, 4) == pm.bl(ms.PREV_CUR, ms.CUR_GET)
     assert all(read(s, 4) == pm.bl(s, ms.MANAGER_GET) for s in (*ms.CC_WRAP_CALLS, ms.CC_VALUE_CALL))
     assert read(ms.CC_RANGE, 2) == ms.CC_RANGE_STOCK
@@ -2758,3 +3227,168 @@ def test_the_built_layout_shows_the_bank_the_footswitches_select_in(m4emu):
     assert colours == [(5, 0)], "bank B's coloured snapshot 5, not lit"
     b.data(VIEW, 0)
     assert run()[0] == [plain[0], sel[1], plain[2]]
+
+
+LED_COLOURS, FSW_GET, FSW_TYPE, LED_MODE, LED_SET, PALETTE = 0x28e3c498, 0x28d96094, 0x28de6634, 0x28db8260, 0x28db81fc, 0x28dd8030
+RING_BRIGHTNESS = 0x19                      # LED Ring Brightness, which the refresh reads before it dims an unlit ring
+
+
+@pytest.mark.firmware
+def test_the_built_ring_refresh_lights_none_while_the_footswitches_point_at_the_other_bank(m4emu):
+    """The built footswitch LED refresh (0x28dd0b3c) in Snapshot mode, through the two hooks: with the footswitches on the live
+    bank, the current snapshot's ring lit in its colour (white for colour 0), the others dim in theirs (off for colour 0);
+    pointed at the other bank, none lit, each ring dim in that bank's colour, as stock shows a snapshot not current, and off with
+    LED Ring Brightness off; back on the live bank, lit again. The hold asks the tick, which refreshes. Tap: stock, whatever VIEW
+    says."""
+    b = BuiltHandler(m4emu)
+    read = reader(built_e0({'HX_MORE_SNAPSHOTS': '1'}))
+    b.m.load(ms.LED_REFRESH, read(ms.LED_REFRESH, 0x28dd0f44 - ms.LED_REFRESH))
+    b.m.write(LED_COLOURS, read(LED_COLOURS, 0x18))          # its colour words: the white of a lit colour 0 among them
+    rings = {}
+    b.m.stub(FSW_GET, lambda m: m.reg('r0', 0x28128000))
+    b.m.stub(FSW_TYPE, lambda m: m.reg('r0', 0))
+    b.m.stub(LED_MODE, lambda m: rings.setdefault(m.reg('r0'), [None, None]).__setitem__(0, m.reg('r1')))
+    b.m.stub(LED_SET, lambda m: rings.setdefault(m.reg('r0'), [None, None]).__setitem__(1, m.reg('r1') & 0xffffff))
+    b.m.stub(PALETTE, lambda m: m.reg('r0', m.reg('r1') << 8 | m.reg('r2')))
+    b.settings[RING_BRIGHTNESS] = 1
+    bank_b_ready(b)
+    b.go(1)
+    shadow = b.at + b.sym['snaps_shadow']
+    for i, (a, bb) in enumerate(((2, 5), (3, 0), (0, 7))):
+        b.m.u8(record(i) + COLOUR, a)
+        b.m.u8(shadow + REC * i + COLOUR, bb)
+
+    def refresh(tick=False):
+        rings.clear()
+        if tick:
+            b.tick()
+        else:
+            b.m.call(ms.LED_REFRESH, OBJ, 0)
+        return [tuple(rings.get(k, (None, None))) for k in range(3)]
+
+    white = struct.unpack('<I', read(0x28e3c4a8, 4))[0] & 0xffffff
+    live = [(1, 0x200), (1, 0x301), (0, None)]          # colour 2 dim, the current colour 3 lit, colour 0 off
+    assert refresh() == live
+    b.hold_fs(1)
+    assert refresh(tick=True) == [(1, 0x500), (0, None), (1, 0x700)], 'bank B shown: none lit, its colours dim'
+    assert refresh(tick=True) == [(None, None)] * 3, 'refreshed once'
+    b.settings[RING_BRIGHTNESS] = 0
+    assert refresh() == [(0, None)] * 3, 'LED Ring Brightness off: unlit rings off, as stock'
+    b.settings[RING_BRIGHTNESS] = 1
+    b.hold_fs(0)
+    assert refresh(tick=True) == live, 'back on the live bank: the current one lit again'
+    b.cc(4)
+    assert b.data(VIEW) == 0 and b.at_snapshot() == 5
+    assert refresh(tick=True) == [(1, 0x200), (1, 0x300), (0, None)], 'bank B live, bank A shown: none lit, bank A dim'
+    b.hold_fs(1)
+    assert refresh(tick=True) == [(1, 0x500), (1, white), (1, 0x700)], 'bank B shown and live: 5 lit, white for colour 0'
+    b.hold_fs(0)
+    b.settings[BANK_SWITCH] = TAP_SEL
+    assert refresh() == [(1, 0x500), (1, white), (1, 0x700)], 'Tap: stock, VIEW not read'
+
+
+@pytest.mark.firmware
+def test_stock_holds_back_the_editors_posts_while_its_count_is_up(m4emu):
+    """The stock code the fix relies on, run in unicorn: 0x28d99728(1) adds one to the count at 0x281caa8c, (0) takes one off but
+    not below 0, with no lock; while the count is above 0, 0x28d99820(event, data) and 0x28d99888() return 0 before they take an
+    event; at 0 they take one of the queue 0x281caa28 (0x28d93884, with the fan-out 0x28d996bd), with data a block of the event
+    pool through 0x28d93b14, which waits for one (wait 1, into 0x28d93954), and post it (0x28d93918). 0x28d99888's event is
+    0x2102, with 0x40 bytes it makes itself."""
+    read = reader(stock_e0())
+    lo, hi = QUIET, 0x28d998f0
+    m = m4emu.M4(read(lo, hi - lo), lo)
+    event, data, buf = 0x28600000, 0x28600100, 0x28600200
+    calls = []
+    m.stub(0x28d93884, lambda m: (calls.append(('event', m.reg('r0'), *m.stack_args(2))), m.reg('r0', event)))
+    m.stub(0x28d93b14, lambda m: (calls.append(('block', m.reg('r0'), m.reg('r1'))), m.reg('r0', 0)))
+    m.stub(MEMCPY, lambda m: calls.append(('copy', m.reg('r0'), m.reg('r2'))))
+    m.stub(0x28d93918, lambda m: (calls.append(('post', m.reg('r0'), m.reg('r1'))), m.reg('r0', 0)))
+    m.u32(COUNT, 0)
+    counts = []
+    for on in (1, 1, 0, 0, 0):
+        m.call(QUIET, on)
+        counts.append(m.u32(COUNT))
+    assert counts == [1, 2, 1, 0, 0]
+    m.u32(COUNT, 1)
+    assert m.call(0x28d99820, SWITCH_EV, data) == 0 and m.call(SELECTED_POST) == 0 and calls == []
+    m.u32(COUNT, 0)
+    for fn, args, ev in ((0x28d99820, (SWITCH_EV, data), SWITCH_EV), (SELECTED_POST, (), SELECTED_EV)):
+        calls.clear()
+        m.u32(event + 0x20, buf)
+        m.u32(event + 0x30, 0)
+        m.call(fn, *args)
+        assert calls == [('event', 0x281caa28, 0x28d996bd, ev), ('block', event, 0x40), ('copy', buf, 0x40),
+                         ('post', 0x281caa28, event)]
+        assert m.u32(event + 0x30) == ev
+    assert read(0x28d93b14, 6) == bytes.fromhex('0122') + pm.thumb_bw(0x28d93b16, 0x28d93954), 'movs r2,#1; b.w: wait 1'
+
+
+@pytest.mark.firmware
+def test_stock_select_posts_its_last_event_after_it_lets_d_go():
+    """Stock select's posts, as the fix takes them: 0x2102 at 0x28de32d8, after D is let go at 0x28de32d4; the copy of an unused
+    record with the count up (0x28de3294) and down (0x28de32c2) around it, as the module does around the whole select; a
+    footswitch entry that changes posts 0x24112 under select's D (0x28de678e, its event at 0x28de67e0); an index above 2 leaves
+    (0x28de2fe4) before any post, with -0x2e (0x28de36e2)."""
+    read = reader(stock_e0())
+    assert read(0x28de32d0, 12) == pm.bl(0x28de32d0, PRESET) + pm.bl(0x28de32d4, 0x28e02414) + pm.bl(0x28de32d8, SELECTED_POST)
+    assert read(0x28de3294, 6) == bytes.fromhex('0120') + pm.bl(0x28de3296, QUIET)
+    assert read(0x28de32c2, 6) == bytes.fromhex('0020') + pm.bl(0x28de32c4, QUIET)
+    assert read(0x28de678e, 4) == pm.bl(0x28de678e, 0x28d99820) and struct.unpack('<I', read(0x28de67e0, 4))[0] == SWITCH_EV
+    assert read(0x28de2fdc, 12) == bytes.fromhex('bbf1020f84f8a83900f27483'), 'cmp r11,#2; strb; bhi.w 0x28de36d0'
+    assert read(0x28de3002, 8) == bytes.fromhex('bb48') + bytes.fromhex('0021') + pm.bl(0x28de3006, 0x28d99820), \
+        'the first post (0x44113, no data) after the index check'
+    assert read(0x28de36e2, 4) == bytes.fromhex('6ff02d05'), 'mvn r5, #0x2d'
+
+
+@pytest.mark.firmware
+def test_stock_refreshes_the_rings_with_the_handlers_object_and_not_in_the_tuner():
+    """What snaps_tick's refresh copies: the registration 0x28dd27fc stores the footswitch handler and the tick (TICK_LIT) each
+    with the handler's object (r4) as its argument, so the tick's second argument is the object the refresh takes; the message
+    handler's refresh after a select (0x28dd26be) asks for the tuner view first and refreshes with (object, 0) only when it is
+    not open."""
+    read = reader(stock_e0())
+    assert read(0x28dd281c, 2) == bytes.fromhex('474b') and struct.unpack('<I', read(0x28dd293c, 4))[0] == HANDLER | 1
+    assert read(0x28dd2822, 4) == bytes.fromhex('c4e90234'), 'strd r3, r4, [r4, #8]: the handler and its object'
+    assert read(0x28dd2830, 2) == bytes.fromhex('444a') and ms.TICK_LIT == 0x28dd2944
+    assert read(0x28dd283a, 4) == bytes.fromhex('c4e90924'), 'strd r2, r4, [r4, #36]: the tick and the same object'
+    assert read(0x28dd26be, 18) == (bytes.fromhex('0520') + pm.bl(0x28dd26c0, VIEW_IS) + bytes.fromhex('00289cd100212846')
+                                    + pm.bl(0x28dd26cc, LED_REFRESH)), 'movs r0,#5; bl view_is; cmp; bne; movs r1,#0; mov r0,r5'
+
+
+def code_refs(e0, word=None, call=None):
+    """The ldr (literal) loads of word, or the bl calls of call, in Entry 0's code."""
+    read, found = reader(e0), []
+    for _, _, size, va, _ in pa._parse_e0_segments(e0):
+        if va < 0x28d00000:
+            continue
+        blob = read(va, size)
+        for i in range(0, size - 3, 2):
+            h1, h2 = struct.unpack_from('<2H', blob, i)
+            a = va + i
+            if word is not None:
+                if (h1 & 0xf800) == 0x4800:
+                    t = ((a + 4) & ~3) + ((h1 & 0xff) << 2)
+                elif (h1 & 0xff7f) == 0xf85f:
+                    t = ((a + 4) & ~3) + ((h2 & 0xfff) if h1 & 0x80 else -(h2 & 0xfff))
+                else:
+                    continue
+                if va <= t <= va + size - 4 and struct.unpack_from('<I', blob, t - va)[0] == word:
+                    found.append(a)
+            elif (h1 & 0xf800) == 0xf000 and (h2 & 0xd000) == 0xd000 and branch_target(a, blob[i:i + 4]) == call:
+                found.append(a)
+    return found
+
+
+@pytest.mark.firmware
+def test_the_editors_notify_listener_is_the_only_one_for_select_posts():
+    """0x28d99820 and 0x28d99888 post to the queue 0x281caa28 with the fan-out 0x28d996bd, which hands an event to each listener
+    on the list 0x281caa7c whose mask it matches. The list is loaded only by the fan-out, its set-up and the adder 0x28d997d0, and
+    the adder is called only by the notify service (HX Edit), twice, with its listener 0x28e13a69, node 0x2844e8a0, mask 0x100.
+    So holding these posts back leaves the unit's own screen and rings alone: they take other paths."""
+    e0 = stock_e0()
+    read = reader(e0)
+    assert code_refs(e0, word=0x281caa7c) == [0x28d996c0, 0x28d9979c, 0x28d997e8]
+    assert code_refs(e0, call=0x28d997d0) == [0x28e13a3c, 0x28e13ef6]
+    for ldr_fn, ldr_node, mask in ((0x28e13a48, 0x28e13a4c, 0x28e13a38), (0x28e13f00, 0x28e13f04, 0x28e13ef2)):
+        assert struct.unpack('<2I', read(ldr_fn, 4) + read(ldr_node, 4)) == (0x28e13a69, 0x2844e8a0)
+        assert read(mask, 4) == bytes.fromhex('4ff48072'), 'mov.w r2, #0x100'
