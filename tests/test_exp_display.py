@@ -30,6 +30,9 @@ MS, DIRTY, LASTREQ, SIDES, VAL, STAMP, SEED, DRAWN, SHOWING, CONTENT, TOGGLED, C
 GLYPHS = {'E': ('111', '100', '110', '100', '111'), 'X': ('101', '101', '010', '101', '101'), 'P': ('110', '101', '110', '100', '100'),
           '1': ('010', '110', '010', '010', '111'), '2': ('111', '001', '111', '100', '111'), '-': ('000', '000', '111', '000', '000')}
 POSITIONS = {name: k for k, name in enumerate(gr.POSITIONS)}
+TEXT_WIDGETS = [HOME + first + 0x30 * k for first, n in ((0x64, 6), (0x1ec, 3)) for k in range(n)]    # the footswitch labels'
+IMAGE_WIDGETS = [HOME + 0x2b0 + 0x24 * k for k in range(18)]                                         # widgets the layout sets
+WIDGET_NODES = 0x28e72000
 
 
 def cell(font):
@@ -179,6 +182,19 @@ class Display:
     def toggle(self, state):
         self.m.u8(TOGGLE, state)
 
+    def label_widgets(self, shown):
+        """The Home view's footswitch label widgets (a text one's visible byte at +0x2a and node at +0x2c, an image's at +0x1d and
+        +0x20), those in shown visible, every node clean."""
+        for k, w in enumerate(TEXT_WIDGETS + IMAGE_WIDGETS):
+            visible, node = (0x2a, 0x2c) if w in TEXT_WIDGETS else (0x1d, 0x20)
+            self.m.u8(w + visible, int(w in shown))
+            self.m.u32(w + node, WIDGET_NODES + 0x28 * k)
+            self.m.u8(WIDGET_NODES + 0x28 * k + 0x24, 0)
+
+    def dirty_labels(self):
+        """The label widgets whose node says the next stock paint draws them."""
+        return {w for k, w in enumerate(TEXT_WIDGETS + IMAGE_WIDGETS) if self.m.read(WIDGET_NODES + 0x28 * k + 0x24, 1)[0]}
+
     def gr(self, pos=None, t=20):
         self.m.u32(GR_DATA + gr.SHOWN, 0 if pos is None else 1)
         self.m.u32(GR_DATA + gr.LAYOUT, 0 if pos is None else 1 << 31 | t << 24 | POSITIONS[pos] << 8 | 3)
@@ -300,7 +316,7 @@ def test_the_small_font_takes_over_where_the_big_one_would_not_clear_the_band():
 
 
 @pytest.mark.firmware
-def test_build_serves_the_settings_virtually_and_hooks_its_ten_sites():
+def test_build_serves_the_settings_virtually_and_hooks_its_nine_sites():
     e0 = stock_e0()
     new, on = menu_entry0(e0, None, {'HX_EXP_DISPLAY': '1'})
     assert 'exp_display' in [features.name(m) for m in on]
@@ -364,7 +380,8 @@ def test_a_build_with_every_m4_feature_shares_the_hooks(monkeypatch):
         assert chains[site] == ['bl', ed.CONTROLLER_SET, [], [m['exp_redrive']], ['exp_display']]
     for site in ed.RESTORE_CALLS:
         assert chains[site] == ['bl', ed.CONTROLLER_RESTORE, [m['exp_loaded']], [], ['exp_display']]
-    assert chains[ed.SELECT] == ['entry', ed.SELECT_STOCK, [], [m['exp_recalled']], ['exp_display']]
+    kind, stock, _, after, owners = chains[ed.SELECT]
+    assert (kind, stock) == ('entry', ed.SELECT_STOCK) and m['exp_recalled'] in after and 'exp_display' in owners
     assert m['exp_tick'] in chains[ed.LED_TICK_CALL][3]
     assert modules[ed.MODULE][1] == exp_inc(modules[gr.MODULE][0]['data']), "the GR meter's shown and layout words"
 
@@ -373,13 +390,14 @@ def test_a_build_with_every_m4_feature_shares_the_hooks(monkeypatch):
 def test_more_snapshots_keeps_its_select_calls_beside_the_select_hook(monkeypatch):
     """More snapshots takes the calls of select (0x28de2f90) a footswitch and MIDI CC 69 reach, and calls select itself; the display
     chains select's entry, so every select, More snapshots' own included, passes its handler."""
-    from features import more_snapshots as ms
     owned = {}
     chains, modules = chains_of({'HX_MORE_SNAPSHOTS': '1', 'HX_EXP_DISPLAY': '1'}, monkeypatch, owned)
-    assert chains[ed.SELECT] == ['entry', ed.SELECT_STOCK, [], [modules[ed.MODULE][0]['exp_recalled']], ['exp_display']]
-    for site in (*ms.FS_SELECT_CALLS, ms.CC_SELECT):
-        assert owned[site].owner == 'more_snapshots' and site not in chains
-    assert ms.SELECT == ed.SELECT
+    kind, _, _, after, owners = chains[ed.SELECT]
+    assert kind == 'entry' and modules[ed.MODULE][0]['exp_recalled'] in after and 'exp_display' in owners
+    stock = reader(stock_e0())
+    calls = [site for site, o in owned.items()
+             if o.owner == 'more_snapshots' and stock(site, 4) in (pm.bl(site, ed.SELECT), pm.thumb_bw(site, ed.SELECT))]
+    assert calls and not set(calls) & set(chains), "More snapshots' calls of select stay its own"
 
 
 @pytest.mark.firmware
@@ -515,24 +533,46 @@ def test_tick_sees_a_jack_change_that_posts_no_event(d, change):
     assert d.ticks(30) == []
 
 
-def test_tick_sees_togglexp_change(d):
+@pytest.mark.parametrize('ch', [0, 1])
+def test_tick_sees_togglexp_change(d, ch):
     settled(d)
     d.toggle(2)
     assert d.ticks(30) == [1] and d.word(TOGGLED) == 1001, 'and notes when'
     d.toggle(1)
     assert d.ticks(30) == [1] and d.word(TOGGLED) == 1031
-    d.event(1, 0.3)
-    d.ticks(30)
+    d.event(ch, 0.3)
+    assert d.ticks(30) == [1]
     assert d.word(TOGGLED) == 1031, 'an event is no TogglEXP change'
 
 
-def test_tick_repaints_as_an_event_grows_3_s_old(d):
+@pytest.mark.parametrize('ch', [0, 1])
+def test_tick_repaints_as_an_event_grows_3_s_old(d, ch):
     settled(d)
-    d.event(1, 0.3)
+    d.event(ch, 0.3)
     assert d.ticks(1) == [1]
-    d.word(MS, d.word(STAMP + 4) + 2998)
+    d.word(MS, d.word(STAMP + 4 * ch) + 2998)
     assert d.ticks(1) == []
     assert d.ticks(1) == [1], 'live by its event until 3 s, then not'
+
+
+def test_moving_the_tip_under_togglexp_keeps_midi_on_the_other_controller_live(d):
+    """TogglEXP on EXP 1 and one pedal on the tip: an event of the tip's EXP 1 is no TogglEXP change, so EXP 2, moved by MIDI CC 2
+    after the last one, stays live."""
+    d.jacks(ring=0)
+    d.toggle(1)
+    d.pedal(0, 0.3)
+    settled(d)
+    toggled = d.word(TOGGLED)
+    d.word(MS, 5000)
+    d.event(1, 0.45)
+    d.ticks(1)
+    d.word(MS, 5100)
+    d.event(0, 0.5)
+    d.ticks(1)
+    assert d.word(TOGGLED) == toggled
+    d.paint()
+    assert_readout(d, 1, '45', GREEN, 'EXP2')
+    assert_readout(d, 0, '50', RED, 'EXP1')
 
 
 # --- what each side shows ---
@@ -570,7 +610,7 @@ def test_bar_fills_its_share_of_117_rows_over_ticks_at_25_50_75(d, v):
 
 
 def test_value_aligns_left_on_the_left_and_right_on_the_right(d):
-    for v, text in ((1.0, '100'), (0.01, '1'), (0.0, '0'), (0.41, '41'), (0.11, '11')):
+    for v, text in ((1.0, '100'), (0.01, '1'), (0.0, '0'), (0.41, '41'), (0.11, '11'), (0.09, '9'), (0.10, '10'), (0.99, '99')):
         d.event(0, v)
         d.event(1, v)
         d.paint()
@@ -595,6 +635,25 @@ def test_midi_alone_is_live_for_3_s_then_absent(d, ch, tip):
     d.paint()
     assert_readout(d, side, '40', colour, label)
     d.word(MS, d.word(STAMP + 4 * ch) + 3000)
+    d.paint()
+    assert_bar(d, x0, 0, 116)
+    assert_readout(d, side, '--', GREY, label)
+
+
+@pytest.mark.parametrize('tip', [{'tip': 0}, {'tip_mode': 1}], ids=['no pedal', 'fs'])
+@pytest.mark.parametrize('toggle', [1, 2])
+@pytest.mark.parametrize('ch', [0, 1])
+def test_togglexp_with_no_pedal_on_the_tip_leaves_midi_live_then_absent(d, ch, toggle, tip):
+    """A TogglEXP footswitch with no pedal on the tip, or the tip set to a footswitch: no pedal left either controller, so MIDI CC 1
+    and 2 make a side live for 3 s, then absent, as without TogglEXP."""
+    d.jacks(ring=0, **tip)
+    d.toggle(toggle)
+    side, colour, label, x0 = (0, RED, 'EXP1', 0) if ch == 0 else (1, GREEN, 'EXP2', 314)
+    d.word(MS, 1000)
+    d.event(ch, 0.4)
+    d.paint()
+    assert_readout(d, side, '40', colour, label)
+    d.word(MS, 4000)
     d.paint()
     assert_bar(d, x0, 0, 116)
     assert_readout(d, side, '--', GREY, label)
@@ -733,8 +792,30 @@ def test_an_unchanged_readout_is_drawn_over_itself_without_a_wipe(d):
     d.paint(right=0)
     assert (1, 124, BOX_W, 32, 0) in d.fills
     assert_readout(d, 0, '51', RED, 'EXP1')
+    d.event(1, 0.51)
+    d.paint(right=0)
+    assert (1, 124, BOX_W, 32, 0) not in d.fills
     d.paint(right=0, left=2)
-    assert (1, 124, BOX_W, 32, 0) in d.fills, 'another source'
+    assert (1, 124, BOX_W, 32, 0) in d.fills, 'another source with the same value and state'
+    assert_readout(d, 0, '51', GREEN, 'EXP2')
+
+
+def test_a_readout_is_wiped_when_only_its_state_changes(d):
+    """Absent and a live 0 have the same value: the state alone tells "--" and "0" apart, so it alone wipes the box."""
+    d.jacks(tip=0, ring=0)
+    d.paint(right=0)
+    d.paint(right=0)
+    assert (1, 124, BOX_W, 32, 0) not in d.fills
+    assert_readout(d, 0, '--', GREY, 'EXP1')
+    d.word(MS, 1000)
+    d.event(0, 0.0)
+    d.paint(right=0)
+    assert (1, 124, BOX_W, 32, 0) in d.fills
+    assert_readout(d, 0, '0', RED, 'EXP1')
+    d.word(MS, 4000)
+    d.paint(right=0)
+    assert (1, 124, BOX_W, 32, 0) in d.fills
+    assert_readout(d, 0, '--', GREY, 'EXP1')
 
 
 def test_glyph_table_is_the_model(d):
@@ -847,15 +928,35 @@ def test_no_relayout_for_a_bar_that_moves_up_or_down_or_turns_off(dg):
     assert (0, 0, 6, 117, 0) in dg.fills and (314, 0, 6, 117, 0) in dg.fills and dg.relayouts == []
 
 
-def test_no_relayout_under_the_meter_at_middle(dg):
-    """The Home layout puts the divider's segments back as stock, and the meter at Middle lights those segments."""
+@pytest.mark.parametrize('frm', ['Left', 'Right'])
+@pytest.mark.parametrize('t', gr.SIZES)
+def test_under_the_meter_at_middle_the_labels_are_marked_dirty_instead_of_laid_out(dg, frm, t):
+    """The Home layout puts the divider's segments back as stock, and the meter at Middle lights those segments: a bar that moves
+    sideways to the meter at Middle marks each shown widget of the footswitch labels dirty instead, so the stock paint that follows
+    redraws it over the wipe. A hidden one stays clean, as its erase would black out what lies over it."""
+    shown = set(TEXT_WIDGETS[::2] + IMAGE_WIDGETS[::3] + IMAGE_WIDGETS[-1:])
     dg.event(0, 0.5)
-    dg.gr('Left', 20)
+    dg.event(1, 0.5)
+    dg.gr(frm, 20)
     dg.paint()
-    dg.gr('Middle', 20)
+    dg.label_widgets(shown)
+    dg.gr('Middle', t)
     dg.paint()
-    assert (21, 0, 6, 117, 0) in dg.fills and dg.relayouts == []
-    assert_bar(dg, 0, 0, 106, 50, RED)
+    assert ((21, 0, 6, 117, 0) if frm == 'Left' else (293, 0, 6, 117, 0)) in dg.fills and dg.relayouts == []
+    assert dg.dirty_labels() == shown
+    assert_layout(dg, 'Middle', t)
+
+
+def test_no_label_is_marked_without_a_sideways_move_to_middle(dg):
+    """The layout marks the labels itself after a sideways move elsewhere; a bar that moves only up or down keeps its columns."""
+    dg.event(0, 0.5)
+    dg.gr('Middle', 5)
+    dg.paint()
+    dg.label_widgets(set(TEXT_WIDGETS + IMAGE_WIDGETS))
+    for pos, t, relayouts in (('Middle', 20, []), ('Bottom', 10, []), ('Left', 20, [(HOME, 0)])):
+        dg.gr(pos, t)
+        dg.paint()
+        assert dg.relayouts == relayouts and dg.dirty_labels() == set(), (pos, t)
 
 
 def test_a_top_view_paint_draws_the_bars_where_they_are(dg):
@@ -1159,15 +1260,24 @@ def test_a_side_frozen_over_a_load_turns_stale_when_togglexp_gives_the_pedal_bac
 
 # --- when it draws ---
 
+def in_home(fills):
+    return all(y + h <= 117 for _, y, _, h, _ in fills)
+
+
 def test_draws_only_while_home_and_the_top_view_show(d):
+    """Nothing while list A paints another view or list B another view than the top view; the bars alone under the top view's
+    bank view, whose text takes rows 126..233."""
     d.event(0, 0.5)
-    for a, b, bank in ((0x28128270, TOP, 0), (HOME, ALERT, 0), (HOME, TOP, 1)):
-        d.lists(a, b, bank)
+    for a, b in ((0x28128270, TOP), (HOME, ALERT)):
+        d.lists(a, b)
         d.paint()
         assert d.fills == [] and d.texts == [] and d.word(SHOWING) == 0
+    d.lists(HOME, TOP, bank=1)
+    d.paint()
+    assert d.word(SHOWING) == 1 and d.fills and in_home(d.fills) and d.texts == []
     d.lists(HOME, TOP)
     d.paint()
-    assert d.word(SHOWING) == 1 and d.texts
+    assert d.word(SHOWING) == 3 and d.texts
 
 
 def test_the_first_active_node_is_the_view_that_paints(d):
@@ -1180,19 +1290,28 @@ def test_the_first_active_node_is_the_view_that_paints(d):
     assert d.fills == []
 
 
-def test_bank_view_wipes_the_readouts_before_its_text_and_keeps_the_bars(d):
-    d.event(0, 0.5)
-    d.event(1, 0.5)
-    d.paint()
-    d.lists(HOME, TOP, bank=1)
-    d.paint()
-    assert d.fills == [] and d.texts == [], "the Home paint leaves the top view's area alone"
-    d.paint(top=True)
-    assert d.fills == [(1, 124, BOX_W, 32, 0), (275, 124, BOX_W, 32, 0)] and d.texts == []
-    assert_bar(d, 0, 0, 116, 50, RED)
-    d.lists(HOME, TOP)
-    d.paint(top=True)
-    assert_readout(d, 0, '50', RED, 'EXP1')
+def test_bank_view_wipes_the_readouts_before_its_text_and_the_bars_go_on(dg):
+    """The bank view's text lies in the top view's area, over the readouts: a top view paint wipes them first, and they stay off
+    while it shows. The bars, in the Home view's rows 0..116, go on following the pedals and the GR meter."""
+    dg.event(0, 0.5)
+    dg.event(1, 0.5)
+    dg.paint()
+    dg.lists(HOME, TOP, bank=1)
+    dg.gr('Left', 20)
+    dg.paint()
+    assert dg.fills[0] == (0, 0, 6, 117, 0) and dg.relayouts == [(HOME, 0)]
+    assert in_home(dg.fills) and dg.texts == [], "the Home paint leaves the top view's area alone, the readouts' old boxes too"
+    assert_bar(dg, 21, 0, 116, 50, RED)
+    dg.paint(top=True)
+    assert dg.fills[:2] == [(1, 124, BOX_W, 32, 0), (275, 124, BOX_W, 32, 0)] and in_home(dg.fills[2:]) and dg.texts == []
+    dg.event(0, 0.9)
+    dg.paint()
+    assert in_home(dg.fills) and dg.texts == []
+    assert_bar(dg, 21, 0, 116, 90, RED)
+    dg.lists(HOME, TOP)
+    dg.paint()
+    assert_readout(dg, 0, '90', RED, 'EXP1', tl=22)
+    assert_readout(dg, 1, '50', GREEN, 'EXP2')
 
 
 def test_top_view_paint_redraws_the_readouts_over_a_wiped_box(d):

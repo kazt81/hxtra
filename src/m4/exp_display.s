@@ -21,6 +21,9 @@
 .equ TEXT, 0x28db7aa5
 .equ WIDGET_LOCK, 0x28e24971
 .equ WIDGET_UNLOCK, 0x28e24ae9
+.equ LINES, 0x64                    @ the Home view's footswitch labels: two text lines and a preset number each, 0x30 apart,
+.equ NUMBERS, 0x1ec
+.equ IMAGES, 0x2b0                  @ and 18 images, 0x24 apart
 .equ EXP1_POSITION, 0x42
 .equ EXP2_POSITION, 0x47
 
@@ -204,6 +207,10 @@ exp_before:
     b 2f                            @ and wipes the readouts, which lie in its area, before each of its paints, even under the bank view
 4:  ldr r1, [r5, #SHOWING]
     cbz r1, 3f
+    tst r1, #2
+    it eq
+    cmpeq r2, #1
+    beq 3f                          @ under the bank view a readout is left to the top view paint, which wipes it
     ldr r1, [r7, #WANT]
     cmp r0, r1
     beq 3f
@@ -223,12 +230,51 @@ exp_before:
     cmp.w r11, #0
     beq 9f
     cmp.w r10, #0
-    bne 9f
+    bne 8f
     mov r0, r9
     movs r1, #0
     ldr r3, =RELAYOUT
     blx r3
+    b 9f
+8:  bl labels                       @ not the layout, which puts back as stock the divider's segments the meter at Middle lights
 9:  pop {r3-r11, pc}
+
+labels:                             @ r9 the Home view: each shown widget of its footswitch labels dirty, so the stock paint redraws it
+    push {r4-r6, lr}
+    ldr r3, =WIDGET_LOCK
+    blx r3
+    add.w r4, r9, #LINES
+    movs r5, #6
+    bl texts
+    add.w r4, r9, #NUMBERS
+    movs r5, #3
+    bl texts
+    add.w r4, r9, #IMAGES
+    movs r5, #18
+1:  ldrb r0, [r4, #0x1d]            @ visible: a hidden one's erase would black out what lies over it
+    ldr r1, [r4, #0x20]             @ its node
+    cbz r0, 2f
+    cbz r1, 2f
+    movs r0, #1
+    strb r0, [r1, #0x24]
+2:  adds r4, #0x24
+    subs r5, #1
+    bne 1b
+    ldr r3, =WIDGET_UNLOCK
+    blx r3
+    pop {r4-r6, pc}
+
+texts:                              @ r4 the first of r5 text widgets, 0x30 apart
+    ldrb r0, [r4, #0x2a]            @ visible
+    ldr r1, [r4, #0x2c]             @ its node
+    cbz r0, 1f
+    cbz r1, 1f
+    movs r0, #1
+    strb r0, [r1, #0x24]
+1:  adds r4, #0x30
+    subs r5, #1
+    bne texts
+    bx lr
 
 exp_home_after:
     movs r2, #0
@@ -282,7 +328,10 @@ exp_after:
     cbnz r1, 6f
     ldr r0, [r7, #WANT]
     str r0, [r7, #DRAWN]
-6:  cmp.w r9, #STALE
+6:  ldr r0, [r5, #SHOWING]
+    tst r0, #2
+    beq 4f                          @ the bank view: the readouts' boxes are its
+    cmp.w r9, #STALE
     ite eq
     moveq r0, #LIVE
     movne r0, r9
@@ -390,7 +439,7 @@ positions:
     orr.w r0, r4, r0, lsl #8
     pop {r4, pc}
 
-showing:
+showing:                            @ -> 3 Home under the top view, 1 under its bank view (the bars only), 0 otherwise
     push {r4, lr}
     ldr r0, =LIST_A
     bl painted
@@ -400,13 +449,15 @@ showing:
     bl painted
     ldr r1, =TOP
     subs r0, r0, r1
-    orrs r4, r0
-    ldr r1, =TOP
-    ldrb r0, [r1, #BANK]
     orrs r0, r4
+    bne 1f
+    ldrb r0, [r1, #BANK]
+    cmp r0, #0
     ite eq
-    moveq r0, #1
-    movne r0, #0
+    moveq r0, #3
+    movne r0, #1
+    pop {r4, pc}
+1:  movs r0, #0
     pop {r4, pc}
 
 painted:
@@ -555,7 +606,7 @@ state:
     beq 4f
     cmp r4, r2
     it ne
-    movne r7, #1
+    movne r7, r6                    @ only a pedal on the tip can have left it
 4:  mov r6, r1
     mov r0, r4
     mov r1, r5
