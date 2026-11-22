@@ -204,7 +204,13 @@ exp_before:
     cmp.w r8, #0
     beq 4f
     cbz r2, 3f                      @ a top view paint leaves the bars to the Home paint, which moves them and lays the labels out again
-    b 2f                            @ and wipes the readouts, which lie in its area, before each of its paints, even under the bank view
+    ldr r1, [r5, #SHOWING]
+    cmp r1, #3
+    bne 2f                          @ under its bank view a readout is wiped, as the bank view's text lands on it
+    ldr r1, [r7, #WANT]
+    cmp r0, r1
+    beq 3f                          @ in place it is drawn again over itself: nothing else lands on it, and a wipe can show for a frame
+    b 2f
 4:  ldr r1, [r5, #SHOWING]
     cbz r1, 3f
     tst r1, #2

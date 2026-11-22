@@ -1011,7 +1011,8 @@ def test_the_value_clears_the_middle_band_by_two_rows_and_the_label_by_one(dg, t
 def test_the_font_switch_wipes_our_boxes_and_a_new_value_under_the_band_wipes_clear_of_it(dg):
     """The meter at Middle XL appearing: the Home paint wipes the big value's boxes (rows 124..155) before its stock paint and the
     meter's draw, which lays the band over rows 124..127, then draws the small value. While the band shows, a new value wipes only
-    rows 129..155, and so does a top view paint. The meter going to M brings the big value back after a wipe of the small boxes."""
+    rows 129..155, in a top view paint too, and the other readout no rows. The meter going to M brings the big value back after a
+    wipe of the small boxes."""
     dg.event(0, 0.5)
     dg.event(1, 0.5)
     dg.paint()
@@ -1024,7 +1025,7 @@ def test_the_font_switch_wipes_our_boxes_and_a_new_value_under_the_band_wipes_cl
         dg.event(0, 0.75 if not top else 0.5)
         dg.paint(top=top)
         wipes = {f for f in dg.fills if f[1] >= 117 and f[4] == 0}
-        assert wipes == {(1, 129, BOX_W, 27, 0)} | ({(275, 129, BOX_W, 27, 0)} if top else set())
+        assert wipes == {(1, 129, BOX_W, 27, 0)}
         assert not any({(i, j) for i in range(x, x + w) for j in range(y, y + h)} & band for x, y, w, h, _ in dg.fills)
     assert_readout(dg, 0, '50', RED, 'EXP1', font=SMALL)
     dg.gr('Middle', 10)
@@ -1314,13 +1315,56 @@ def test_bank_view_wipes_the_readouts_before_its_text_and_the_bars_go_on(dg):
     assert_readout(dg, 1, '50', GREEN, 'EXP2')
 
 
-def test_top_view_paint_redraws_the_readouts_over_a_wiped_box(d):
+def boxes_wiped(fills):
+    """The black fills over the readouts' rows, 124..155."""
+    return [f for f in fills if f[4] == 0 and f[1] < 156 and f[1] + f[3] > 124]
+
+
+def test_a_top_view_paint_draws_the_readouts_in_place_without_a_wipe(d):
+    """Without the bank view nothing else lands on a readout in a top view paint (the Metronome's click flashes the output marker,
+    a top view paint, every beat), and the panel can show a frame being painted: a readout in place is drawn over itself."""
     d.event(0, 0.5)
+    d.event(1, 0.5)
     d.paint()
-    d.paint(top=True)
-    assert d.fills[0] == (1, 124, BOX_W, 32, 0)
-    assert_readout(d, 0, '50', RED, 'EXP1')
-    assert_bar(d, 0, 0, 116, 50, RED)
+    for _ in range(3):
+        d.paint(top=True)
+        assert boxes_wiped(d.fills) == []
+        assert_readout(d, 0, '50', RED, 'EXP1')
+        assert_readout(d, 1, '50', GREEN, 'EXP2')
+        assert_bar(d, 0, 0, 116, 50, RED)
+
+
+def test_a_top_view_paint_wipes_a_readout_that_changed_or_moved(dg):
+    """A new value is drawn over its wiped box, as in a Home paint; a box the meter moved is wiped where it was."""
+    dg.event(0, 0.5)
+    dg.event(1, 0.5)
+    dg.paint()
+    dg.event(1, 0.7)
+    dg.paint(top=True)
+    assert boxes_wiped(dg.fills) == [(275, 124, BOX_W, 32, 0)]
+    assert_readout(dg, 1, '70', GREEN, 'EXP2')
+    dg.gr('Left', 20)
+    dg.paint(top=True)
+    assert boxes_wiped(dg.fills)[0] == (1, 124, BOX_W, 32, 0) and (275, 124, BOX_W, 32, 0) not in dg.fills
+    assert_readout(dg, 0, '50', RED, 'EXP1', tl=22)
+
+
+def test_the_first_top_view_paint_after_the_bank_view_draws_the_readouts_back(dg):
+    """Off under the bank view, the readouts come back on the first top view paint without it, over their wiped boxes; the
+    paints after that draw them over themselves."""
+    dg.event(0, 0.5)
+    dg.event(1, 0.5)
+    dg.paint()
+    dg.lists(HOME, TOP, bank=1)
+    dg.paint(top=True)
+    assert boxes_wiped(dg.fills) == [(1, 124, BOX_W, 32, 0), (275, 124, BOX_W, 32, 0)] and dg.texts == []
+    dg.lists(HOME, TOP)
+    dg.paint(top=True)
+    assert boxes_wiped(dg.fills) == [(1, 124, BOX_W, 32, 0), (275, 124, BOX_W, 32, 0)]
+    assert_readout(dg, 0, '50', RED, 'EXP1')
+    assert_readout(dg, 1, '50', GREEN, 'EXP2')
+    dg.paint(top=True)
+    assert boxes_wiped(dg.fills) == []
 
 
 def test_a_foreign_view_in_list_b_keeps_its_pixels(d):
