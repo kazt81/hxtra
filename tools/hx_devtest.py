@@ -681,7 +681,7 @@ def snapshot_flips(u, there, back):
             return np.array_equal(u.pixels(camera), a)
         there(fs, unchanged)
         if unchanged():
-            raise Fail(f'the camera icon did not change: {fs} did not select in snapshots 4..6')
+            raise Fail(f'the camera icon did not change: {fs} did not select in the other bank')
         back(fs)
         if not unchanged():
             raise Fail(f'{fs} did not bring snapshots 1..3 back')
@@ -700,6 +700,29 @@ def t_more_snapshots(u):
 
     def back(fs):
         foot_hold(u, 'fs1', settle=1.5)         # in 4..6: the footswitches stay on 1..3 until the tap, not just after the hold
+        foot_tap(u, fs, settle=0.6)
+    sel = ('Hold', 'Tap')
+    u.global_settings('Footswitches')
+    was = u.dial(label_knob(u, 'BankSel'), 'Hold', sel)
+    try:
+        snapshot_flips(u, there, back)
+    finally:
+        u.global_settings('Footswitches')
+        u.dial(label_knob(u, 'BankSel'), was, sel)
+        u.home()
+
+
+@case('more_snapshots_c', 'More snapshots: in Snapshot mode, FS3 held then the lit footswitch tapped is 7..9; FS1 held and a tap, '
+      'back')
+def t_more_snapshots_c(u):
+    def there(fs, unchanged):
+        foot_hold(u, 'fs3', settle=0.6)         # Snapshot BankSel on Hold: the footswitches select in 7..9
+        if not unchanged():
+            raise Fail('the camera icon changed when FS3 was held: a hold changes no snapshot')
+        foot_tap(u, fs, settle=0.6)
+
+    def back(fs):
+        foot_hold(u, 'fs1', settle=1.5)
         foot_tap(u, fs, settle=0.6)
     sel = ('Hold', 'Tap')
     u.global_settings('Footswitches')

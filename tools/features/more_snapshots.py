@@ -1,10 +1,12 @@
-"""More snapshots: a second bank of snapshots, 4-6, on the three snapshot footswitches (src/m4/more_snapshots.s). With Snapshot BankSel
-on Hold (the default), holding FS1 for 1 s points the footswitches at snapshots 1-3 and holding FS2 at 4-6, a tap selects on its
-release, and they stay on that bank until a hold, a tap or a preset load moves them, no label or ring lit while it is not the bank
-heard; the lit one with Reselect Snapshot set to go back goes back across the banks too. On Tap, pressing the lit snapshot footswitch
-again flips between 1-3 and 4-6. In 4-6 the snapshot icon at the top right and the footswitch labels show 4, 5 or 6. Once a preset
-has a bank B, the next and previous snapshot footswitches and MIDI CC 69 run through all six: next on 3 goes to 4, next on 6 to 1,
-previous on 1 to 6, previous on 4 to 3. MIDI CC 69's values 0..2 select snapshots 1..3 and 3..5 snapshots 4..6, from either bank."""
+"""More snapshots: two more banks of snapshots, 4-6 and 7-9, on the three snapshot footswitches (src/m4/more_snapshots.s). With
+Snapshot BankSel on Hold (the default), holding FS1 for 1 s points the footswitches at snapshots 1-3, FS2 at 4-6 and FS3 at 7-9, a
+tap selects on its release, and they stay on that bank until a hold, a tap or a preset load moves them, no label or ring lit while it
+is not the bank heard; the lit one with Reselect Snapshot set to go back goes back across the banks too. On Tap, pressing the lit
+snapshot footswitch again flips between 1-3 and 4-6. In 4-9 the snapshot icon at the top right and the footswitch labels show the
+number. The next and previous snapshot footswitches and MIDI CC 69 run through the banks a preset has, of those the footswitches
+reach: 1-9 on Hold, 1-6 on Tap (next on 3 goes to 4, next on 6 to 7, or to 1 without a bank C). MIDI CC 69's values 0..7 select
+snapshots 1..8 and 10 snapshot 9, from any bank, and on Hold 11, 12 and 13 point the footswitches at 1-3, 4-6 or 7-9."""
+import patch_menu as pm
 from features import Setting
 
 FLAG = 'HX_MORE_SNAPSHOTS'
@@ -22,15 +24,18 @@ FS_SELECT_CALL, ACTION_SELECT_CALL = 0x28dd1640, 0x28de59d8
 NEXT_CUR, PREV_CUR, CUR_GET = 0x28dd1628, 0x28dd16dc, 0x28de3750
 # MIDI CC 69 (0x28d9b120): its calls of the manager getter only where 8 (next) wraps 2 to 0 and 9 (previous) 0 to 2, and its select
 CC_WRAP_CALLS, MANAGER_GET, CC_SELECT = (0x28d9b676, 0x28d9b6d8), 0x28d960a4, 0x28d9b5de
-# CC 69's cmp r1, #2 before its select of the value: #5 sends 3..5 there too, which stock ignores; that path alone calls the manager
+# CC 69's cmp r1, #2 before its select of the value: #7 sends 3..7 there too, which stock ignores; that path alone calls the manager
 # getter at CC_VALUE_CALL, as next and previous within a bank select 0..2 through the same tail call
-CC_RANGE, CC_RANGE_STOCK, CC_RANGE_SIX, CC_VALUE_CALL = 0x28d9b5a2, bytes.fromhex('0229'), bytes.fromhex('0529'), 0x28d9b63a
+CC_RANGE, CC_RANGE_STOCK, CC_RANGE_NINE, CC_VALUE_CALL = 0x28d9b5a2, bytes.fromhex('0229'), bytes.fromhex('0729'), 0x28d9b63a
+# CC 69's cmp r1, #9 and its bne.w out for any value but 8 and 9 (cmp r1, #9; bne.w 0x28d9b224): a bl to snaps_cc_more and a nop,
+# which sends 10..13 to the value's select too and the rest where they went
+CC_MORE, CC_MORE_STOCK = 0x28d9b5aa, bytes.fromhex('0929 7ff4 3aae')
 PARSE, PARSE_STOCK = 0x28de42c4, bytes.fromhex('2de9 f04f')     # the preset's snapshots into the manager; push.w {r4-r11,lr}
 # The preset serializers: each copies the blocks, with their live values, then calls the snapshot writer 0x28de3c9c; a load takes the
 # live values as its current snapshot's. 0x28dea8c4 (push.w {r4-r8,lr}) is the one a save on the unit took [verified on unit],
 # 0x28deacf4 (push.w {r4-r11,lr}) the other save path's and HX Edit's (0x28e1c5b2). They are the writer's only callers.
 SERIALIZERS = ((0x28dea8c4, bytes.fromhex('2de9 f041')), (0x28deacf4, bytes.fromhex('2de9 f04f')))
-FILE_KEY = 0x64                     # bank B's key in the preset file, through tools/patch_menu.py's preset keys
+FILE_KEY, FILE_KEY_C = 0x64, 0x66     # banks B's and C's keys in the preset file, through tools/patch_menu.py's preset keys
 TOP_PAINT_LIT, TOP_PAINT = 0x28d96d90, 0x28dca359              # the top view's paint (preset number, name, snapshot icon), as registered
 HOME_PAINT_LIT, HOME_PAINT = 0x28d96e28, 0x28dc8d39            # the Home view's paint (footswitch labels), as registered
 # The footswitch event handler 0x28dd1978's call of the selected block's getter, which every event reaches with the event in r4 and the
@@ -62,10 +67,13 @@ def apply(p):
     p.own_call(CC_SELECT, SELECT, "MIDI CC 69's call of select", m['snaps_cc_select'])
     p.own_call(CC_VALUE_CALL, MANAGER_GET, "MIDI CC 69's call of the manager getter before its select of the value", m['snaps_cc_value'])
     p.expect(CC_RANGE, CC_RANGE_STOCK, "MIDI CC 69's range of snapshot values")
-    p.put(CC_RANGE, CC_RANGE_SIX, "MIDI CC 69's values 3..5, snapshots 4..6")
+    p.put(CC_RANGE, CC_RANGE_NINE, "MIDI CC 69's values 3..7, snapshots 4..8")
+    p.expect(CC_MORE, CC_MORE_STOCK, "MIDI CC 69's test for previous and its way out")
+    p.put(CC_MORE, pm.bl(CC_MORE, m['snaps_cc_more']) + bytes.fromhex('00bf'), "MIDI CC 69's values 10..13")
     p.chain_entry(SELECT, SELECT_STOCK, before=m['snaps_selecting'])
     p.chain_entry(PARSE, PARSE_STOCK, before=m['snaps_loaded'])
     p.preset_key(FILE_KEY, m['snaps_key_write'], m['snaps_key_found'])
+    p.preset_key(FILE_KEY_C, m['snaps_key_write_c'], m['snaps_key_found_c'])
     for fn, stock in SERIALIZERS:
         p.chain_entry(fn, stock, before=m['snaps_saving'], after=m['snaps_saved'])
     p.chain_ptr(TOP_PAINT_LIT, TOP_PAINT, after=m['snaps_paint'])

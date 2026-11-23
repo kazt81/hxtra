@@ -152,7 +152,8 @@ def test_every_case_has_a_name_and_a_description():
     names = [n for n, _, _ in dt.CASES]
     assert len(names) == len(set(names)) and all(what for _, what, _ in dt.CASES)
     assert {'harness', 'bpm', 'tap_color', 'breathing_line', 'dsp_meter', 'real_names', 'tuner', 'long_press', 'more_snapshots',
-            'more_snapshots_tap', 'metronome', 'metronome_bypass', 'nam', 'gr', 'global_eq', 'preset_color'} <= set(names)
+            'more_snapshots_c', 'more_snapshots_tap', 'metronome', 'metronome_bypass', 'nam', 'gr', 'global_eq',
+            'preset_color'} <= set(names)
 
 
 def test_teal_is_the_volume_blocks_ring_lit_or_dim_and_not_white_or_grey():

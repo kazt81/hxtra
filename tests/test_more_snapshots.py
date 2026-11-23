@@ -47,7 +47,8 @@ PRESS, RELEASE, CLICK, HOLD = 1, 2, 3, 5
 PENDING, PENDING_FS, IMMEDIATE, PRESSED = 0x4f, 0x50, 0x6d, 0x78
 LISTS_GET, CTRLS_GET, LISTS, CTRLS = 0x28d96084, 0x28d9608c, 0x28128b4c, 0x28125d30    # the footswitch lists, the controllers
 FS_LEARNING, CC_LEARNING = 0x28dd87a0, 0x28dde9ec    # (lists), (controllers) -> set while a learn waits
-SAVING, VIEW, WRAP, RELAYOUT, PREV6, NONE, STEP, DSP_HELD = 2, 4, 5, 7, 8, 0xff, 3, 9     # in snaps_data
+SAVING, VIEW, WRAP, RELAYOUT, PREV9, NONE, STEP, DSP_HELD = 2, 4, 5, 7, 8, 0xff, 3, 9     # in snaps_data
+MADE_B, MADE_C, SPARE, FILE_C = 1, 13, 14, 15                                                # in snaps_data
 DSP_LOCK, DSP_UNLOCK, DSP_MODEL = 0x28e07844, 0x28e0785c, 0x28449e78   # D, the DSP model's lock: (engine), at [DSP_MODEL] + 8
 # What PRESET (0x28d92a98) returns here, the DSP index D's calls take: 0 on the unit, any other value here, so the D stubs can tell
 # it came from that call (the ROM would lock address 8 with it); a DSP model, made
@@ -143,7 +144,8 @@ class Manager:
         a.bl(at + self.sym['snaps_event'])
         a.h(0x603c, 0x607d, 0xbdf8)                         # str r4,[r7]; str r5,[r7,#4]; pop {r3-r7,pc}
         self.m.load(EVENT_TRAMPOLINE, a.bytes())
-        keys = {ms.FILE_KEY: ('more_snapshots', at + self.sym['snaps_key_write'], at + self.sym['snaps_key_found'])}
+        keys = {ms.FILE_KEY: ('more_snapshots', at + self.sym['snaps_key_write'], at + self.sym['snaps_key_found']),
+                ms.FILE_KEY_C: ('more_snapshots', at + self.sym['snaps_key_write_c'], at + self.sym['snaps_key_found_c'])}
         engine, self.esym = m4emu.assemble('src/m4/preset_keys.s', MODS, IDS, inc={'preset_keys.inc': pm.preset_keys_inc(keys)})
         self.m.load(ENGINE, engine)
         self.stack_top = m4emu.STACK_TOP
@@ -451,7 +453,7 @@ class Manager:
         return self.call('snaps_cc_select', mgr, (cur + way) % 3)
 
     def cc(self, value):
-        """CC 69 with value 0..5: the manager getter, then select of the value."""
+        """CC 69 with value 0..7 or 10..13: the manager getter, then select of the value."""
         assert self.call('snaps_cc_value') == MGR, 'the manager, as the stock getter returns it'
         return self.call('snaps_cc_select', MGR, value)
 
@@ -593,9 +595,13 @@ class Manager:
         self.task = 'key'
         return None
 
+    def bank(self):
+        """The live bank: 0 A, 1 B, 2 C."""
+        return self.data(0)
+
     def at_snapshot(self):
-        """1..6: the live one."""
-        return self.cur() + 3 * self.bank_b_live() + 1
+        """1..9: the live one."""
+        return self.cur() + 3 * self.bank() + 1
 
 
 @pytest.fixture(autouse=True)
@@ -747,11 +753,12 @@ def top(digit):
     return ['widget lock', *camera(262, 202, digit), 'widget unlock']
 
 
-def labels(lit):
-    """What the Home view's paint does in bank B: 4, 5, 6 over the labels (anchor 7: x the centre, y the top), the lit one inverted."""
+def labels(lit, first=4):
+    """What the Home view's paint does in bank B (first 4) or C (7): its numbers over the labels (anchor 7: x the centre, y the
+    top), the lit one inverted."""
     out = ['widget lock']
     for i in range(3):
-        out += camera(LABEL_X[i] - 26, LABEL_Y - 35, str(i + 4), i == lit)
+        out += camera(LABEL_X[i] - 26, LABEL_Y - 35, str(i + first), i == lit)
     return out + ['widget unlock']
 
 
@@ -1297,7 +1304,7 @@ def test_hold_then_click_moves_with_one_sound_change(hm, start, fs, hold_fs, end
     (new, old, old_rec, new_rec), = hm.selects
     target = bank_b[fs] if end > 3 else bank_a(fs)
     assert (new, old_rec, new_rec) == (fs, left, target) and old != fs, 'from the sound left, a select of another index'
-    assert hm.at_snapshot() == end and hm.prev() == hm.cur() and hm.data(PREV6) == start - 1
+    assert hm.at_snapshot() == end and hm.prev() == hm.cur() and hm.data(PREV9) == start - 1
     assert hm.data(VIEW) == hold_fs and hm.data(RELAYOUT) == 1, 'the cross asks for a layout'
     hm.tick()
     assert hm.layouts[-1] == hold_fs and hm.data(RELAYOUT) == 0, 'the tick lays the labels out again, once the cross is whole'
@@ -1312,15 +1319,15 @@ def test_in_bank_b_a_click_selects_within_it(hm):
     assert [(new, old) for new, old, _, _ in hm.selects] == [(1, 0)] and hm.bank_b_live() and hm.at_snapshot() == 5
 
 
-def test_holding_fs3_and_the_release_after_a_hold_do_nothing(hm):
+def test_a_hold_of_fs3_points_the_footswitches_at_bank_c_and_the_release_after_a_hold_does_nothing(hm):
     bank_b_ready(hm)
     hm.layouts.clear()
     hm.hold_fs(2)
     hm.fs_click(2)
-    assert hm.selects == [] and hm.data(VIEW) == 0 and hm.layouts == [], 'FS3 has no bank yet'
+    assert hm.selects == [] and hm.data(VIEW) == 2 and hm.layouts == [2], 'FS3 points them at bank C; the click after it is stray'
     hm.hold_fs(1)
     hm.fs_click(1)
-    assert hm.selects == [] and hm.data(VIEW) == 1 and len(hm.layouts) == 1, 'the click after a hold is stray: no select'
+    assert hm.selects == [] and hm.data(VIEW) == 1 and len(hm.layouts) == 2, 'the click after a hold is stray: no select'
 
 
 def test_holding_the_viewed_bank_again_or_the_live_one(hm):
@@ -1495,10 +1502,10 @@ def test_no_other_select_moves_the_footswitches(hm, how):
     elif how == 'action':
         hm.call('snaps_action_select', MGR, 2)
     else:
-        prev6 = hm.data(PREV6)
+        prev6 = hm.data(PREV9)
         hm.m.u8(MGR + BUSY, 1)
         hm.m.call(SELECT, MGR, 2)
-        assert hm.held == [2] and hm.data(PREV6) == prev6 == 3, 'refused by select, after its hook, which keeps PREV6'
+        assert hm.held == [2] and hm.data(PREV9) == prev6 == 3, 'refused by select, after its hook, which keeps PREV9'
     cross = how in ('cc 4', 'cc wrap', 'fs wrap')
     assert hm.data(VIEW) == 1 and hm.bank_b_live() == cross and hm.data(RELAYOUT) == int(cross)
     hm.tick()
@@ -1534,10 +1541,10 @@ def test_a_preset_load_points_the_footswitches_at_bank_a(hm):
     viewing_b(hm)
     hm.cc(4)
     hm.event(12, PRESS)
-    assert hm.armed() == [1, 0, 0] and hm.bank_b_live() and hm.data(PREV6) == 0
+    assert hm.armed() == [1, 0, 0] and hm.bank_b_live() and hm.data(PREV9) == 0
     hm.selects.clear()
     hm.call('snaps_loaded', MGR, 0, 0, 0)
-    assert hm.data(VIEW) == 0 and hm.data(RELAYOUT) == 1 and hm.armed() == [0, 0, 0] and hm.data(PREV6) == NONE
+    assert hm.data(VIEW) == 0 and hm.data(RELAYOUT) == 1 and hm.armed() == [0, 0, 0] and hm.data(PREV9) == NONE
     hm.event(12, CLICK)
     assert hm.selects == [], 'the press made before the load selects nothing in the new preset'
 
@@ -1567,7 +1574,7 @@ def test_a_save_leaves_the_footswitches_and_the_previous_snapshot_alone(hm, bank
     hm.hold_fs(0 if bank == 'b' else 1)
     hm.selects.clear()
     hm.layouts.clear()
-    before = hm.cur(), hm.prev(), hm.data(PREV6), hm.data(VIEW), hm.bank_b_live()
+    before = hm.cur(), hm.prev(), hm.data(PREV9), hm.data(VIEW), hm.bank_b_live()
     assert before == ((1, 0, 3, 0, True) if bank == 'b' else (2, 1, 1, 1, False))
     saving = []
     hm.during_select = lambda: saving.append(hm.data(SAVING))
@@ -1575,7 +1582,7 @@ def test_a_save_leaves_the_footswitches_and_the_previous_snapshot_alone(hm, bank
         hm.save()
     assert [(b, cur) for b, cur, _ in hm.saved] == [(False, before[0])] * 3
     assert saving == ([1] * 6 if bank == 'b' else []) and hm.data(SAVING) == 0
-    assert (hm.cur(), hm.prev(), hm.data(PREV6), hm.data(VIEW), hm.bank_b_live()) == before
+    assert (hm.cur(), hm.prev(), hm.data(PREV9), hm.data(VIEW), hm.bank_b_live()) == before
     hm.tick()
     assert hm.layouts == ([0] if bank == 'b' else [])
 
@@ -1621,7 +1628,7 @@ def test_a_select_during_a_serializers_flips_keeps_the_previous_snapshot_in_bank
     hm.m.call(SELECT, MGR, 2)
     if during:
         hm.call('snaps_saved', STREAM, HEADER)
-    assert hm.at_snapshot() == 6 and hm.data(PREV6) == 4 and hm.prev() == 1
+    assert hm.at_snapshot() == 6 and hm.data(PREV9) == 4 and hm.prev() == 1
     hm.tap(2)
     assert hm.at_snapshot() == 5 and hm.bank_b_live() and hm.data(VIEW) == 1
 
@@ -2400,19 +2407,19 @@ def test_the_lit_click_goes_back_across_the_banks_with_reselect_snapshot(hm):
     hm.go(1)
     hm.hold_fs(1)
     hm.tap(2)
-    assert hm.at_snapshot() == 6 and hm.data(PREV6) == 1 and hm.prev() == hm.cur()
+    assert hm.at_snapshot() == 6 and hm.data(PREV9) == 1 and hm.prev() == hm.cur()
     hm.selects.clear()
     hm.tap(2)
     (new, _, old_rec, new_rec), = hm.selects
     assert (new, old_rec, new_rec) == (1, bank_b[2], bank_a(1)) and hm.at_snapshot() == 2
-    assert hm.data(VIEW) == 0 and hm.data(PREV6) == 5
+    assert hm.data(VIEW) == 0 and hm.data(PREV9) == 5
     hm.tap(1)
-    assert hm.at_snapshot() == 6 and hm.data(VIEW) == 1 and hm.data(PREV6) == 1
+    assert hm.at_snapshot() == 6 and hm.data(VIEW) == 1 and hm.data(PREV9) == 1
     hm.hold_fs(0)
     hm.tap(0)
-    assert hm.at_snapshot() == 1 and hm.data(PREV6) == 5
+    assert hm.at_snapshot() == 1 and hm.data(PREV9) == 5
     hm.tap(0)
-    assert hm.at_snapshot() == 6 and hm.data(VIEW) == 1 and hm.data(PREV6) == 0
+    assert hm.at_snapshot() == 6 and hm.data(VIEW) == 1 and hm.data(PREV9) == 0
 
 
 def test_the_lit_click_goes_back_within_the_bank_as_stock(hm):
@@ -2420,11 +2427,11 @@ def test_the_lit_click_goes_back_within_the_bank_as_stock(hm):
     bank_b_ready(hm)
     hm.settings[RESELECT] = 1
     hm.tap(1)
-    assert hm.at_snapshot() == 2 and hm.data(PREV6) == 0
+    assert hm.at_snapshot() == 2 and hm.data(PREV9) == 0
     hm.tap(1)
-    assert hm.at_snapshot() == 1 and hm.prev() == 1 and hm.data(PREV6) == 1
+    assert hm.at_snapshot() == 1 and hm.prev() == 1 and hm.data(PREV9) == 1
     hm.tap(0)
-    assert hm.at_snapshot() == 2 and hm.data(PREV6) == 0
+    assert hm.at_snapshot() == 2 and hm.data(PREV9) == 0
     assert [(new, old) for new, old, _, _ in hm.selects] == [(1, 0), (0, 1), (1, 0)] and not hm.bank_b_live()
 
 
@@ -2436,9 +2443,9 @@ def test_an_outside_select_is_the_previous_snapshot_for_the_lit_click(hm):
     hm.hold_fs(1)
     hm.tap(2)
     hm.m.call(SELECT, MGR, 0)
-    assert hm.at_snapshot() == 4 and hm.data(PREV6) == 5 and hm.prev() == 2
+    assert hm.at_snapshot() == 4 and hm.data(PREV9) == 5 and hm.prev() == 2
     hm.tap(0)
-    assert hm.at_snapshot() == 6 and hm.data(PREV6) == 3
+    assert hm.at_snapshot() == 6 and hm.data(PREV9) == 3
 
 
 def test_an_aborted_hold_of_the_lit_switch_goes_back_with_reselect_snapshot(hm):
@@ -2461,7 +2468,7 @@ def test_the_lit_click_recalls_with_reselect_snapshot_off(hm):
     hm.tap(2)
     hm.selects.clear()
     hm.tap(2)
-    assert [(new, old) for new, old, _, _ in hm.selects] == [(2, 2)] and hm.at_snapshot() == 6 and hm.data(PREV6) == 1
+    assert [(new, old) for new, old, _, _ in hm.selects] == [(2, 2)] and hm.at_snapshot() == 6 and hm.data(PREV9) == 1
 
 
 def test_cc_69s_lit_value_and_the_command_center_stay_within_the_bank(hm):
@@ -2475,7 +2482,7 @@ def test_cc_69s_lit_value_and_the_command_center_stay_within_the_bank(hm):
     hm.selects.clear()
     hm.cc(5)
     hm.call('snaps_action_select', MGR, 2)
-    assert [(new, old) for new, old, _, _ in hm.selects] == [(2, 2), (2, 2)] and hm.at_snapshot() == 6 and hm.data(PREV6) == 1
+    assert [(new, old) for new, old, _, _ in hm.selects] == [(2, 2), (2, 2)] and hm.at_snapshot() == 6 and hm.data(PREV9) == 1
     hm.tap(2)
     assert hm.at_snapshot() == 2
 
@@ -2555,7 +2562,7 @@ def test_a_cross_leaves_the_previous_snapshot_on_the_new_one(mgr, how):
         mgr.settings[BANK_SWITCH] = HOLD_SEL
         mgr.hold_fs(1)
         mgr.tap(0)
-    assert mgr.bank_b_live() and mgr.prev() == mgr.cur() and mgr.data(PREV6) == 2, 'snapshot 3, in PREV6'
+    assert mgr.bank_b_live() and mgr.prev() == mgr.cur() and mgr.data(PREV9) == 2, 'snapshot 3, in PREV9'
 
 
 @pytest.mark.parametrize('k', [0, 1, 2])
@@ -2594,6 +2601,293 @@ def chain_handlers(read, stub, before, after):
     return befores, afters
 
 
+# Bank C (7..9): FS3's hold, the crosses between any two banks, next and previous through the banks made, CC 69's 6, 7, 10 and
+# 11..13, key 0x66, a save in bank C, its numbers
+
+
+def head_c():
+    return bytes([0x66, 0xc5, 0x07, 0x28]) + b'HX9C' + bytes([1, 0, 0, 0])
+
+
+def make_banks(m, banks=(1, 2)):
+    """On Hold, for each bank a hold of FS2 or FS3 and a tap of each footswitch, so each record holds a sound, then an edit on each
+    (0xb0.. in bank B, 0xc0.. in bank C); then FS1's hold and a tap of FS1: bank A live on snapshot 1. Each bank's records."""
+    out = {0: [bank_a(i) for i in range(3)]}
+    for b in banks:
+        m.hold_fs(b)
+        for k in range(3):
+            m.tap(k)
+        for i in range(3):
+            r = bytearray(m.rec(i))
+            r[5] = 0xa0 + 0x10 * b + i
+            m.m.write(record(i), r)
+        out[b] = [m.rec(i) for i in range(3)]
+    m.hold_fs(0)
+    m.tap(0)
+    m.selects.clear()
+    m.inits.clear()
+    m.layouts.clear()
+    return out
+
+
+def walk(m, way, n, source):
+    """n steps of next (+1) or previous (-1); the snapshot live after each, 1..9."""
+    out = []
+    for _ in range(n):
+        m.step(way, source)
+        out.append(m.at_snapshot())
+    return out
+
+
+def test_bank_c_starts_as_snapshot_7_to_9_on_its_first_click(hm):
+    """FS3's hold points the footswitches at bank C before it is made: no label lit, the defaults' names; the click makes it, as a
+    flip to bank B does, and the new snapshot takes the sound of the one left."""
+    bank_b_ready(hm)
+    hm.hold_fs(2)
+    assert hm.call('snaps_layout_cur', MGR) == NONE and hm.inits == []
+    assert [hm.m.read(hm.call('snaps_layout_name', MGR, k), 10) for k in range(3)] == [f'SNAPSHOT {k + 7}'.encode() for k in range(3)]
+    assert [hm.call('snaps_layout_renamed', MGR, k) for k in range(3)] == [0, 0, 0]
+    assert [hm.call('snaps_layout_colour', MGR, k) for k in range(3)] == [0, 0, 0]
+    hm.tap(1)
+    assert hm.inits == [b'SNAPSHOT 7', b'SNAPSHOT 8', b'SNAPSHOT 9'] and hm.at_snapshot() == 8
+    (new, _, old_rec, new_rec), = hm.selects
+    assert (new, old_rec) == (1, bank_a(0)) and not new_rec[VALID], 'snapshot 8 takes the sound of snapshot 1, which it left'
+    assert hm.data(MADE_C) == 1 and hm.data(VIEW) == 2
+
+
+@pytest.mark.parametrize('start, to', [(0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1)])
+def test_a_cross_between_any_two_banks_keeps_all_three(hm, start, to):
+    banks = make_banks(hm)
+    if start:
+        hm.hold_fs(start)
+        hm.tap(2)
+    assert hm.bank() == start and [hm.rec(i) for i in range(3)] == banks[start]
+    hm.selects.clear()
+    hm.hold_fs(to)
+    hm.tap(1)
+    (new, _, old_rec, new_rec), = hm.selects
+    assert (new, old_rec, new_rec) == (1, banks[start][2 if start else 0], banks[to][1]), 'the bank held, from the sound left'
+    assert hm.bank() == to and [hm.rec(i) for i in range(3)] == banks[to]
+    for b in (0, 1, 2):
+        hm.hold_fs(b)
+        hm.tap(0)
+        assert [hm.rec(i) for i in range(3)] == banks[b], f'bank {"ABC"[b]} kept'
+    assert hm.inits == [], 'each bank is made once a preset'
+
+
+@pytest.mark.parametrize('source', ['fs', 'cc'])
+@pytest.mark.parametrize('made, run', [((1, 2), [2, 3, 4, 5, 6, 7, 8, 9, 1]), ((2,), [2, 3, 7, 8, 9, 1]),
+                                       ((1,), [2, 3, 4, 5, 6, 1]), ((), [2, 3, 1])], ids=['b and c', 'c', 'b', 'none'])
+def test_on_hold_next_and_previous_run_through_every_bank_made(hm, source, made, run):
+    make_banks(hm, made)
+    assert walk(hm, 1, len(run), source) == run
+    assert walk(hm, -1, len(run), source) == [*reversed(run[:-1]), 1]
+
+
+@pytest.mark.parametrize('source', ['fs', 'cc'])
+def test_on_tap_next_and_previous_stay_in_1_to_6_and_leave_bank_c(mgr, source):
+    """Tap's footswitches reach banks A and B; a bank C that CC 69 made is left by the first wrap and not come back to."""
+    with_bank_b(mgr)
+    mgr.cc(6)
+    assert mgr.at_snapshot() == 7
+    assert walk(mgr, 1, 3, source) == [8, 9, 1], 'next on 9 to 1'
+    assert walk(mgr, 1, 6, source) == [2, 3, 4, 5, 6, 1]
+    mgr.cc(6)
+    assert walk(mgr, -1, 7, source) == [6, 5, 4, 3, 2, 1, 6], 'previous on 7 to 6'
+
+
+def test_on_tap_the_lit_one_in_bank_c_flips_to_bank_a(mgr):
+    with_bank_b(mgr)
+    mgr.cc(7)
+    assert mgr.at_snapshot() == 8
+    mgr.press(1)
+    assert mgr.at_snapshot() == 2 and mgr.data(VIEW) == 0
+    mgr.press(1)
+    assert mgr.at_snapshot() == 5, 'then to bank B, as Tap flips'
+
+
+@pytest.mark.parametrize('sel', [HOLD_SEL, TAP_SEL], ids=['hold', 'tap'])
+def test_cc_69_selects_any_of_the_nine_from_any_bank(m4emu, sel):
+    """0..7 snapshots 1..8, 10 snapshot 9, whatever Snapshot BankSel says; a bank is made on its first value."""
+    m = Manager(m4emu, bank_switch=sel)
+    out = []
+    for v in (6, 10, 7, 0, 4, 10, 3, 2, 7, 5, 1):
+        m.cc(v)
+        out.append(m.at_snapshot())
+    assert out == [7, 9, 8, 1, 5, 9, 4, 3, 8, 6, 2]
+    assert m.inits == [b'SNAPSHOT 7', b'SNAPSHOT 8', b'SNAPSHOT 9', b'SNAPSHOT 4', b'SNAPSHOT 5', b'SNAPSHOT 6']
+
+
+def test_cc_69_11_to_13_point_the_footswitches_on_hold_and_select_nothing(hm):
+    """As a hold of FS1, FS2 or FS3, from the request task: the rings and the labels from the key task's tick."""
+    make_banks(hm)
+    seen = []
+    for v in (12, 13, 13, 11):
+        hm.data(LEDS, 0)
+        hm.data(RELAYOUT, 0)
+        hm.cc(v)
+        seen.append((hm.data(VIEW), hm.data(LEDS), hm.data(RELAYOUT)))
+    assert seen == [(1, 1, 1), (2, 1, 1), (2, 0, 0), (0, 1, 1)], 'none again for the bank already shown'
+    assert hm.selects == [] and hm.at_snapshot() == 1 and hm.layouts == []
+    hm.cc(13)
+    hm.tick()
+    assert hm.layouts == [2]
+    hm.tap(2)
+    assert hm.at_snapshot() == 9
+
+
+def test_cc_69_11_to_13_do_nothing_on_tap(mgr):
+    with_bank_b(mgr)
+    mgr.data(LEDS, 0)
+    mgr.data(RELAYOUT, 0)
+    for v in (12, 13, 11):
+        mgr.cc(v)
+    assert (mgr.data(VIEW), mgr.data(LEDS), mgr.data(RELAYOUT)) == (0, 0, 0) and mgr.selects == []
+
+
+def test_the_lit_click_goes_back_to_bank_c_with_reselect_snapshot(hm):
+    make_banks(hm)
+    hm.settings[RESELECT] = 1
+    hm.hold_fs(2)
+    hm.tap(2)
+    hm.hold_fs(0)
+    hm.tap(1)
+    assert hm.at_snapshot() == 2 and hm.data(PREV9) == 8
+    hm.tap(1)
+    assert hm.at_snapshot() == 9 and hm.data(PREV9) == 1, 'the lit one goes back to 9, across the banks'
+
+
+def test_a_preset_file_with_bank_c_gets_key_0x66_after_key_0x64(hm):
+    """Wherever the banks wait (bank A, B or C live), the file gets bank B under key 0x64 and bank C under key 0x66."""
+    banks = make_banks(hm)
+    file = head() + b''.join(banks[1]) + head_c() + b''.join(banks[2])
+    assert appended(hm) == file
+    for b in (2, 1, 0):
+        hm.hold_fs(b)
+        hm.tap(0)
+        assert appended(hm) == file, f'bank {"ABC"[b]} live'
+
+
+@pytest.mark.parametrize('made, count', [((2,), 0x8a), ((1, 2), 0x8b)], ids=['c', 'b and c'])
+def test_the_maps_count_counts_key_0x66(hm, made, count):
+    banks = make_banks(hm, made)
+    assert appended(hm).endswith(head_c() + b''.join(banks[2]))
+    hm.written.clear()
+    hm.engine('pk_toc', STREAM, HEADER)
+    assert hm.written == [bytes([count])]
+
+
+@pytest.mark.parametrize('order', ['b then c', 'c then b', 'c only'])
+def test_a_load_takes_bank_c_from_the_file(mgr, order):
+    b = b''.join(bytes([0xb0 + i]) * REC for i in range(3))
+    c = b''.join(bytes([0xc0 + i]) * REC for i in range(3))
+    keys = {'b then c': head() + b + head_c() + c, 'c then b': head_c() + c + head() + b, 'c only': head_c() + c}[order]
+    mgr.section = FIXTURE_NAMES + keys
+    assert mgr.read_section() == len(mgr.section)
+    mgr.call('snaps_loaded', MGR, 0, 0, 0)
+    assert mgr.m.read(CODE + mgr.sym['snaps_spare'], 3 * REC) == c and (mgr.data(MADE_C), mgr.data(SPARE)) == (1, 2)
+    assert mgr.data(MADE_B) == (order != 'c only') and mgr.data(FILE_C) == 0
+    mgr.inits.clear()
+    mgr.cc(7)
+    assert mgr.inits == [] and mgr.rec(1) == c[REC:2 * REC] and mgr.at_snapshot() == 8, "the file's snapshot 8, not a new one"
+
+
+def test_a_build_with_key_0x64_alone_takes_bank_b_from_a_file_with_key_0x66(m4emu):
+    """As a build with #168 registers it: the preset file engine hands the finder every key and walks past key 0x66 (before key
+    0x64 here), so a preset saved with bank C loads there with 1..6."""
+    m = Manager(m4emu)
+    keys = {ms.FILE_KEY: ('more_snapshots', m.at + m.sym['snaps_key_write'], m.at + m.sym['snaps_key_found'])}
+    engine, m.esym = m4emu.assemble('src/m4/preset_keys.s', MODS, IDS, inc={'preset_keys.inc': pm.preset_keys_inc(keys)})
+    m.m.load(ENGINE, engine)
+    b = b''.join(bytes([0xb0 + i]) * REC for i in range(3))
+    m.section = FIXTURE_NAMES + head_c() + bytes(3 * REC) + head() + b
+    assert m.read_section() == len(m.section)
+    m.call('snaps_loaded', MGR, 0, 0, 0)
+    assert m.m.read(CODE + m.sym['snaps_shadow'], 3 * REC) == b and (m.data(MADE_B), m.data(MADE_C)) == (1, 0)
+
+
+@pytest.mark.parametrize('key', [head_c()[:4] + b'HX9D' + bytes(4 + 3 * REC), bytes([0x66, 0xc5, 1, 0]) + bytes(0x100),
+                                 head_c()[:8] + bytes([2, 0, 0, 0]) + bytes(3 * REC)], ids=['magic', 'short', 'version'])
+def test_a_load_without_a_whole_bank_c_starts_bank_c_anew(mgr, key):
+    mgr.section = FIXTURE_NAMES + key
+    mgr.read_section()
+    mgr.call('snaps_loaded', MGR, 0, 0, 0)
+    mgr.cc(6)
+    assert mgr.inits == [b'SNAPSHOT 7', b'SNAPSHOT 8', b'SNAPSHOT 9']
+
+
+def test_the_next_files_read_forgets_a_staged_bank_c(mgr):
+    mgr.section = head_c() + bytes(3 * REC)
+    mgr.read_section()
+    assert mgr.data(FILE_C) == 1
+    mgr.section = b''
+    mgr.read_section()
+    mgr.call('snaps_loaded', MGR, 0, 0, 0)
+    assert mgr.data(MADE_C) == 0
+
+
+def test_a_preset_load_forgets_the_last_presets_bank_c(hm):
+    make_banks(hm, (2,))
+    hm.hold_fs(2)
+    hm.tap(0)
+    hm.call('snaps_loaded', MGR, 0, 0, 0)
+    assert (hm.bank(), hm.data(MADE_C), hm.data(SPARE), hm.data(3)) == (0, 0, 2, 3), 'bank A, the cameras drawn again'
+    for i in range(3):
+        hm.m.write(record(i), bank_a(i))
+    hm.cc(6)
+    assert hm.inits == [b'SNAPSHOT 7', b'SNAPSHOT 8', b'SNAPSHOT 9']
+
+
+@pytest.mark.parametrize('busy', [0, 1])
+def test_a_save_in_bank_c_recalls_bank_a_for_the_write_and_comes_back(hm, busy):
+    banks = make_banks(hm)
+    hm.hold_fs(2)
+    hm.tap(1)
+    prev, prev9 = hm.prev(), hm.data(PREV9)
+    hm.m.u8(MGR + BUSY, busy)
+    hm.selects.clear()
+    hm.saved.clear()
+    hm.save()
+    assert hm.saved == [(False, 1, banks[0])], 'the write runs with bank A live, on the same index'
+    assert [(new, old_rec, new_rec) for new, _, old_rec, new_rec in hm.selects] == [(1, banks[2][1], banks[0][1]),
+                                                                                  (1, banks[0][1], banks[2][1])]
+    assert hm.bank() == 2 and [hm.rec(i) for i in range(3)] == banks[2] and hm.cur() == 1
+    assert (hm.read_busy(), hm.data(SAVING), hm.prev(), hm.data(PREV9)) == (busy, 0, prev, prev9) and hm.held == []
+    hm.m.u8(MGR + BUSY, 0)
+
+
+@pytest.mark.parametrize('lit', [0, 1, 2])
+def test_bank_c_draws_its_numbers_over_the_icon_and_the_labels(hm, lit):
+    make_banks(hm, (2,))
+    hm.paint()
+    hm.paint('home')                                    # the stock cameras drawn again, as after any return to bank A
+    hm.hold_fs(2)
+    hm.tap(lit)
+    assert hm.paint() == (top(str(lit + 7)), [])
+    assert hm.paint('home') == (labels(lit, 7), [])
+
+
+def test_the_labels_show_bank_c_while_the_footswitches_point_at_it(hm):
+    make_banks(hm)
+    hm.paint()
+    hm.paint('home')
+    hm.hold_fs(2)
+    assert hm.paint('home', lit=NONE) == (labels(None, 7), [])
+    assert hm.paint() == ([], []), 'the top icon stays on the live snapshot, 1'
+    hm.hold_fs(1)
+    assert hm.paint('home', lit=NONE) == (labels(None, 4), [])
+
+
+def test_section_10_with_every_key_fits_the_loads_buffer(hm):
+    """The load reads section 10 into 0x5000 bytes (0x28deb52e) and none of it when it is longer (0x28defa3e: -42), names and keys
+    alike. With key 12 at its largest (128 IR names, each as long as its 0x70-byte entry, 0x28de8914), keys 0x64 and 0x66, and
+    Preset LED Color's key 0x65 (8 bytes), it still fits."""
+    make_banks(hm)
+    keys = appended(hm)
+    assert len(keys) == 2 * (12 + 3 * REC)
+    assert 1 + 3 + 128 * (2 + 0x70) + len(keys) + 8 <= 0x5000
+
+
 @pytest.mark.firmware
 def test_build_sends_the_snapshot_footswitch_to_the_module_and_wraps_load_and_save(m4emu):
     code, sym = m4emu.assemble('src/m4/more_snapshots.s', MODS, IDS)
@@ -2604,8 +2898,10 @@ def test_build_sends_the_snapshot_footswitch_to_the_module_and_wraps_load_and_sa
     assert read(module, len(code)) == code
     engine = branch_target(pm.PRESET_FILE_CALLS[0][0], read(pm.PRESET_FILE_CALLS[0][0], 4)) - esym['pk_serialize']
     assert [branch_target(s, read(s, 4)) for s, _, _ in pm.PRESET_FILE_CALLS] == [engine + esym[h] for _, _, h in pm.PRESET_FILE_CALLS]
-    tables = struct.unpack('<2I', read(engine + esym['pk_writers'], 8))
-    assert tables == ((module + sym['snaps_key_write']) | 1, (module + sym['snaps_key_found']) | 1), 'key 0x64 on the preset file engine'
+    tables = struct.unpack('<4I', read(engine + esym['pk_writers'], 16))
+    assert tables == tuple((module + sym[h]) | 1 for h in ('snaps_key_write', 'snaps_key_write_c', 'snaps_key_found',
+                                                             'snaps_key_found_c')), 'keys 0x64 and 0x66 on the preset file engine'
+    assert read(ms.CC_MORE, 6) == pm.bl(ms.CC_MORE, module + sym['snaps_cc_more']) + bytes.fromhex('00bf')
     hooks = ((ms.FS_SELECT_CALL, 'snaps_select'), (ms.ACTION_SELECT_CALL, 'snaps_action_select'), (ms.NEXT_CUR, 'snaps_next_cur'),
              (ms.PREV_CUR, 'snaps_prev_cur'), (ms.CC_SELECT, 'snaps_cc_select'), (ms.CC_VALUE_CALL, 'snaps_cc_value'),
              *((s, 'snaps_cc_wrap') for s in ms.CC_WRAP_CALLS), (ms.EVENT_CALL, 'snaps_event'),
@@ -2674,25 +2970,38 @@ CC_HANDLER, CC_HANDLER_END = 0x28d9b120, 0x28d9b700
 
 @pytest.mark.firmware
 @pytest.mark.parametrize('sel', [HOLD_SEL, TAP_SEL], ids=['hold', 'tap'])
-def test_the_built_cc_handler_selects_all_six_snapshots_by_cc_69(m4emu, sel):
-    """The built firmware's CC handler (cc, value), from its entry: CC 69's 0..5 land on snapshots 1..6 from either bank, 6 and 7
-    still do nothing, and next and previous still run through all six, whatever Snapshot BankSel says."""
+def test_the_built_cc_handler_selects_all_nine_snapshots_by_cc_69(m4emu, sel):
+    """The built firmware's CC handler (cc, value), from its entry: CC 69's 0..7 land on snapshots 1..8 and 10 on 9 from any bank,
+    whatever Snapshot BankSel says; 11..13 point the footswitches at a bank on Hold and select nothing, on Tap nothing at all;
+    14 and above do nothing, as stock. Next and previous run through the banks made, of those reached: all nine on Hold, 1..6 on
+    Tap."""
     code, sym = m4emu.assemble('src/m4/more_snapshots.s', MODS, IDS)
     read, on = built({'HX_MORE_SNAPSHOTS': '1'})
-    assert 'more_snapshots' in on and read(ms.CC_RANGE, 2) == ms.CC_RANGE_SIX
+    assert 'more_snapshots' in on and read(ms.CC_RANGE, 2) == ms.CC_RANGE_NINE
     mgr = Manager(m4emu, module_of(read, sym), bank_switch=sel)
     mgr.m.load(CC_HANDLER, read(CC_HANDLER, CC_HANDLER_END - CC_HANDLER))
     mgr.m.stub(ms.MANAGER_GET, lambda m: m.reg('r0', MGR))
 
     def cc(value):
         mgr.m.call(CC_HANDLER, 69, value)
-        return mgr.cur() + 3 * mgr.bank_b_live() + 1
+        return mgr.at_snapshot()
 
     assert [cc(v) for v in (4, 1, 5, 0, 3, 2)] == [5, 2, 6, 1, 4, 3]
+    assert [cc(v) for v in (6, 10, 7, 0, 7)] == [7, 9, 8, 1, 8]
     mgr.selects.clear()
-    assert [cc(v) for v in (6, 7)] == [3, 3] and mgr.selects == [], '6 and 7 are ignored, as stock'
-    assert [cc(8) for _ in range(6)] == [4, 5, 6, 1, 2, 3]
-    assert [cc(9) for _ in range(6)] == [2, 1, 6, 5, 4, 3]
+    views = []
+    for v in (12, 13, 11, 14, 99, 127):
+        assert cc(v) == 8
+        views.append(mgr.data(VIEW))
+    assert mgr.selects == [], '11..13 and the values stock ignores select nothing'
+    assert views == ([1, 2, 0, 0, 0, 0] if sel == HOLD_SEL else [2] * 6), 'on Tap the footswitches stay on the live bank'
+    cc(0)
+    if sel == HOLD_SEL:
+        assert [cc(8) for _ in range(9)] == [2, 3, 4, 5, 6, 7, 8, 9, 1]
+        assert [cc(9) for _ in range(9)] == [9, 8, 7, 6, 5, 4, 3, 2, 1]
+    else:
+        assert [cc(8) for _ in range(6)] == [2, 3, 4, 5, 6, 1]
+        assert [cc(9) for _ in range(6)] == [6, 5, 4, 3, 2, 1]
 
 
 @pytest.mark.firmware
@@ -2725,7 +3034,7 @@ def pixels(e8, off, w, h):
 @pytest.mark.firmware
 def test_the_number_covers_the_icon_digit_and_stays_inside_the_circle():
     """At the icon's place (top left 262, 237; anchor 6), the black box holds every white digit pixel of each snapshot icon and
-    only black or digit pixels besides; hx28_boldFont's 4, 5 and 6, centred at x 291 from y 203, ink only inside the box. A lit
+    only black or digit pixels besides; hx28_boldFont's 4 to 9, centred at x 291 from y 203, ink only inside the box. A lit
     camera (the labels') has a white circle and a dark digit: the box, white there, covers the digit and stays in the circle."""
     import image_store as im
     e7, e8 = stock_images()
@@ -2740,7 +3049,7 @@ def test_the_number_covers_the_icon_digit_and_stays_inside_the_circle():
         assert all(px[p] in (0, 0x0841, 0xffff) or im.pixel_rgb(px[p])[0] == im.pixel_rgb(px[p])[2] and sum(im.pixel_rgb(px[p])) > 600
                    for p in box), f'{name.decode()}: the box covers no part of the camera or its circle'
     _, table = im.font(e7, b'hx28_boldFont')
-    for ch in '456':
+    for ch in '456789':
         h, w, item = im.glyph(e7, table, ord(ch))
         off, _ = im.item(e8, item)
         ink = {(291 - w // 2 + x, 203 + y) for (x, y), v in pixels(e8, off, w, h).items() if v}
@@ -2770,7 +3079,7 @@ def test_without_the_flag_the_sites_stay_stock():
     assert read(ms.LED_COLOUR_CALL, 4) == pm.bl(ms.LED_COLOUR_CALL, ms.COLOUR_GET)
     assert read(ms.NEXT_CUR, 4) == pm.bl(ms.NEXT_CUR, ms.CUR_GET) and read(ms.PREV_CUR, 4) == pm.bl(ms.PREV_CUR, ms.CUR_GET)
     assert all(read(s, 4) == pm.bl(s, ms.MANAGER_GET) for s in (*ms.CC_WRAP_CALLS, ms.CC_VALUE_CALL))
-    assert read(ms.CC_RANGE, 2) == ms.CC_RANGE_STOCK
+    assert read(ms.CC_RANGE, 2) == ms.CC_RANGE_STOCK and read(ms.CC_MORE, 6) == ms.CC_MORE_STOCK
     assert all(read(s, 4) == pm.bl(s, fn) for s, fn, _ in pm.PRESET_FILE_CALLS)
     assert read(ms.PARSE, 4) == ms.PARSE_STOCK and all(read(fn, 4) == stock for fn, stock in ms.SERIALIZERS)
     assert struct.unpack('<I', read(ms.TOP_PAINT_LIT, 4))[0] == ms.TOP_PAINT
@@ -2928,6 +3237,17 @@ def test_the_built_handler_holds_back_presses_and_selects_on_clicks(m4emu):
     assert (new, new_rec) == (0, bank_b[0]) and b.at_snapshot() == 4 and b.data(VIEW) == 1 and b.data(RELAYOUT) == 1
     b.tick()
     assert b.layouts[-1] == 1 and b.data(RELAYOUT) == 0
+
+
+@pytest.mark.firmware
+def test_the_built_handler_points_the_footswitches_at_bank_c_on_fs3s_hold(m4emu):
+    b = BuiltHandler(m4emu)
+    bank_b_ready(b)
+    b.layouts.clear()
+    b.hold_fs(2)
+    assert b.selects == [] and b.data(VIEW) == 2 and b.layouts == [2]
+    b.tap(0)
+    assert b.at_snapshot() == 7 and b.inits == [b'SNAPSHOT 7', b'SNAPSHOT 8', b'SNAPSHOT 9']
 
 
 @pytest.mark.firmware
