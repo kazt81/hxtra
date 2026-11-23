@@ -346,12 +346,17 @@ class Manager:
         self.posts.append((event, self.task, held, origin, data, self.d_owner == self.task and self.d_depth > 0))
 
     def _select(self, m):
-        """Stock: an unused record gets the old one's sound (not its name); then the old index becomes the previous one. The current
-        index again recalls it, or with Reselect Snapshot set swaps the current and previous ones (0x28de340a..0x28de3426). It
-        takes D first and lets it go last, so it waits while another task holds D. An index above 2 does nothing and returns
-        -0x2e (0x28de36d0). Its posts: 0x44113 with no data (0x28de3006); for an unused record the copy with the count up and
-        0x44115 (0x28de3294..0x28de32c4), else 0x24112 under its own D for each footswitch entry that changes (0x28de678e); then,
-        after it lets its D go, 0x2102 (0x28de32d8)."""
+        """Stock select (0x28de2f90). It takes D first and lets it go last, so it waits while another task holds D. An index above 2
+        does nothing and returns -0x2e (0x28de36d0). The current index again recalls it, or with Reselect Snapshot set swaps the
+        current and previous ones (0x28de341a..0x28de3426); a new index becomes the current one and the old one the previous one
+        (0x28de2ff2, 0x28de2ff6). Both are written before its posts and its error exits. Then 0x44113 with no data (0x28de3006).
+        A target never marked valid (+0x24b) is filled from the old record by 0x28de12d4(..., 0) with the count up (0x28de3294..
+        0x28de32c4), which leaves it unmarked, so it is filled again next time; 0x44115 unless it is the old one (0x28de32bc);
+        no error exit there, and the result is 0 (0x28de32c8). Only a marked target can fail (0x28de3268..0x28de3290: 0x44118 with
+        no data, no 0x2102) or post 0x24112 for a footswitch entry that changes (0x28de678e, under its own D). Then, after it
+        lets its D go, 0x2102 (0x28de32d8). Its result on a marked target is its last call's, 1 here so a test sees it come back.
+        Not modelled: 0x24112 is per footswitch byte against the footswitch manager's live values, not per record; it reads BUSY
+        and the old index before it takes D (0x28de2f98, 0x28de2fb4)."""
         mgr, new = m.reg('r0'), m.reg('r1')
         assert mgr == MGR and self.depth == 0, 'select takes the lock itself'
         if self.model() and self.d_owner not in (None, self.task):
@@ -371,36 +376,64 @@ class Manager:
             self.selects.append((new, old, self.rec(old), self.rec(new)))
             m.reg('r0', -0x2e)
             return
+        if new == old and self.settings.get(RESELECT):
+            new = self.prev()
+        self.selects.append((new, old, self.rec(old), self.rec(new)))
+        if new != old:
+            m.u8(MGR + PREV, old)
+        m.u8(MGR + CUR, new)
         self._post(m, BEGIN_EV, False)
+        if not self.rec(new)[VALID]:
+            self._count(1)
+            if old <= 2:
+                self._fill(m, new, old)
+            if new != old:
+                self._post(m, COPY_EV, True)
+            self._count(0)
+            self._post(m, SELECTED_EV, True)
+            m.reg('r0', 0)
+            return
         if self.select_fails:               # 0x28de326c or 0x28de3272..0x28de3290: 0x44118 with no data, no 0x2102
-            self.selects.append((new, old, self.rec(old), self.rec(new)))
             if self.select_fails == 'count':
                 self._count(0)
             self._post(m, 0x44118, False)
             m.reg('r0', -4)
             return
-        if new == old and self.settings.get(RESELECT):
-            new = self.prev()
-        self.selects.append((new, old, self.rec(old), self.rec(new)))
-        if not self.rec(new)[VALID]:
-            self._count(1)
-            m.write(record(new), self.rec(old)[:VALID] + b'\1' + self.rec(new)[VALID + 1:])
-            self._post(m, COPY_EV, True)
-            self._count(0)
-        elif self.rec(new)[0x1e8:0x1e8 + 9] != self.rec(old)[0x1e8:0x1e8 + 9]:
+        if self.rec(new)[0x1e8:0x1e8 + 9] != self.rec(old)[0x1e8:0x1e8 + 9]:
             self._post(m, SWITCH_EV, True)
-        if new != old:
-            m.u8(MGR + PREV, old)
-        m.u8(MGR + CUR, new)
         self._post(m, SELECTED_EV, True)
         m.reg('r0', 1)
 
+    def _fill(self, m, to, frm):
+        """0x28de12d4(manager, to, from, 0): the block states (+0x00..0x13), the controller entries (+0x741 of them, 7 bytes apart
+        from +0x28, each with the 8 bytes after its key), the footswitch entries (+0x742, 9 bytes apart from +0x1e8) and the tempo
+        (+0x250); not the valid byte, the name, the renamed byte or the colour."""
+        src, dst = self.rec(frm), bytearray(self.rec(to))
+        dst[0:0x14] = src[0:0x14]
+        for i in range(self.m.read(MGR + CONTROLLERS, 1)[0]):
+            at = 0x28 + 7 * i
+            dst[at:at + 9] = src[at:at + 9]
+        for i in range(self.m.read(MGR + SWITCHES, 1)[0]):
+            at = 0x1e8 + 9 * i
+            dst[at:at + 9] = src[at:at + 9]
+        dst[0x250:0x254] = src[0x250:0x254]
+        m.write(record(to), bytes(dst))
+
     def _init(self, m):
+        """0x28de14b4(manager, record, name): not valid, not renamed, tempo 120, the default colour, the controller entries' keys
+        0x40 and the footswitch entries' keys 0x0d (0x28de14c8..0x28de154c), and the name. The block states it clears are left
+        alone here: the module zeroes the bank first."""
         assert m.reg('r0') == MGR and self.depth == 0, 'the record defaults take the lock themselves'
         self.d_held('the record defaults, which take the manager lock and then D (0x28de14c2, 0x28e04044),')
         rec, name = m.reg('r1'), m.read(m.reg('r2'), 11)
         self.inits.append(name.rstrip(b'\0'))
-        m.write(rec + VALID, b'\0')
+        m.write(rec + VALID, b'\0\0')
+        m.write(rec + 0x250, struct.pack('<f', 120.0))
+        m.write(rec + COLOUR, b'\0')
+        for i in range(64):
+            m.write(rec + 0x28 + 7 * i, b'\x40')
+        for i in range(11):
+            m.write(rec + 0x1e8 + 9 * i, b'\x0d')
         m.write(rec + NAME, name)
 
     def camera(self, w, x, y, anchor, node):
@@ -633,16 +666,19 @@ def test_a_snapshot_not_lit_goes_straight_to_select(mgr):
 
 @pytest.mark.parametrize('lit', [0, 1, 2])
 def test_the_lit_snapshot_again_flips_to_bank_b(mgr, lit):
-    """Bank B's three records start as defaults named SNAPSHOT 4-6; select comes from the sound being left, so the new one takes it."""
+    """Bank B's three records start as defaults named SNAPSHOT 4-6; select comes from the sound being left, so the new one takes it
+    (its block states and tempo, unmarked: select's result for a fill is 0)."""
     mgr.m.u8(MGR + CUR, lit)
     mgr.m.u8(MGR + PREV, 2 - lit)
-    assert mgr.press(lit) == 1
+    assert mgr.press(lit) == 0
     assert mgr.inits == [b'SNAPSHOT 4', b'SNAPSHOT 5', b'SNAPSHOT 6']
     (new, old, old_rec, new_rec), = mgr.selects
     assert new == lit and old != lit, 'a select of another index, so it recalls rather than reselects'
     assert old_rec == bank_a(lit), 'the record select comes from is the sound being left'
     assert not new_rec[VALID] and new_rec[NAME:NAME + 10] == f'SNAPSHOT {lit + 4}'.encode()
-    assert mgr.rec(lit)[:VALID] == bank_a(lit)[:VALID] and mgr.name(lit) == f'SNAPSHOT {lit + 4}'.encode()
+    rec = mgr.rec(lit)
+    assert rec[:0x14] == bank_a(lit)[:0x14] and rec[0x250:0x254] == bank_a(lit)[0x250:0x254] and not rec[VALID]
+    assert mgr.name(lit) == f'SNAPSHOT {lit + 4}'.encode()
     assert [mgr.name(i) for i in range(3)] == [f'SNAPSHOT {i + 4}'.encode() for i in range(3)]
     assert mgr.cur() == lit and mgr.prev() == lit, 'the previous snapshot is the new one: the one before it is in bank A'
     assert mgr.depth == 0
@@ -651,7 +687,8 @@ def test_the_lit_snapshot_again_flips_to_bank_b(mgr, lit):
 def test_a_second_press_flips_back_with_both_banks_kept(mgr):
     mgr.press(0)
     edited = bytearray(mgr.rec(0))
-    edited[5] = 0x55                                    # an edit on snapshot 4
+    edited[5] = 0x55                                    # an edit on snapshot 4, which marks its record valid
+    edited[VALID] = 1
     mgr.m.write(record(0), edited)
     mgr.selects.clear()
     mgr.press(0)
@@ -661,6 +698,23 @@ def test_a_second_press_flips_back_with_both_banks_kept(mgr):
     mgr.press(0)
     assert mgr.rec(0) == bytes(edited), 'snapshot 4 keeps its edit'
     assert mgr.inits == [b'SNAPSHOT 4', b'SNAPSHOT 5', b'SNAPSHOT 6'], 'bank B is set up once a preset'
+
+
+def test_a_bank_b_snapshot_never_edited_takes_the_sound_it_comes_from_each_time(mgr):
+    """As stock's unused snapshots: select fills an unmarked record from the one it leaves and leaves it unmarked, so snapshot 4,
+    made from 1 and not edited, comes from 6 (made from 3) as 3's sound. An edit marks it, and then it keeps its own."""
+    mgr.press(0)                                        # 4, from 1
+    mgr.press(0)                                        # back to 1
+    mgr.go(2)
+    mgr.press(2)                                        # 6, from 3
+    mgr.press(0)                                        # 4 again, from 6
+    assert mgr.rec(0)[:0x14] == bank_a(2)[:0x14] and not mgr.rec(0)[VALID]
+    edited = bytearray(mgr.rec(0))
+    edited[5], edited[VALID] = 0x55, 1                  # an edit on 4: the block handler marks it (0x28de2572)
+    mgr.m.write(record(0), edited)
+    mgr.press(0)                                        # back to 1
+    mgr.press(0)                                        # 4 again
+    assert mgr.rec(0) == bytes(edited)
 
 
 def test_another_switch_in_bank_b_selects_within_it(mgr):
@@ -704,6 +758,7 @@ def test_a_save_in_bank_b_recalls_bank_a_for_the_write(mgr, busy):
     mgr.press(0)
     edited = bytearray(mgr.rec(0))
     edited[5] = 0x55
+    edited[VALID] = 1
     mgr.m.write(record(0), edited)
     bank_b = [mgr.rec(i) for i in range(3)]
     mgr.m.u8(MGR + BUSY, busy)
@@ -864,7 +919,8 @@ def test_a_flip_matches_the_incoming_banks_entries_to_the_outgoing_ones(mgr):
         mgr.m.write(record(i), entries(rec, 0x1e8, 9, [(2, 0x20 + i)]))
     shadow = CODE + mgr.sym['snaps_shadow']
     for i in range(3):
-        rec = entries(mgr.m.read(shadow + REC * i, REC), 0x28, 7, [(3, 0x90 + i), (0x40, 0)])
+        rec = bytearray(entries(mgr.m.read(shadow + REC * i, REC), 0x28, 7, [(3, 0x90 + i), (0x40, 0)]))
+        rec[VALID] = 1                                  # bank B's own values: edits there, which mark it valid
         mgr.m.write(shadow + REC * i, entries(rec, 0x1e8, 9, [(2, 0xa0 + i)]))
     mgr.m.u8(MGR + CONTROLLERS, 2)
     mgr.m.u8(MGR + SWITCHES, 1)
@@ -992,7 +1048,8 @@ def with_bank_b(mgr):
     mgr.press(0)
     for i in range(3):
         r = bytearray(mgr.rec(i))
-        r[5] = 0xb0 + i                                 # an edit on each of snapshots 4..6
+        r[5] = 0xb0 + i                                 # an edit on each of snapshots 4..6, which marks it valid
+        r[VALID] = 1
         mgr.m.write(record(i), r)
     bank_b = [mgr.rec(i) for i in range(3)]
     mgr.press(0)
@@ -1090,7 +1147,7 @@ def test_cc_69_on_the_lit_snapshot_stays_stock(mgr, lit):
 def test_cc_69_3_to_5_without_bank_b_makes_it_as_a_flip_does(mgr, i):
     """Snapshot 4..6 from a preset with no bank B: its records start as defaults, and select fills the new one from the sound."""
     mgr.go(1)
-    assert mgr.cc(3 + i) == 1
+    assert mgr.cc(3 + i) == 0, "a fill's result"
     assert mgr.inits == [b'SNAPSHOT 4', b'SNAPSHOT 5', b'SNAPSHOT 6']
     (new, old, old_rec, new_rec), = mgr.selects
     assert new == i and old != i and old_rec == bank_a(1) and not new_rec[VALID]
