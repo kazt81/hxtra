@@ -34,7 +34,8 @@ CONNECT_DB = -4.0                  # the voice's level against the input's just 
 LEVEL = 300                        # ring samples the input's level is measured on: the last 50 ms
 DOUBLE = 0.3                       # seconds: a Latch press this soon after a grabbing press stops everything
 VOICES = 2
-PHASES = 1024                      # start phases: the quarter-wave table's steps
+PHASES = 1024                      # start phases
+TWIDDLES = 2048                    # the quarter-wave table's steps (the FFT's twiddles; the start phases every other)
 LATENCY = 48                       # blocks from a grab to its sound: the analysis (a guess until the kernel is written)
 DELAY = TAPS // 2                  # the decimator's delay, in 48 kHz samples
 
@@ -46,17 +47,23 @@ def decimator_taps():
     return h / h.sum()
 
 
-def quarter_wave(n=PHASES):
-    """cos(2 pi k / n) for k = 0..n/4: the kernel's table for its FFT twiddles and the sines' start phases."""
-    return np.cos(2.0 * np.pi * np.arange(n // 4 + 1) / n)
+def quarter_wave():
+    """cos(2 pi k / TWIDDLES) for k = 0..TWIDDLES/4: the kernel's table (FZ_COS) for its FFT and the sines' start
+    phases."""
+    return np.cos(2.0 * np.pi * np.arange(TWIDDLES // 4 + 1) / TWIDDLES)
 
 
 def cos_sin(k, n=PHASES):
-    """cos and sin of 2 pi k / n read from quarter_wave(n), as the kernel reads them."""
-    q, k = quarter_wave(n), k % n
+    """cos and sin of 2 pi k / n read from quarter_wave(), as the kernel reads them."""
+    q, k, step = quarter_wave(), k % n, TWIDDLES // n
     quad, r = divmod(k, n // 4)
-    c, s = q[r], q[n // 4 - r]
+    c, s = q[r * step], q[(n // 4 - r) * step]
     return ((c, s), (-s, c), (-c, -s), (s, -c))[quad]
+
+
+def bit_reverse(n, bits=10):
+    """n with its low `bits` bits in reverse order: where the FFT's input point n goes."""
+    return int(format(n, f'0{bits}b')[::-1], 2)
 
 
 def pick(p):
