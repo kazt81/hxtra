@@ -1,6 +1,6 @@
 """The freeze block's analysis in ssim (src/sharc/freeze.asm): the tables (the cos table and the decimator's taps), the
 windowed capture placed at bit-reversed points, the complex 1,024-point FFT and the split into the real 2,048-point
-spectrum's power, against numpy and tools/sharc/freeze.py."""
+spectrum, against numpy and tools/sharc/freeze.py."""
 import math
 import re
 import struct
@@ -17,7 +17,7 @@ import visa_dis
 ROOT = Path(__file__).resolve().parent.parent
 ASM = ROOT / 'src' / 'sharc' / 'freeze.asm'
 DM, PM, IN = 0xC0000, 0x8C200, 0xB8000
-BINS = range(19, 1006)                       # the powers FZ_SPLIT leaves at FZ_RE + k: k = 19..1005
+BINS = range(19, 1006)                       # the spectrum FZ_SPLIT leaves at FZ_RE + k and FZ_IM + k: k = 19..1005
 NAN = 0x7FC00001
 
 
@@ -67,9 +67,10 @@ class Analysis:
     def spectrum(self, capture):
         self.tables()
         loaded = self.load(capture)
-        self.run('FZ_FFT', 5120 >> self.syms['FFT_SHIFT'])
-        self.run('FZ_SPLIT', -(-494 >> self.syms['SPLIT_SHIFT']))
-        return loaded, self.floats('FZ_RE', 2048)[list(BINS)]
+        self.run('FZ_FFT', self.syms['FFT_SLICES'])
+        self.run('FZ_SPLIT', self.syms['SPLIT_SLICES'])
+        x = self.floats('FZ_RE', 1024) + 1j * self.floats('FZ_IM', 1024)
+        return loaded, x[list(BINS)]
 
 
 def unscramble(loaded):
@@ -98,8 +99,8 @@ def signal(kind, seed=0):
 def harmonics():
     a = Analysis()
     capture = signal('harmonics')
-    loaded, power = a.spectrum(capture)
-    return a, capture, loaded, power
+    loaded, x = a.spectrum(capture)
+    return a, capture, loaded, x
 
 
 def test_the_table_is_cos_from_a_quarter_turn_back_in_2048_steps(harmonics):
@@ -126,10 +127,11 @@ def test_fz_cos_is_cos_of_turns_of_any_size():
 
 
 def test_the_load_puts_the_windowed_capture_at_bit_reversed_points(harmonics):
+    """(The window turns from each slice's cos and sin without its size set back: within 1.5e-6 over 128 samples.)"""
     _, capture, loaded, _ = harmonics
     want = np.zeros(2048)
     want[:fz.CAPTURE] = capture * np.hanning(fz.CAPTURE)
-    assert np.abs(unscramble(loaded) - want).max() < 1e-6 * np.abs(capture).max()
+    assert np.abs(unscramble(loaded) - want).max() < 2e-6 * np.abs(capture).max()
     assert not unscramble(loaded)[fz.CAPTURE:].any()
 
 
@@ -139,42 +141,44 @@ def test_samples_not_written_yet_load_as_zeros(harmonics, written):
     got = unscramble(a.load(capture, written))
     want = np.zeros(2048)
     want[written:fz.CAPTURE] = (capture * np.hanning(fz.CAPTURE))[written:]
-    assert np.abs(got - want).max() < 1e-6 * np.abs(capture).max()
+    assert np.abs(got - want).max() < 2e-6 * np.abs(capture).max()
 
 
 @pytest.mark.parametrize('kind', ['harmonics', 'noise', 'sine', 'silence'])
-def test_the_power_is_numpys_for_the_loaded_points(kind):
+def test_the_spectrum_is_numpys_for_the_loaded_points(kind):
     a = Analysis()
-    loaded, power = a.spectrum(signal(kind))
-    want = np.abs(np.fft.rfft(unscramble(loaded)))[list(BINS)] ** 2
-    assert np.abs(power - want).max() <= 1e-5 * max(want.max(), 1e-30)
+    loaded, x = a.spectrum(signal(kind))
+    want = np.fft.rfft(unscramble(loaded))[list(BINS)]
+    assert np.abs(x - want).max() <= 1e-5 * max(np.abs(want).max(), 1e-30)
 
 
-def test_the_power_is_the_references_for_the_capture(harmonics):
-    _, capture, _, power = harmonics
-    want = np.abs(np.fft.rfft(capture * np.hanning(fz.CAPTURE), fz.NFFT))[list(BINS)] ** 2
-    assert np.abs(power - want).max() <= 1e-5 * want.max()
-    assert fz.pick(np.concatenate([np.zeros(19), power, np.zeros(19)])) == fz.pick(np.concatenate([np.zeros(19), want,
-                                                                                                    np.zeros(19)]))
+def test_the_spectrum_is_the_references_for_the_capture(harmonics):
+    _, capture, _, x = harmonics
+    want = np.fft.rfft(capture * np.hanning(fz.CAPTURE), fz.NFFT)[list(BINS)]
+    assert np.abs(x - want).max() <= 1e-5 * np.abs(want).max()
+    pad = np.zeros(19)
+    assert fz.pick(np.concatenate([pad, np.abs(x) ** 2, pad])) == fz.pick(np.concatenate([pad, np.abs(want) ** 2, pad]))
 
 
-@pytest.mark.parametrize('equ', [dict(FFT_SHIFT=5, SPLIT_SHIFT=3, TAB_SHIFT=3, TAP_SHIFT=2),
-                                 dict(FFT_SHIFT=9, SPLIT_SHIFT=9, TAB_SHIFT=9, TAP_SHIFT=6)])
-def test_slices_of_any_size_give_the_same_tables_and_power(harmonics, equ):
-    a, capture, _, power = harmonics
+@pytest.mark.parametrize('equ', [dict(FFT_N=32, SPLIT_SHIFT=3, TAB_SHIFT=3, TAP_SHIFT=2),
+                                 dict(FFT_N=1024, SPLIT_SHIFT=9, TAB_SHIFT=9, TAP_SHIFT=6)])
+def test_slices_of_any_size_give_the_same_tables_and_spectrum(harmonics, equ):
+    a, capture, _, x = harmonics
     b = Analysis(**equ)
-    assert np.array_equal(b.spectrum(capture)[1], power)
+    assert np.array_equal(b.spectrum(capture)[1], x)
     for name, n in (('FZ_TAB', 1536), ('FZ_TAPS', fz.TAPS)):
         assert np.array_equal(b.floats(name, n), a.floats(name, n))
 
 
-@pytest.mark.parametrize('shift', [3, 10])
+@pytest.mark.parametrize('shift', [5, 10])
 def test_load_slices_of_any_size_give_the_same_points_but_for_rounding(harmonics, shift):
-    """(Each load slice starts its window from cos and sin of its first sample, so the rounding moves with the slices.)"""
+    """(Each load slice starts its window from cos and sin of its first sample, so the rounding moves with the slices,
+    and the window's size drifts with the slice's length. A slice holds 32 points or more: it starts each a = n >> 5 at
+    j = 0.)"""
     a, capture, loaded, _ = harmonics
     b = Analysis(LOAD_SHIFT=shift)
     b.tables()
-    assert np.abs(b.load(capture) - loaded).max() < 1e-6 * np.abs(capture).max()
+    assert np.abs(b.load(capture) - loaded).max() < 3e-6 * 2 ** max(0, shift - 6) * np.abs(capture).max()
 
 
 def test_instructions_a_slice(harmonics):
@@ -195,7 +199,7 @@ def test_no_loop_ends_in_a_branch():
 
 def test_only_the_bit_reversal_the_rotation_and_the_steps_are_data_at_boot():
     sections = [sec for sec in assemble()[0] if sec.kind == 'dm']
-    assert [len(sec.words) for sec in sections if any(sec.words)] == [32 + 2 + 18]
-    assert sum(len(sec.words) for sec in sections) == 52 + 64 + 16 + 1 + 32 + 32 + 8 + 1536 + fz.TAPS + 2048
+    assert [len(sec.words) for sec in sections if any(sec.words)] == [32 + 2 + 16]
+    assert sum(len(sec.words) for sec in sections) == 50 + 64 + 24 + 1 + 32 + 17 + 32 + 128 + 8 + 1536 + fz.TAPS + 2048
     rot = [struct.unpack('<f', struct.pack('<I', w))[0] for w in sections[0].words[32:34]]
     assert rot == pytest.approx([math.cos(2 * math.pi / 1499), math.sin(2 * math.pi / 1499)])
