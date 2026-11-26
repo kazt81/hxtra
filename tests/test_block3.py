@@ -1,4 +1,5 @@
-"""tools/block3.py: the Block 3 room NAM A2 Lite's slots leave, what each DSP feature costs of it, and where each one goes."""
+"""tools/block3.py: the Block 3 room NAM A2 Lite's slots leave, what each DSP feature costs of it, and where each one goes; the
+same in Entry 2."""
 import ast
 import itertools
 from pathlib import Path
@@ -68,6 +69,26 @@ def test_costs_are_whole_instruction_pairs():
     for f in EVERY:
         n_dm, n_pm = block3.size(f)
         assert block3.cost(f) % 3 == 0 and block3.cost(f) >= n_dm + n_pm * 3 // 2
+
+
+def test_entry_2_costs_are_the_ldr_blocks_each_feature_adds():
+    assert {f: block3.e2(f) for f in EVERY} == {'HX_CLICK': 908, 'HX_FX_GATE': 980, 'HX_GR': 3276, 'HX_USB_MONITOR': 1456,
+                                                      'HX_GATE_SC': 1056}
+
+
+def test_entry_2_room_is_what_the_stock_stream_and_nam_leave():
+    assert {s: block3.e2_room(s) for s in block3.SLOTS} == {3: 12028, 2: 12100, 1: 12124, 0: 33640}
+    assert block3.e2_room(0) == block3.patch_amp.E2_MAX - block3.E2_STOCK
+
+
+def test_slots_count_entry_2_as_well(monkeypatch):
+    monkeypatch.setattr(block3, 'e2', {'HX_CLICK': 20000, 'HX_FX_GATE': 30000}.get)
+    assert block3.slots(env_of(['HX_CLICK'])) == 0
+    assert not block3.fits(1, ['HX_CLICK']) and block3.fits(0, ['HX_CLICK'])
+    with pytest.raises(SystemExit, match='HX_CLICK take 20000 bytes of Entry 2; 3 NAM slots leave 12028'):
+        block3.slots(env_of(['HX_CLICK'], 3))
+    with pytest.raises(SystemExit, match=r'HX_CLICK \+ HX_FX_GATE take 50000 bytes of Entry 2, more than it has \(33640\)'):
+        block3.slots(env_of(['HX_CLICK', 'HX_FX_GATE']))
 
 
 @pytest.mark.parametrize('slots', block3.SLOTS)
@@ -158,4 +179,22 @@ def test_slots_build(tmp_path, flags):
     assert ('tools/sharc/nam_multi.py' in r.stdout) == (slots != '0')
     assert ('NAM A2 Lite' in r.stdout) == (slots != '0')
     assert hashlib.md5(out.read_bytes()).hexdigest() == SLOTS_BUILT_MD5[flags]
+    on = block3.on(dict(f.split('=', 1) if '=' in f else (f, '1') for f in flags.split()))
+    assert block3.patch_amp.E2_MAX - len(entry2(out)) == block3.e2_room(int(slots)) - sum(block3.e2(f) for f in on)
+
+
+def entry2(hxf):
+    import patch_amp as pa
+    data, _ = pa.load_l6ia_from_any(str(hxf))
+    ent = pa.l6ia.parse(data)[2]
+    return data[ent['payload_off']:ent['payload_off'] + ent['payload_len']]
+
+
+@pytest.mark.firmware
+def test_the_stock_entry_2_is_e2_stock():
+    import os
+    stock = os.environ.get('HX_STOMP_HXF')
+    if not stock:
+        pytest.skip('HX_STOMP_HXF is not set')
+    assert len(entry2(stock)) == block3.E2_STOCK
 

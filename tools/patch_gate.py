@@ -57,6 +57,12 @@ def dsp_size():
     return tuple(sum(len(s.words) for s in secs if s.kind == k) for k in ('dm', 'pm'))
 
 
+def e2_size():
+    """The bytes patch_dsp adds to Entry 2: fx_gate.asm and the reader's primitive record."""
+    secs, _ = pa.sasm.assemble(dsp_asm(nam_multi.B3, nam_multi.NW3), 'fx_gate.asm')
+    return pa.ldr_size(secs, records=1)
+
+
 def dsp_place():
     """(DM base, PM base) of fx_gate.asm (tools/block3.py)."""
     return block3.place('HX_FX_GATE')

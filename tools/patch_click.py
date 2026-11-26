@@ -29,6 +29,7 @@ sys.path.insert(0, os.path.join(SCRIPT_DIR, 'sharc'))
 import block3
 import kit_patch_amp as kit
 import l6ia
+import patch_amp as pa
 
 ASM = os.path.join(SCRIPT_DIR, '..', 'src', 'sharc', 'click.asm')
 NAME, DISPLAY, FOLDER = 'HD2_ClickMetronomeMono', 'Metronome', 'Metronome'
@@ -175,6 +176,13 @@ def kernel_size():
 def dsp_size():
     """(data words, instructions) of the kernel: it keeps its data in the block's own DM."""
     return 0, kernel_size()
+
+
+def e2_size():
+    """The bytes add_click adds to Entry 2: the kernel (kit.patch_kernel's blocks are patch_amp's for code) and its primitive
+    record."""
+    secs, _ = kit.sasm.assemble(open(ASM).read().replace('KIT_PM_BASE', '0xe0000'), 'click.asm')
+    return pa.ldr_size(secs, records=1)
 
 
 def pm_base():

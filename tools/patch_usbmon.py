@@ -47,6 +47,12 @@ def dsp_size():
     return sum(len(s.words) for s in secs if s.kind == 'dm'), max(s.addr + len(s.words) for s in pm) - min(s.addr for s in pm)
 
 
+def e2_size():
+    """The bytes patch_dsp adds to Entry 2: the DSP code and the Send's, Main's, phones', USB out's and gain's primitive records."""
+    secs, _ = pa.sasm.assemble(dsp_asm(nam_multi.B3, nam_multi.NW3), 'usb_monitor.asm')
+    return pa.ldr_size(secs, records=5)
+
+
 def dsp_place():
     """(DM base, PM base) of usb_monitor.asm (tools/block3.py)."""
     return block3.place(FLAG)

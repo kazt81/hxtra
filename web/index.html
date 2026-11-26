@@ -328,7 +328,7 @@
     <div id="dsp" hidden>
       <h3 data-i18n="dsp.title"></h3>
       <p class="sub" data-i18n="dsp.sub"></p>
-      <div class="room"><div class="room-bar"><span id="roomNam"></span><span id="roomUsed"></span></div><p id="roomText"></p></div>
+      <div class="room"><div class="room-bar"><span id="roomNam"></span><span id="roomUsed"></span></div><p id="roomText"></p><p id="roomText2" hidden></p></div>
       <div class="checks">
         <div class="feat" id="nam"><label><input type="checkbox" id="namOn" checked> <span data-i18n="dsp.nam"></span></label>
           <div class="slots" role="radiogroup" data-i18n-label="dsp.nam.label">
@@ -598,6 +598,8 @@ var EN = {
   "dsp.namS": "\n            <li>Maximum number of active NAM blocks in a single preset. Additional NAM blocks will not apply any capture.</li>\n          ",
   "dsp.cost": "Uses {cost} words",
   "dsp.full": "Needs {cost} words, {left} left: untick another feature or pick fewer NAM blocks.",
+  "dsp.used2": "DSP program space: {used} of {room} bytes used, {left} left",
+  "dsp.full2": "Needs {cost} bytes of DSP program space, {left} left: untick another feature or pick fewer NAM blocks.",
   "feat.gr": "<b>Gain reduction meter</b>",
   "feat.grS": "\n            <li>Shows how hard a compressor is working, on the Home screen and in its Edit view.</li>\n            <li>Adds Mtr Size, Mtr Pos and Mtr Dir knobs to six compressors; Mtr Size starts Off.</li>\n          ",
   "feat.click": "<b>Metronome block</b>",
@@ -958,6 +960,8 @@ var LANGS = {
     "dsp.namS": "\n            <li>Número máximo de bloques NAM activos en un mismo preset. Los bloques NAM adicionales no aplicarán ninguna captura.</li>\n          ",
     "dsp.cost": "Usa {cost} palabras",
     "dsp.full": "Necesita {cost} palabras y quedan {left}: desmarca otra función o elige menos bloques NAM.",
+    "dsp.used2": "Espacio de programa DSP: {used} de {room} bytes usados, quedan {left}",
+    "dsp.full2": "Necesita {cost} bytes de espacio de programa DSP y quedan {left}: desmarca otra función o elige menos bloques NAM.",
     "feat.gr": "<b>Medidor de reducción de ganancia</b>",
     "feat.grS": "\n            <li>Muestra cuánto está trabajando un compresor, en la pantalla de inicio y en su vista Edit.</li>\n            <li>Añade los controles Mtr Size, Mtr Pos y Mtr Dir a seis compresores; Mtr Size empieza en Off.</li>\n          ",
     "feat.click": "<b>Bloque de metrónomo</b>",
@@ -1151,6 +1155,8 @@ var LANGS = {
     "dsp.namS": "\n            <li>Número máximo de blocos NAM ativos em um mesmo preset. Blocos NAM adicionais não aplicarão nenhuma captura.</li>\n          ",
     "dsp.cost": "Usa {cost} palavras",
     "dsp.full": "Precisa de {cost} palavras e restam {left}: desmarque outra função ou escolha menos blocos NAM.",
+    "dsp.used2": "Espaço de programa DSP: {used} de {room} bytes usados, restam {left}",
+    "dsp.full2": "Precisa de {cost} bytes de espaço de programa DSP e restam {left}: desmarque outra função ou escolha menos blocos NAM.",
     "feat.gr": "<b>Medidor de redução de ganho</b>",
     "feat.grS": "\n            <li>Mostra o quanto um compressor está trabalhando, na tela inicial e na sua tela Edit.</li>\n            <li>Adiciona os controles Mtr Size, Mtr Pos e Mtr Dir a seis compressores; Mtr Size começa em Off.</li>\n          ",
     "feat.click": "<b>Bloco de metrônomo</b>",
@@ -1344,6 +1350,8 @@ var LANGS = {
     "dsp.namS": "\n            <li>Nombre maximal de blocs NAM actifs dans un même preset. Les blocs NAM supplémentaires n'appliqueront aucune capture.</li>\n          ",
     "dsp.cost": "Utilise {cost} mots",
     "dsp.full": "Il faut {cost} mots, il en reste {left} : décochez une autre fonction ou choisissez moins de blocs NAM.",
+    "dsp.used2": "Espace programme DSP : {used} octets utilisés sur {room}, {left} restants",
+    "dsp.full2": "Il faut {cost} octets d'espace programme DSP, il en reste {left} : décochez une autre fonction ou choisissez moins de blocs NAM.",
     "feat.gr": "<b>Indicateur de réduction de gain</b>",
     "feat.grS": "\n            <li>Montre à quel point un compresseur travaille, sur l'écran d'accueil et dans sa vue Edit.</li>\n            <li>Ajoute les potentiomètres Mtr Size, Mtr Pos et Mtr Dir à six compresseurs ; Mtr Size est sur Off au départ.</li>\n          ",
     "feat.click": "<b>Bloc métronome</b>",
@@ -1537,6 +1545,8 @@ var LANGS = {
     "dsp.namS": "\n            <li>Höchstzahl aktiver NAM-Blöcke in einem Preset. Weitere NAM-Blöcke wenden kein Capture an.</li>\n          ",
     "dsp.cost": "Belegt {cost} Wörter",
     "dsp.full": "Braucht {cost} Wörter, {left} frei: Entferne den Haken bei einer anderen Funktion oder wähle weniger NAM-Blöcke.",
+    "dsp.used2": "DSP-Programmspeicher: {used} von {room} Bytes belegt, {left} frei",
+    "dsp.full2": "Braucht {cost} Bytes DSP-Programmspeicher, {left} frei: Entferne den Haken bei einer anderen Funktion oder wähle weniger NAM-Blöcke.",
     "feat.gr": "<b>Gain-Reduction-Anzeige</b>",
     "feat.grS": "\n            <li>Zeigt, wie stark ein Kompressor arbeitet, auf dem Home-Bildschirm und in seiner Edit-Ansicht.</li>\n            <li>Fügt sechs Kompressoren die Regler Mtr Size, Mtr Pos und Mtr Dir hinzu; Mtr Size steht anfangs auf Off.</li>\n          ",
     "feat.click": "<b>Metronom-Block</b>",
@@ -1730,6 +1740,8 @@ var LANGS = {
     "dsp.namS": "\n            <li>Numero massimo di blocchi NAM attivi in un singolo preset. I blocchi NAM in più non applicheranno alcuna cattura.</li>\n          ",
     "dsp.cost": "Usa {cost} parole",
     "dsp.full": "Servono {cost} parole, ne restano {left}: togli la spunta a un'altra funzione o scegli meno blocchi NAM.",
+    "dsp.used2": "Spazio programma DSP: {used} di {room} byte usati, ne restano {left}",
+    "dsp.full2": "Servono {cost} byte di spazio programma DSP, ne restano {left}: togli la spunta a un'altra funzione o scegli meno blocchi NAM.",
     "feat.gr": "<b>Indicatore di riduzione del guadagno</b>",
     "feat.grS": "\n            <li>Mostra quanto lavora un compressore, nella schermata Home e nella sua vista Edit.</li>\n            <li>Aggiunge le manopole Mtr Size, Mtr Pos e Mtr Dir a sei compressori; Mtr Size parte da Off.</li>\n          ",
     "feat.click": "<b>Blocco metronomo</b>",
@@ -1923,6 +1935,8 @@ var LANGS = {
     "dsp.namS": "\n            <li>1 つのプリセットで同時に有効にできる NAM ブロックの最大数です。それを超える NAM ブロックにはキャプチャーが適用されません。</li>\n          ",
     "dsp.cost": "{cost} ワード使用",
     "dsp.full": "{cost} ワード必要ですが、残りは {left} です。ほかの機能のチェックを外すか、NAM ブロックを減らしてください。",
+    "dsp.used2": "DSP プログラム領域: {room} バイト中 {used} バイト使用、残り {left}",
+    "dsp.full2": "DSP プログラム領域が {cost} バイト必要ですが、残りは {left} です。ほかの機能のチェックを外すか、NAM ブロックを減らしてください。",
     "feat.gr": "<b>ゲインリダクション・メーター</b>",
     "feat.grS": "\n            <li>コンプレッサーのかかり具合を、ホーム画面とそのブロックの Edit 画面に表示します。</li>\n            <li>6 種類のコンプレッサーに Mtr Size、Mtr Pos、Mtr Dir のノブを追加します。Mtr Size の初期値は Off です。</li>\n          ",
     "feat.click": "<b>メトロノーム・ブロック</b>",
@@ -2116,6 +2130,8 @@ var LANGS = {
     "dsp.namS": "\n            <li>单个预设中可同时启用的 NAM 模块数量上限。超出的 NAM 模块不会应用任何采样。</li>\n          ",
     "dsp.cost": "占用 {cost} 字",
     "dsp.full": "需要 {cost} 字，只剩 {left}：取消勾选其他功能，或选择更少的 NAM 模块。",
+    "dsp.used2": "DSP 程序空间：已用 {used} / {room} 字节，剩余 {left}",
+    "dsp.full2": "需要 {cost} 字节 DSP 程序空间，只剩 {left}：取消勾选其他功能，或选择更少的 NAM 模块。",
     "feat.gr": "<b>增益衰减表</b>",
     "feat.grS": "\n            <li>在主屏幕和压缩器的 Edit 界面显示压缩器的压缩程度。</li>\n            <li>为六款压缩器添加 Mtr Size、Mtr Pos 和 Mtr Dir 旋钮；Mtr Size 默认为 Off。</li>\n          ",
     "feat.click": "<b>节拍器模块</b>",
@@ -2309,6 +2325,8 @@ var LANGS = {
     "dsp.namS": "\n            <li>한 프리셋에서 동시에 활성화할 수 있는 NAM 블록의 최대 수입니다. 그보다 많은 NAM 블록에는 캡처가 적용되지 않습니다.</li>\n          ",
     "dsp.cost": "{cost}워드 사용",
     "dsp.full": "{cost}워드가 필요한데 {left}만 남았습니다. 다른 기능의 체크를 해제하거나 NAM 블록을 줄이세요.",
+    "dsp.used2": "DSP 프로그램 공간: {room}바이트 중 {used}바이트 사용, {left} 남음",
+    "dsp.full2": "DSP 프로그램 공간이 {cost}바이트 필요한데 {left}만 남았습니다. 다른 기능의 체크를 해제하거나 NAM 블록을 줄이세요.",
     "feat.gr": "<b>게인 리덕션 미터</b>",
     "feat.grS": "\n            <li>컴프레서가 얼마나 작동하는지 홈 화면과 해당 블록의 Edit 화면에 보여 줍니다.</li>\n            <li>컴프레서 6종에 Mtr Size, Mtr Pos, Mtr Dir 노브를 추가합니다. Mtr Size는 처음에 Off입니다.</li>\n          ",
     "feat.click": "<b>메트로놈 블록</b>",
@@ -2502,6 +2520,8 @@ var LANGS = {
     "dsp.namS": "\n            <li>Наибольшее число активных блоков NAM в одном пресете. Дополнительные блоки NAM не будут применять захват.</li>\n          ",
     "dsp.cost": "Занимает {cost} слов",
     "dsp.full": "Нужно {cost} слов, осталось {left}: снимите отметку с другой функции или выберите меньше блоков NAM.",
+    "dsp.used2": "Память программ DSP: занято {used} из {room} байт, осталось {left}",
+    "dsp.full2": "Нужно {cost} байт памяти программ DSP, осталось {left}: снимите отметку с другой функции или выберите меньше блоков NAM.",
     "feat.gr": "<b>Индикатор компрессии (gain reduction)</b>",
     "feat.grS": "\n            <li>Показывает, насколько сильно работает компрессор, на главном экране и в его окне Edit.</li>\n            <li>Добавляет шести компрессорам ручки Mtr Size, Mtr Pos и Mtr Dir; Mtr Size по умолчанию Off.</li>\n          ",
     "feat.click": "<b>Блок метронома</b>",
@@ -2686,25 +2706,38 @@ var LANG_NAMES = {
     var r = slotRadios.filter(function (r) { return r.checked; })[0];
     return !namOn.checked ? 0 : r ? Number(r.value) : 3;
   }
+  // Block 3 (words) and Entry 2 (bytes; none in an m4cache.json made before it was counted): what the picked NAM slots and the
+  // ticked features take of each, and whether `slots` NAM slots leave room for them
+  function budgets() {
+    var kinds = [["room", "cost"]].concat(dsp.e2_room ? [["e2_room", "e2_cost"]] : []);
+    return kinds.map(function (k) {
+      var room = dsp[k[0]], total = Math.max.apply(null, dsp.slots.map(function (s) { return room[s]; }));
+      var used = ticked(dspBoxes, "dsp").reduce(function (n, f) { return n + dsp[k[1]][f]; }, 0);
+      return { room: room, cost: dsp[k[1]], total: total, nam: total - room[slotsPicked()], used: used,
+               left: total - (total - room[slotsPicked()]) - used };
+    });
+  }
+  function slotsFit(b, s) { return b.every(function (x) { return x.room[s] >= x.used; }); }
   function dspDraw() {
     if (!dsp) return;
-    var total = Math.max.apply(null, dsp.slots.map(function (s) { return dsp.room[s]; }));
-    var nam = total - dsp.room[slotsPicked()];
-    var used = ticked(dspBoxes, "dsp").reduce(function (n, f) { return n + dsp.cost[f]; }, 0);
-    var left = total - nam - used;
-    $("roomNam").style.width = 100 * nam / total + "%";
-    $("roomUsed").style.width = Math.min(100, 100 * used / total) + "%";
-    $("roomText").textContent = t("dsp.used", { used: nam + used, room: total, left: left });
-    $("namCost").textContent = t("dsp.cost", { cost: nam });
+    var b = budgets(), w = b[0], e2 = b[1];
+    $("roomNam").style.width = 100 * w.nam / w.total + "%";
+    $("roomUsed").style.width = Math.min(100, 100 * w.used / w.total) + "%";
+    $("roomText").textContent = t("dsp.used", { used: w.nam + w.used, room: w.total, left: w.left });
+    $("roomText2").hidden = !e2;
+    if (e2) $("roomText2").textContent = t("dsp.used2", { used: e2.nam + e2.used, room: e2.total, left: e2.left });
+    $("namCost").textContent = t("dsp.cost", { cost: w.nam });
     dspBoxes.forEach(function (o) {
-      var box = o.querySelector("input"), cost = dsp.cost[o.dataset.dsp];
-      box.disabled = !box.checked && cost > left;
+      var box = o.querySelector("input"), f = o.dataset.dsp, cost = w.cost[f];
+      var over = b.filter(function (x) { return x.cost[f] > x.left; })[0];
+      box.disabled = !box.checked && !!over;
       o.classList.toggle("full", box.disabled);
-      o.querySelector(".cost").textContent = box.disabled ? t("dsp.full", { cost: cost, left: left }) : t("dsp.cost", { cost: cost });
+      o.querySelector(".cost").textContent = !box.disabled ? t("dsp.cost", { cost: cost })
+        : over === w ? t("dsp.full", { cost: cost, left: w.left }) : t("dsp.full2", { cost: e2.cost[f], left: e2.left });
     });
-    var fits = slotRadios.filter(function (r) { return !r.parentNode.hidden && dsp.room[r.value] >= used; });
+    var fits = slotRadios.filter(function (r) { return !r.parentNode.hidden && slotsFit(b, r.value); });
     slotRadios.forEach(function (r) {
-      r.disabled = !namOn.checked || (!r.checked && dsp.room[r.value] < used);
+      r.disabled = !namOn.checked || (!r.checked && !slotsFit(b, r.value));
       r.parentNode.classList.toggle("full", namOn.checked && r.disabled);
     });
     namOn.disabled = !namOn.checked && !fits.length;
@@ -2717,9 +2750,9 @@ var LANG_NAMES = {
     o.querySelector("input").addEventListener("change", dspDraw);
   });
   namOn.addEventListener("change", function () {
-    var used = dsp ? ticked(dspBoxes, "dsp").reduce(function (n, f) { return n + dsp.cost[f]; }, 0) : 0;
-    if (dsp && namOn.checked && dsp.room[slotsPicked()] < used) {      // the picked count no longer fits: the most that do
-      var r = slotRadios.filter(function (r) { return !r.parentNode.hidden && dsp.room[r.value] >= used; })[0];
+    var b = dsp ? budgets() : [];
+    if (dsp && namOn.checked && !slotsFit(b, slotsPicked())) {      // the picked count no longer fits: the most that do
+      var r = slotRadios.filter(function (r) { return !r.parentNode.hidden && slotsFit(b, r.value); })[0];
       if (r) r.checked = true;
     }
     dspDraw();

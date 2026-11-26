@@ -8,7 +8,8 @@ features that fits beside it, tools/block3.py, with each set of the other opt-in
 file with NAM A2 Lite added, and without it for HX_NAM_SLOTS=0: the features' code reads addresses in it), keeping what every
 module assembled to (keyed by m4asm.key: a module's .inc differs with the other features built). Then it builds each
 combination with build.py through those modules, as the page does, to pin its MD5, so a module missing fails here, not on
-the page. The page reads the room and the costs from "dsp". tools/release.py attaches the file to the GitHub release, and
+the page. The page reads the room and the costs from "dsp", in Block 3 (words) and in Entry 2 (bytes: "e2_room", "e2_cost"; a
+page that finds no "e2_room" counts Block 3 alone). tools/release.py attaches the file to the GitHub release, and
 the Pages workflow publishes it next to the page; m4asm reads it when HX_M4_CACHE names it.
 """
 import argparse
@@ -169,7 +170,8 @@ def make(stock, release=None):
         md5 = {combo_key(c): built_md5(stock, c, cache) for c in every}
     return {'release': release, 'unit': UNIT, 'features': flags, 'options': options,
             'dsp': {'features': dsp, 'slots': list(block3.SLOTS), 'room': {str(s): block3.words(s) for s in block3.SLOTS},
-                    'cost': {f: block3.cost(f) for f in dsp}},
+                    'cost': {f: block3.cost(f) for f in dsp}, 'e2_room': {str(s): block3.e2_room(s) for s in block3.SLOTS},
+                    'e2_cost': {f: block3.e2(f) for f in dsp}},
             'md5': {UNIT: md5}, 'modules': mods}
 
 

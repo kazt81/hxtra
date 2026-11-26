@@ -266,6 +266,14 @@ def pack_init_l32(addr32, data_words):
     return [4, len(dw), addr32] + dw
 
 
+E2_MAX = 0x80000        # Entry 2's partition: 0x400 sectors (tools/hxf_ram.py)
+
+
+def ldr_size(secs, records=0):
+    """The bytes the sections' LDR blocks (pack_init_l48, pack_init_l32) and `records` 8-word primitive records add to Entry 2."""
+    return 4 * (sum(len((pack_init_l48 if s.kind == 'pm' else pack_init_l32)(s.addr, s.words)) for s in secs) + 11 * records)
+
+
 def inject_sharc_ldr_blocks(e2_raw_bytes, new_blocks_words):
     """Insert LDR blocks right before the FINAL_INIT (tag=0) block in Entry 2."""
     w = list(struct.unpack('<%dI' % (len(e2_raw_bytes) // 4), e2_raw_bytes))
@@ -287,7 +295,9 @@ def inject_sharc_ldr_blocks(e2_raw_bytes, new_blocks_words):
 
     assert final_init_idx is not None, 'Entry 2 FINAL_INIT (tag=0) not found'
     patched_w = w[:final_init_idx] + list(new_blocks_words) + w[final_init_idx:]
-    assert len(patched_w) * 4 <= 0x80000, f'Entry 2 size {len(patched_w)*4} exceeds 512 KiB eMMC partition'
+    if len(patched_w) * 4 > E2_MAX:
+        raise SystemExit(f'Entry 2 would be {len(patched_w) * 4} bytes, {len(patched_w) * 4 - E2_MAX} more than its partition holds '
+                         f'({E2_MAX})')
     return struct.pack('<%dI' % len(patched_w), *patched_w)
 
 

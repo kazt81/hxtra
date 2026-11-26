@@ -79,6 +79,24 @@ def test_new_blocks_go_before_final_init_past_a_zero_fill_block():
     assert blocks(out) == [(1, 796, 0xc7ce0, ()), (4, 1, 0x1000, (7,)), (1, 8, 0x2000, ()), (4, 1, 0x3000, (5,))]
 
 
+def test_ldr_size_counts_the_blocks_and_the_primitive_records():
+    class Sec:
+        def __init__(self, kind, addr, words):
+            self.kind, self.addr, self.words = kind, addr, words
+    secs = [Sec('pm', 0xe5000, [1, 2, 3]), Sec('dm', 0xe4000, [5] * 7), Sec('dm', 0xe4007, [0] * 900)]
+    want = len(pa.pack_init_l48(0xe5000, [1, 2, 3])) + 3 + 7 + 3 + 2 * 11
+    assert pa.ldr_size(secs, records=2) == 4 * want
+
+
+def test_blocks_past_the_partition_stop_the_build():
+    e2 = [0] * 384 + [0, 0, 0] + [0] * 384
+    raw = struct.pack('<%dI' % len(e2), *e2)
+    room = pa.E2_MAX // 4 - len(e2)
+    assert len(pa.inject_sharc_ldr_blocks(raw, pa.pack_init_l32(0x2000, [1] * (room - 3)))) == pa.E2_MAX
+    with pytest.raises(SystemExit, match=f'Entry 2 would be {pa.E2_MAX + 4} bytes, 4 more than its partition holds'):
+        pa.inject_sharc_ldr_blocks(raw, pa.pack_init_l32(0x2000, [1] * (room - 2)))
+
+
 @pytest.mark.firmware
 def test_the_build_loads_no_all_zero_init_block(tmp_path):
     stock = os.environ.get('HX_STOMP_HXF')

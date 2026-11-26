@@ -213,6 +213,10 @@ async function build(stock, flags, slots) {
   if (cache && need > dsp.room[slots]) {
     throw new Error("The DSP features take " + need + " words; " + slots + " NAM slots leave " + dsp.room[slots] + ".");
   }
+  var needE2 = flags.reduce(function (n, f) { return n + ((dsp.e2_cost || {})[f] || 0); }, 0);
+  if (cache && dsp.e2_room && needE2 > dsp.e2_room[slots]) {
+    throw new Error("The DSP features take " + needE2 + " bytes of Entry 2; " + slots + " NAM slots leave " + dsp.e2_room[slots] + ".");
+  }
   setFeatures(p, flags, slots);
   post({ type: "log", text: "features: " + (flags.join(" ") || "none") + "\nNAM slots: " + slots + "\n" });
 

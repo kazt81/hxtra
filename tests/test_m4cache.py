@@ -64,6 +64,8 @@ def test_make_pins_every_combination_that_fits(monkeypatch):
     monkeypatch.setattr(block3, "SLOTS", (2, 0))
     monkeypatch.setattr(block3, "cost", {"HX_D": 30, "HX_E": 40}.get)
     monkeypatch.setattr(block3, "words", {2: 50, 0: 100}.get)
+    monkeypatch.setattr(block3, "e2", {"HX_D": 10, "HX_E": 10}.get)          # D + E: Block 3 alone at 2, Entry 2 alone at 0
+    monkeypatch.setattr(block3, "e2_room", {2: 100, 0: 15}.get)
     built = {}
 
     def built_md5(stock, flags, cache=None):
@@ -78,9 +80,9 @@ def test_make_pins_every_combination_that_fits(monkeypatch):
     cache = m4cache.make("stock.hxf", "v1")
     assert cache["features"] == ["HX_B", "HX_A"] and cache["options"] == ["HX_X"]
     assert cache["dsp"] == {"features": ["HX_D", "HX_E"], "slots": [2, 0], "room": {"2": 50, "0": 100},
-                            "cost": {"HX_D": 30, "HX_E": 40}}
+                            "cost": {"HX_D": 30, "HX_E": 40}, "e2_room": {"2": 100, "0": 15}, "e2_cost": {"HX_D": 10, "HX_E": 10}}
     want = sorted(m4cache.combo_key(["HX_A", "HX_B", f"HX_NAM_SLOTS={s}"] + d + o) for s in (2, 0)
-                  for d in ([], ["HX_D"], ["HX_E"], ["HX_D", "HX_E"]) if not (s == 2 and len(d) == 2) for o in ([], ["HX_X"]))
+                  for d in ([], ["HX_D"], ["HX_E"]) for o in ([], ["HX_X"]))
     assert sorted(cache["md5"]["HX_Stomp"]) == want
     # every combination's modules, NAM A2 Lite's image but with 0 slots, and each build reads them all, as the page does
     assert cache["modules"] == {k: "HX_NAM_SLOTS=0" not in k for k in want}

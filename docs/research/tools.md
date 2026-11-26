@@ -5,7 +5,7 @@ The repository's tools and the build switches. Status tags as in [conventions.md
 | Tool | Purpose |
 | --- | --- |
 | `build.py` | Whole pipeline. `HX_NAM_SLOTS` (3, 2, 1, 0) sets NAM's slots; unset, the most that leave Block 3 room for the DSP features on (`HX_GR=1`: two). Runs `tools/patch_comp.py` last. |
-| `tools/block3.py` | The Block 3 room each NAM slot count leaves, each DSP feature's cost and place in it. |
+| `tools/block3.py` | The Block 3 room each NAM slot count leaves, each DSP feature's cost and place in it; the Entry 2 room and costs. |
 | `tools/l6ia.py`, `tools/l6ia_verify.py`, `tools/hxf.py` | Container parse/rebuild/verify/pack. |
 | `tools/patch_amp.py` | Add models, IR titles, NAM's Model as a whole number (`model-int`), SHARC kernel, `--wrap-prim`. |
 | `tools/patch_menu.py` | The feature categories of Global Settings and the engine that builds in the features of `tools/features/`. |

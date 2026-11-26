@@ -348,6 +348,12 @@ def dsp_size():
     return tuple(sum(len(s.words) for s in secs if s.kind == k) for k in ('dm', 'pm'))
 
 
+def e2_size():
+    """The bytes patch_dsp adds to Entry 2: frame_probe.asm and a primitive record for each core of WRAPS."""
+    secs, _ = pa.sasm.assemble(dsp_asm(nam_multi.B3, nam_multi.NW3), 'frame_probe.asm')
+    return pa.ldr_size(secs, records=len(WRAPS))
+
+
 def dsp_place():
     """(DM base, PM base) of frame_probe.asm (tools/block3.py)."""
     return block3.place('HX_GR')
