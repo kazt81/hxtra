@@ -2,7 +2,8 @@
 """hx_devtest.py - an automated test of each HXtra feature on the HX Stomp, pressing its controls over USB and reading its screen.
 
 It tests the build already running on the unit and never boots, flashes or restarts it. Boot a build with the features to test and
-HX_SCREEN_MIRROR=1 HX_USB_INPUT=1 (hxboot), close HX Edit, put the unit on its Home screen in Stomp footswitch mode, then:
+HX_SCREEN_MIRROR=1 HX_USB_INPUT=1 (hxboot), close HX Edit, put the unit on its Home screen (the run puts it in Stomp footswitch
+mode, and back in the mode it found at the end), then:
 
   hx_devtest.py                     # every case
   hx_devtest.py --only bpm,tuner    # by case name
@@ -14,6 +15,7 @@ saves the screen as build/devtest/<case>.png, and the run its results as build/d
 failed. macOS only: the screen is read with Vision (tools/mac/ocr_mac.swift, built into build/ocr_mac on first use).
 """
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -35,6 +37,12 @@ OUT = os.path.join(ROOT, 'build', 'devtest')
 SCALE = 2                           # Vision reads the screen's small fonts better at twice its size
 SETTLE = 0.4                        # after a control, for the UI to redraw
 LOOKALIKE = str.maketrans('АВСЕНКМОРТХаеорсху®#', 'ABCEHKMOPTXaeopcxy  ')   # Vision's Cyrillic reads of Latin capitals
+DIGITS = str.maketrans('ЧчЗзбОо', '4433600')      # Vision's Cyrillic reads of the DSP meter's small digits
+TAP = re.compile(r'^(tap[/|il1]?(tuner)?|tuner)$')    # the TAP/TUNER label's lines, not a block or preset named Tape
+TAP_LABELS = (0, 130, 320, 60)      # Home's footswitch labels
+TAP_LED = re.compile(r'tapled(color)?$')            # Tap LED Color's label, its lines read apart or as one
+MODE_WAIT = 1.0                     # for the TAP label after a footswitch mode change
+METER = (262, 2, 58, 22)            # the Edit view's Small DSP total, right-aligned at x 316
 
 
 class Fail(AssertionError):
@@ -280,6 +288,37 @@ class Unit:
             self.turn('knob4', 1, settle=0.4)
         raise Fail('no empty block in this preset')
 
+    def tap_shown(self):
+        """A TAP/TUNER footswitch label on Home: Stomp mode, or Scroll, which also taps."""
+        try:
+            self.see(TAP, TAP_LABELS, timeout=MODE_WAIT)
+            return True
+        except Fail:
+            return False
+
+    def stomp_mode(self):
+        """Home in Stomp footswitch mode, told by its TAP label: PAGE◀ and PAGE▶ step Stomp, Scroll, Preset, Snapshot round, so
+        PAGE◀ takes Stomp to Snapshot, which has none, and Scroll to Stomp, and Stomp is the first with one PAGE▶ from a mode
+        without. Returns the PAGE▶ steps from the mode it was in to Stomp, 0..3."""
+        self.home()
+        if self.tap_shown():
+            self.press('page_left', settle=0.6)
+            if self.tap_shown():
+                return 3
+            self.press('page_right', settle=0.6)
+            return 0
+        for n in range(1, 5):
+            self.press('page_right', settle=0.6)
+            if n < 4 and self.tap_shown():
+                return n
+        raise Fail('no TAP/TUNER footswitch label in any footswitch mode, so none can be told as Stomp mode')
+
+    def restore_mode(self, steps):
+        """Back to the footswitch mode stomp_mode found, steps PAGE▶ steps short of Stomp."""
+        self.stomp_mode()
+        for _ in range(-steps % 4):
+            self.press('page_right', settle=0.6)
+
     def saved(self):
         """(setlist, preset) of the preset loaded if it has no unsaved changes, else None."""
         cur = self.s.ctl.current()
@@ -325,7 +364,7 @@ def case(name, what):
 
 def tap_footswitch(u):
     """The footswitch whose Home label is TAP/TUNER."""
-    ln = u.see('tap', (0, 130, 320, 60), what='a TAP/TUNER footswitch label (Stomp footswitch mode)')
+    ln = u.see(TAP, TAP_LABELS, what='a TAP/TUNER footswitch label (Stomp footswitch mode)')
     return f'fs{int(ln.cx // (hm.W / 3)) + 1}'
 
 
@@ -392,10 +431,9 @@ def t_tap_color(u):
     k = int(tap_footswitch(u)[2]) - 1
     if k > 2:
         raise Skip('TAP is on FS4/FS5, which have no ring')
-    colours = ('Red', 'DkOrange', 'LtOrange', 'Yellow', 'Green', 'Teal', 'Blue', 'Violet', 'Pink', 'White', 'Rainbow', 'Random')
+    colours = tap_colours()
     u.global_settings('Displays')
-    u.page_to('Tap LED')
-    was = u.dial(3, 'Green', colours)
+    was = u.dial(label_knob(u, TAP_LED), 'Green', colours)
     try:
         u.home()
         end = time.monotonic() + 3
@@ -409,8 +447,7 @@ def t_tap_color(u):
             u.s.wait(0.1)
     finally:
         u.global_settings('Displays')
-        u.page_to('Tap LED')
-        u.dial(3, was, colours)
+        u.dial(label_knob(u, TAP_LED), was, colours)
         u.home()
 
 
@@ -439,12 +476,25 @@ def t_breathing_line(u):
         u.home()
 
 
+def meter_total(text):
+    """The n of the DSP total's n/75 in text as Vision reads the small font (Ч5/'75 for 45/75), or None: Cyrillic lookalikes as
+    digits, stray marks dropped, and n no more than 75."""
+    m = re.search(r'(\d{1,2})/75(?!\d)', re.sub(r'[\s\'`‘’".,:;]', '', text.translate(DIGITS)))
+    return int(m.group(1)) if m and int(m.group(1)) <= 75 else None
+
+
 @case('dsp_meter', 'DSP usage display: the Edit view shows the blocks\' total out of 75 at the top right')
 def t_dsp_meter(u):
     u.home()
     u.press('view', settle=0.6)
     try:
-        u.see(re.compile(r'\d+/75'), what='n/75 in the Edit view')     # Vision reads it on the title's line
+        for _ in range(3):
+            texts = [ln.text for ln in u.read()]        # Vision reads it on the title's line
+            if not any(meter_total(t) is not None for t in texts):
+                texts.append(u.zoom(METER))
+            if any(meter_total(t) is not None for t in texts):
+                return
+        raise Fail(f'no n/75 in the Edit view; it reads {texts}')
     finally:
         u.home()
 
@@ -515,9 +565,9 @@ def foot_hold(u, fs, seconds=1.5, look=None, settle=SETTLE):
 
 
 def label_knob(u, label, steps=6):
-    """Pages a Global Settings section to the knob labelled label, matched on the label's last line so a value that reads the same
-    (FS1 Hold's FS6) is not it; returns the knob's number."""
-    want = re.compile(re.escape(norm(label)) + '$')
+    """Pages a Global Settings section to the knob labelled label (a string, or a compiled pattern matched on the normalised line),
+    matched on the label's last line so a value that reads the same (FS1 Hold's FS6) is not it; returns the knob's number."""
+    want = label if isinstance(label, re.Pattern) else re.compile(re.escape(norm(label)) + '$')
     for direction in ('page_right', 'page_left'):
         for _ in range(steps):
             ln = u.find(want, (0, 186, 320, 54))
@@ -525,6 +575,40 @@ def label_knob(u, label, steps=6):
                 return int(knob_under(ln.cx)[4])
             u.press(direction)
     raise Fail(f'no knob labelled {label!r}')
+
+
+def tap_colours():
+    from features import tap_color
+    return tuple(v.decode() for v in tap_color.SETTINGS[0].values)
+
+
+@contextlib.contextmanager
+def steady_tap(u):
+    """Tap LED Color on Red for the with block when it is Rainbow or Random, which change the TAP ring's colour each beat, and back
+    after; a build without it has the stock ring."""
+    u.global_settings('Displays')
+    try:
+        knob = label_knob(u, TAP_LED)
+    except Fail:
+        knob = None
+    colours = tap_colours()
+    was = u.dial(knob, 'Red', colours) if knob and norm(u.value(knob)) in ('rainbow', 'random') else None
+    u.home()
+    try:
+        yield
+    finally:
+        if was:
+            u.global_settings('Displays')
+            u.dial(label_knob(u, TAP_LED), was, colours)
+            u.home()
+
+
+def steadied(fn):
+    """A case run with the TAP ring on one colour (steady_tap), for a case that compares the rings."""
+    def run(u):
+        with steady_tap(u):
+            fn(u)
+    return run
 
 
 def own_value(u, knob):
@@ -554,11 +638,12 @@ def until_home(u, timeout=3.0):
 
 @case('global_eq', 'Long press GlobalEQ: a hold opens Global EQ with no "Assign block to FS?" and any footswitch press goes Home, '
                    'toggling nothing; a touch alone still asks')
+@steadied
 def t_global_eq(u):
     from features import long_press
     holds = [v.decode() for v in long_press.VALUES]
     u.home()
-    tap = u.find('tap', (0, 130, 320, 60))      # a hold of TAP opens the tuner, so the case holds another footswitch
+    tap = u.find(TAP, TAP_LABELS)               # a hold of TAP opens the tuner, so the case holds another footswitch
     fs = next(f'fs{k}' for k in (1, 2, 3) if not tap or k != int(tap.cx // (hm.W / 3)) + 1)
     u.global_settings('Footswitches')
     knob = label_knob(u, f'FS{fs[2]} Hold')
@@ -620,6 +705,7 @@ def t_global_eq(u):
 
 @case('preset_color', 'Preset LED Color: in Preset footswitch mode the current preset\'s ring takes the colour picked in '
       'Displays, and follows a change made there')
+@steadied
 def t_preset_color(u):
     colours = ('Red', 'DkOrange', 'LtOrange', 'Yellow', 'Green', 'Teal', 'Blue', 'Violet', 'Pink', 'White')
     green = lambda c, mode: mode == 1 and (c >> 8 & 0xff) > 2 * max(c & 0xff, c >> 16)
@@ -810,27 +896,41 @@ def run(names=None, record=None, stop=False):
         u = Unit(s)
         s.wait(0.5)
         u.start = u.saved()
-        for name, what, fn in CASES:
-            if names and name not in names:
-                continue
-            t0 = time.monotonic()
-            try:
-                fn(u)
-                status, why = 'PASS', ''
-            except Skip as e:
-                status, why = 'SKIP', str(e)
-            except Exception as e:  # noqa: BLE001 (every failure is reported, the run goes on)
-                status, why = 'FAIL', str(e) if isinstance(e, Fail) else traceback.format_exc(limit=3)
-                with open(os.path.join(OUT, f'{name}.png'), 'wb') as f:
-                    f.write(hm.png(s.last, SCALE))
+        try:
+            mode = u.stomp_mode()
+        except Fail as e:
+            mode = None
+            os.write(1, f'WARN  {"footswitch mode":16s} {e}\n'.encode())
+        try:
+            for name, what, fn in CASES:
+                if names and name not in names:
+                    continue
+                t0 = time.monotonic()
                 try:
-                    u.home()
-                except Fail:
-                    pass
-            results.append({'case': name, 'status': status, 'why': why, 'seconds': round(time.monotonic() - t0, 1)})
-            os.write(1, f'{status}  {name:16s} {why}\n'.encode())
-            if stop and status == 'FAIL':
-                break
+                    fn(u)
+                    status, why = 'PASS', ''
+                except Skip as e:
+                    status, why = 'SKIP', str(e)
+                except Exception as e:  # noqa: BLE001 (every failure is reported, the run goes on)
+                    status, why = 'FAIL', str(e) if isinstance(e, Fail) else traceback.format_exc(limit=3)
+                    with open(os.path.join(OUT, f'{name}.png'), 'wb') as f:
+                        f.write(hm.png(s.last, SCALE))
+                    try:
+                        u.home()
+                        if mode is not None:
+                            u.stomp_mode()      # a case that failed in another footswitch mode
+                    except Fail:
+                        pass
+                results.append({'case': name, 'status': status, 'why': why, 'seconds': round(time.monotonic() - t0, 1)})
+                os.write(1, f'{status}  {name:16s} {why}\n'.encode())
+                if stop and status == 'FAIL':
+                    break
+        finally:
+            if mode is not None:
+                try:
+                    u.restore_mode(mode)
+                except Fail as e:
+                    os.write(1, f'WARN  {"footswitch mode":16s} not put back: {e}\n'.encode())
         if u.start and not u.saved():
             u.reload(u.start)                   # the preset as saved, as the run found it
         u.ocr.stdin.close()

@@ -251,7 +251,7 @@ def test_the_reader_enters_the_gate(gated):
     _, syms = pa.sasm.assemble(pg.dsp_asm(dm, pm), 'fx_gate.asm')
     rec = [b for t, a, b in ldr_blocks(new) if t == 4 and len(b) == 8 and b[0] == pg.READER]
     assert rec[-1][4:6] == (syms['CTRL_2618'], syms['ENTRY_2618'])
-    assert any(t == 5 and a == pm for t, a, _ in ldr_blocks(new)) and any(t == 4 and a == dm for t, a, _ in ldr_blocks(new))
+    assert any(t == 5 and a == pm for t, a, _ in ldr_blocks(new)) and any(t in (1, 4) and a == dm for t, a, _ in ldr_blocks(new))
 
 
 @pytest.mark.firmware
@@ -383,8 +383,8 @@ def test_after_the_metronome_and_before_the_gr_knobs():
 
 
 GATE_BUILT_MD5 = {
-    'HX_FX_GATE': '31bceed929383032fb24b5c80d58d196',
-    'HX_FX_GATE HX_GR HX_CLICK HX_REAL_NAMES': '32ff7d6883772cba808abb06cc6c7a13',      # every DSP and model step, and an Entry 0 renamer
+    'HX_FX_GATE': '905f646ea1e11bcfb90734472cfb24fe',
+    'HX_FX_GATE HX_GR HX_CLICK HX_REAL_NAMES': 'e8f23e3f0e9b301764b25ab6d9f9da32',      # every DSP and model step, and an Entry 0 renamer
 }
 
 

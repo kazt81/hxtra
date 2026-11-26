@@ -302,7 +302,7 @@ def test_the_core_enters_the_wrapper(sided):
     assert jack[-1][5] == syms['ENTRY_2A94'] and jack[-1][4] == 0x60a5b9, 'the jack reader\'s control function stays stock'
     meter = [b for t, a, b in ldr_blocks(new) if t == 4 and len(b) == 8 and b[0] == sc.METER]
     assert meter[-1][5] == syms['ENTRY_2390'] and meter[-1][4] == 0x610441, 'the meter\'s control function stays stock'
-    assert any(t == 5 and a == pm for t, a, _ in ldr_blocks(new)) and any(t == 4 and a == dm for t, a, _ in ldr_blocks(new))
+    assert any(t == 5 and a == pm for t, a, _ in ldr_blocks(new)) and any(t in (1, 4) and a == dm for t, a, _ in ldr_blocks(new))
 
 
 @pytest.mark.firmware
@@ -411,8 +411,8 @@ def test_after_the_fx_gate_and_before_the_gr_knobs():
 
 
 SC_BUILT_MD5 = {
-    'HX_GATE_SC': '5bd503454014fe311fb583561eb4ee53',
-    'HX_GATE_SC HX_FX_GATE HX_GR HX_CLICK HX_USB_MONITOR HX_REAL_NAMES': '147adba6b06f0271f9b051bc272f2558',  # every DSP step
+    'HX_GATE_SC': 'd77b54023ee0732a8cd56052c962523a',
+    'HX_GATE_SC HX_FX_GATE HX_GR HX_CLICK HX_USB_MONITOR HX_REAL_NAMES': '34ff90b35614d391d3e1749b90e5b369',  # every DSP step
 }
 
 
