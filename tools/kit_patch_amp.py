@@ -535,7 +535,7 @@ def _e0_vaddr_to_foff(segs, vaddr, length=4):
 
 
 def add_model_entry0(e0, src_name_idx, new_name_idx, display_name, short_name=None, preset_id=None, dsp_cost=None,
-                     n_params=None, folder=None, fx=False, src_category=None):
+                     n_params=None, folder=None, fx=False, src_category=None, shown=None, follow_enable=False):
     """Update the Cortex-M4 main application (Entry 0, HX Stomp or XL v3.80.0; addresses below are the Stomp's) for a new model:
       1. Static Model Table (823 x 12 B @ 0x28017994 -> 824 x 12 B):
          appends {new_name_idx, preset_id, 0, src_dsp_cost}, choosing a free
@@ -545,6 +545,9 @@ def add_model_entry0(e0, src_name_idx, new_name_idx, display_name, short_name=No
          searched linearly when a block or preset loads; clones
          src's 44-byte row with new_name_idx and 16-byte shortDisplayName, and
          patches the 2 literal pointers (0x28de8fd4/d8) and movw count (0x28de8f30).
+         With n_params, its counts are n_params, the first `shown` of them shown
+         (all by default); an effect's (fx) followEnable flag is `follow_enable` (the
+         block's on/off then drives its bool parameters with the followEnable meta).
       3. UI Browser Lists (48-byte items via 0x28e3e00c ptrs and 0x28e3e13c counts):
          for every browser list containing src_name_idx (e.g. (11,0), (11,2), (12,0)),
          relocates the list with a cloned 48-byte entry appended and increments its count.
@@ -631,12 +634,12 @@ def add_model_entry0(e0, src_name_idx, new_name_idx, display_name, short_name=No
         # but a few with hidden ones, e.g. HD2_ChorusMono 7, 9, 9 of 9)
         # (displayParamCount, presetParamCount, n, followEnable, gainReductionMeterCount):
         # an effect's source may hide sync parameters (HD2_ChorusMono 7, 9, 9) or have a
-        # meter; the copy shows every one of its own and has neither (FX_MODEL_META_DROP)
+        # meter; the copy shows `shown` of its own, has no meter and its own followEnable flag
         counts = struct.unpack_from('<3I', src_tab2_row, 24)
         assert fx or len(set(counts)) == 1, f'the source row has counts {counts}'
-        struct.pack_into('<3I', src_tab2_row, 24, n_params, n_params, n_params)
+        struct.pack_into('<3I', src_tab2_row, 24, n_params if shown is None else shown, n_params, n_params)
         if fx:
-            struct.pack_into('<2I', src_tab2_row, 36, 0, 0)
+            struct.pack_into('<2I', src_tab2_row, 36, int(follow_enable), 0)
     tab2_raw += src_tab2_row
     new_tab2_cnt = tab2_cnt + 1
 

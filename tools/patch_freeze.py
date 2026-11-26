@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
-"""patch_freeze.py - the Hold Sustain block: Hold grabs the sound just before it and plays it on as 32 steady sines.
+"""patch_freeze.py - the Hold Sustain block: turned on, it grabs the sound before and plays it on as 32 steady sines.
 
 usage: patch_freeze.py <in .hxf | L6IA> <out .hxf | L6IA> [--donor stock.hxf]
 
 Run after tools/patch_click.py and before the tools that add knobs (build.py does it for HX_FREEZE=1 builds). It adds:
-  - the model Pitch/Synth > Hold Sustain > Hold Sustain (Entries 0, 3, 4; preset ID 380): a copy of the mono effect host
-    whose one member is the primitive 0x012e, with the knobs Mode, Hold, Attack, Release, FX Level and Dry Level (pids
-    5..10); the instance has the kernel's DM_WORDS of DM and its SDR_NEED of SDRAM (the ring), in whole 0x400 words;
+  - the model Pitch/Synth > Mono > Hold Sustain (Entries 0, 3, 4; preset ID 380): a copy of the mono effect host whose
+    one member is the primitive 0x012e, with the knobs Attack, Release, FX Level and Dry Level (pids 5..8) and Hold (pid
+    9), hidden, which the block's on/off drives as the stock Feedbacker's Enable: Table 2's followEnable flag and the
+    parameter's followEnable meta. Its browser item is Poly Pitch's, block kind 24, so turning the block off does not
+    bypass the kernel: it plays the input and the release itself. The instance has the kernel's DM_WORDS of DM and its
+    SDR_NEED of SDRAM (the ring), in whole 0x400 words;
+  - in the two lists of models that load off (the block loader's and the add-block command's), Hold Sustain's name
+    where they compare Infinite Sustain's, which no HX Stomp browser list has: a new block and a loaded preset start off
+    and hold nothing;
   - the kernel src/sharc/freeze.asm (Entry 2), in Block 3 where tools/block3.py places it, as the primitive's process
     function. Its data that is all zeros goes in as one zero-fill block, so its sections go through patch_amp's packers,
     not kit.patch_kernel's.
@@ -15,6 +21,7 @@ as an amp-loading unit needs.
 """
 import argparse
 import os
+import re
 import struct
 import sys
 
@@ -31,24 +38,25 @@ import patch_comp
 
 FLAG = 'HX_FREEZE'
 ASM = os.path.join(SCRIPT_DIR, '..', 'src', 'sharc', 'freeze.asm')
-NAME, DISPLAY, FOLDER = 'HD2_PitchHoldSustainMono', 'Hold Sustain', 'Hold Sustain'
+NAME, DISPLAY = 'HD2_PitchHoldSustainMono', 'Hold Sustain'
 PRESET_ID = 380                     # fixed for ever: presets store it (147 and 148 were an early NAM build's)
 DSP_COST = 500                      # 5.0%, until the unit's meter measures it
-CLONE = 'HD2_PitchSimplePitchMono'  # a mono Pitch/Synth effect: no trails
-CATEGORY = BROWSER = 8              # Pitch/Synth, a folder beside its Mono, Stereo and Legacy lists
+CLONE = 'L6SPB_PolyPitch'           # Pitch/Synth > Mono, block kind 24: never bypassed, as Feedbacker and Poly Sustain
+CATEGORY = 8                        # Pitch/Synth
 HOST = 'HD2_VolPanVolMono'
 PRIM = (0x012e, 0x200058)           # kit_patch_amp.UNUSED_SHARC_PRIMS' third: NAM and the Metronome have the first two
 REGISTRY = (0x611e90, 0, 0x611ef4, 0x611ddd)    # a hooked primitive's init, 0, ? and control function (the generic
 #                                     store: pid p into DM(p, I0)), as kit.patch_kernel writes them
 LEVEL = [('displayType', 'db'), ('valueMinString', 'Off')]      # -60 dB and under: the kernel's 0
 SECONDS = [('displayType', 'time'), ('units', 'sec')]
-# (slot, name, pid, type, min, max, default, meta) by display order. Types: 3 float, 2 int, 1 bool.
-PARAMS = ((1, 'Mode', 5, 2, 0, 1, 0, [('displayType', 'list'), ('0', 'Momentary'), ('1', 'Latch')]),
-          (2, 'Hold', 6, 1, 0, 0, 0, [('false', 'Off'), ('true', 'On')]),
-          (3, 'Attack', 7, 3, 0.01, 4.0, 0.3, SECONDS),
-          (4, 'Release', 8, 3, 0.05, 10.0, 1.0, SECONDS),
-          (5, 'FXLevel', 9, 3, -60.0, 6.0, 0.0, [('displayName', 'FX Level'), ('displayNameShort', 'FX Lvl')] + LEVEL),
-          (6, 'DryLevel', 10, 3, -60.0, 6.0, 0.0, [('displayName', 'Dry Level'), ('displayNameShort', 'Dry Lvl')] + LEVEL))
+# (slot, name, pid, type, min, max, default, meta) by display order, Hold last and hidden. Types: 3 float, 1 bool.
+PARAMS = ((1, 'Attack', 5, 3, 0.01, 4.0, 0.3, SECONDS),
+          (2, 'Release', 6, 3, 0.05, 10.0, 1.0, SECONDS),
+          (3, 'FXLevel', 7, 3, -60.0, 6.0, 0.0, [('displayName', 'FX Level'), ('displayNameShort', 'FX Lvl')] + LEVEL),
+          (4, 'DryLevel', 8, 3, -60.0, 6.0, 0.0, [('displayName', 'Dry Level'), ('displayNameShort', 'Dry Lvl')] + LEVEL),
+          (5, 'Hold', 9, 1, 0, 0, 0, [('false', 'Off'), ('true', 'On'), ('followEnable', 'true')]))
+SHOWN = 4                           # Table 2's displayParamCount: Hold is not shown
+LOAD_OFF = 0x661                    # Infinite Sustain's name: the entry of the load-off lists Hold Sustain takes
 
 
 def word(ty, v):
@@ -114,6 +122,22 @@ def kernel_ldr(e2_raw, log=print):
     return ldr, entry
 
 
+def load_off(e0, name_idx):
+    """Entry 0 with the two load-off lists comparing name_idx where they compared LOAD_OFF: each a run of
+    `movw r2, #name; cmp r3, r2; beq ...`, LOAD_OFF's right after 3 Note Generator Stereo's (0xad5). Returns (new Entry
+    0, the two movw addresses)."""
+    e0 = bytearray(e0)
+    _, poff, slen, dst, _ = kit._parse_e0_segments(e0)[6]
+    run = re.compile(re.escape(kit._encode_thumb_movw(2, 0xad5) + b'\x93\x42') + b'.\xd0'
+                     + re.escape(kit._encode_thumb_movw(2, LOAD_OFF)), re.S)
+    sites = [dst + m.start() + 8 for m in run.finditer(bytes(e0[poff:poff + slen])) if m.start() % 2 == 0]
+    if len(sites) != 2:
+        raise SystemExit(f'found {len(sites)} load-off lists in Entry 0, not 2')
+    for va in sites:
+        e0[poff + va - dst:poff + va - dst + 4] = kit._encode_thumb_movw(2, name_idx)
+    return bytes(l6ia.fix_internal_crcs(e0)), sites
+
+
 def add_freeze(l6ia_bytes, log=print):
     """The Hold Sustain model and its kernel. Returns (new l6ia bytes, info dict)."""
     e0 = kit.get_entry_swapped(l6ia_bytes, 0)
@@ -144,8 +168,10 @@ def add_freeze(l6ia_bytes, log=print):
 
     new_e0, pid, cost, _ = kit.add_model_entry0(
         e0, src['words'][2], m['words'][2], DISPLAY, preset_id=PRESET_ID, dsp_cost=DSP_COST,
-        n_params=len(params), folder=(BROWSER, FOLDER), fx=True, src_category=CATEGORY)
-    log(f"[+] Entry 0: preset_id {pid}, dsp_cost {cost}, Pitch/Synth > {FOLDER}")
+        n_params=len(params), shown=SHOWN, follow_enable=True, fx=True)
+    log(f"[+] Entry 0: preset_id {pid}, dsp_cost {cost}, Pitch/Synth > Mono")
+    new_e0, sites = load_off(new_e0, m['words'][2])
+    log(f"[+] Entry 0: loads off ({', '.join(f'{a:#x}' for a in sites)})")
 
     entries = l6ia.parse(l6ia_bytes)
     e2_raw = l6ia_bytes[entries[2]['payload_off']: entries[2]['payload_off'] + entries[2]['payload_len']]
@@ -154,7 +180,7 @@ def add_freeze(l6ia_bytes, log=print):
     e2_raw = pa.inject_sharc_ldr_blocks(e2_raw, ldr)
     out, _, _ = l6ia.rebuild_archive(l6ia_bytes, {0: bytes(new_e0), 2: l6ia.swap32(e2_raw), 3: new_e3, 4: new_e4})
     return out, {'model_id': model_id, 'blob': blob, 'composite': comp, 'preset_id': pid, 'entry': entry,
-                 'place': dsp_place(), 'params': params}
+                 'place': dsp_place(), 'params': params, 'load_off': sites}
 
 
 def main():

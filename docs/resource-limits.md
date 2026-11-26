@@ -14,9 +14,9 @@ The HX Stomp has two processors. The **M4** (LPC4350, the CPU) runs the screen, 
 
 | Resource | Left now | Spent by | Status |
 | --- | --- | --- | --- |
-| SHARC internal RAM (Block 3 room, `tools/block3.py`) | **512 words** beside 3 NAM slots; 2,528 (2), 7,290 (1), 14,239 (no NAM) | DSP code, DSP state: Metronome 213, FX Loop gate 291, GR meter 780, Hold Sustain 6,453 | verified offline |
+| SHARC internal RAM (Block 3 room, `tools/block3.py`) | **512 words** beside 3 NAM slots; 2,528 (2), 7,290 (1), 14,239 (no NAM) | DSP code, DSP state: Metronome 213, FX Loop gate 291, GR meter 780, Hold Sustain 6,441 | verified offline |
 | Preset model IDs (1..832) | **7** | each new model (Hold Sustain took 380) | verified offline |
-| Entry 2 partition (DSP boot stream, 512 KiB, `tools/block3.py`) | **12,028 bytes** beside 3 NAM slots; 12,100 (2), 12,124 (1), 33,640 (no NAM) | DSP code (6 bytes an instruction) and initial data (4 bytes a word; data that is all zeros takes 12 bytes, a zero-fill block), 44 bytes a primitive record: Metronome 908, FX Loop gate 980, GR meter 3,276, USB & Send Routing 1,456, Input Sidechain 1,056, Hold Sustain 9,820 | verified offline |
+| Entry 2 partition (DSP boot stream, 512 KiB, `tools/block3.py`) | **12,028 bytes** beside 3 NAM slots; 12,100 (2), 12,124 (1), 33,640 (no NAM) | DSP code (6 bytes an instruction) and initial data (4 bytes a word; data that is all zeros takes 12 bytes, a zero-fill block), 44 bytes a primitive record: Metronome 908, FX Loop gate 980, GR meter 3,276, USB & Send Routing 1,456, Input Sidechain 1,056, Hold Sustain 9,772 | verified offline |
 | Entry 3 (model database) | **between 1 KB and 11 KB** past the default build's `0xf0d00` bytes: `0xf10f0` is known to work, and by `0xf3888` the unit drops every amp and preamp (the partition itself has 53 KB) | models (~1.8 KB), knobs (~1 KB per model) | verified on unit |
 | Blob 0 buffer (DSP composite library) | 88,551 words (~27 more cloned composites) | models | verified offline |
 | DSP time per preset | M4 admits up to 90%; 15% always taken | blocks in a preset | verified offline |

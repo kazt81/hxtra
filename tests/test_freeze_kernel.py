@@ -1,7 +1,7 @@
 """The freeze block's kernel (src/sharc/freeze.asm) in ssim, call by call, against tools/sharc/freeze.py: the registers,
 the levels, the decimator and its ring in SDRAM, the first call and the tables made over the first calls; a grab's
-sines, the two voices in Momentary and Latch, the turn between instances, FZ_TAB made again after a grab, and the
-load's EP DMA (nam_multi.ChainDma, which models a standard DMA too)."""
+sines, the two voices (Hold off and on again), the dry gain, the turn between instances, FZ_TAB made again after a
+grab, and the load's EP DMA (nam_multi.ChainDma, which models a standard DMA too)."""
 import random
 import re
 from pathlib import Path
@@ -36,7 +36,7 @@ class Kernel:
     instance in the same simulator (at other addresses), its turn and tables shared."""
 
     def __init__(self, effect_db=0.0, dry_db=0.0, tables=True, sdram_words=SDR_WORDS, stale=True, out=None, seed=1,
-                 mode='momentary', attack=0.3, release=1.0, share=None, odd=False):
+                 attack=0.3, release=1.0, share=None, odd=False):
         k = 0 if share is None else 1
         self.i0, self.bi, self.entry, self.sdram = I0 + 0x400 * k, BI + 0x200 * k, ENTRY + 0x100 * k, SDRAM + 0x2000 * k
         self.i0 += odd
@@ -57,7 +57,7 @@ class Kernel:
                 sim.setR(4, u)
                 sim.call(SYMS['FZ_TABLES'])
             sim.wr(SYMS['FZ_G'] + SYMS['G_TAB'], SYMS['TABLE_SLICES'])
-        self.knobs(effect_db=effect_db, dry_db=dry_db, mode=mode == 'latch', hold=0, attack=attack, release=release)
+        self.knobs(effect_db=effect_db, dry_db=dry_db, hold=0, attack=attack, release=release)
         self.instructions = []
         self.dmac0 = 0                          # DMAC0 after each call: the kernel leaves the channel off
 
@@ -75,13 +75,12 @@ class Kernel:
         for k in range(SDR_WORDS):
             sim.dm[self.sdram + k] = rnd.getrandbits(32) if stale else 0
 
-    def knobs(self, effect_db=..., dry_db=..., mode=None, hold=None, attack=None, release=None):
+    def knobs(self, effect_db=..., dry_db=..., hold=None, attack=None, release=None):
         for pid, db in ((SYMS['P_EFFECT'], effect_db), (SYMS['P_DRY'], dry_db)):
             if db is not ...:
                 self.sim.wr(self.i0 + pid, ssim.f2b(-200.0 if db is None else db))
-        for pid, v in ((SYMS['P_MODE'], mode), (SYMS['P_HOLD'], hold)):
-            if v is not None:
-                self.sim.wr(self.i0 + pid, int(v))
+        if hold is not None:
+            self.sim.wr(self.i0 + SYMS['P_HOLD'], int(hold))
         for pid, v in ((SYMS['P_ATTACK'], attack), (SYMS['P_RELEASE'], release)):
             if v is not None:
                 self.sim.wr(self.i0 + pid, ssim.f2b(v))
@@ -141,14 +140,15 @@ def decimated(x):
 
 
 @pytest.mark.parametrize('effect_db, dry_db', [(0.0, 0.0), (-6.0, 3.5), (0.0, None), (-60.0, -119.0)])
-def test_without_a_press_the_output_is_the_input_times_dry_level(effect_db, dry_db):
+def test_without_a_grab_the_output_is_the_input(effect_db, dry_db):
     x = tone(0.05)
     k = Kernel(effect_db=effect_db, dry_db=dry_db)
     ref = fz.render(x, np.zeros(len(x) // B, dtype=bool), effect_db=effect_db, dry_db=dry_db)[0]
+    assert np.array_equal(ref, x)
     assert np.abs(k.run(x) - ref).max() < 1e-6 * np.abs(x).max()
 
 
-def test_dry_level_moves_over_one_block():
+def test_dry_level_changes_nothing_without_a_grab():
     x = tone(0.01)
     k = Kernel(dry_db=0.0)
     f = fz.Freeze(dry_db=0.0)
@@ -162,6 +162,7 @@ def test_dry_level_moves_over_one_block():
             f.knobs(dry_db=None)
         got.append(k.call(x[n * B:(n + 1) * B]))
         want.append(f.process(x[n * B:(n + 1) * B], False))
+    assert np.array_equal(np.concatenate(want), x[:len(x) // B * B])
     assert np.abs(np.concatenate(got) - np.concatenate(want)).max() < 1e-6
 
 
@@ -223,7 +224,7 @@ def test_without_its_sdram_block_it_plays_the_input_and_writes_nothing():
     x = tone(0.02)
     k = Kernel(sdram_words=SYMS['SDR_NEED'] - 1, dry_db=-6.0)
     before = k.ring(64)
-    assert np.abs(k.run(x) - x * 10 ** (-6 / 20)).max() < 1e-6
+    assert np.abs(k.run(x) - x).max() < 1e-6
     assert np.array_equal(k.ring(64), before, equal_nan=True) and k.state('S_WRITTEN') == 0
 
 
@@ -288,7 +289,7 @@ def test_a_grabs_sines_are_the_references_partials():
 
 
 @pytest.mark.slow
-def test_momentary_grab_plays_the_references_voice():
+def test_a_grab_plays_the_references_voice():
     """Out to within 1e-3 of the reference over 0.35 s of voice (its frequencies' float32 offsets add up)."""
     x = harmonics(1.0)
     holds = np.zeros(len(x) // B, dtype=bool)
@@ -318,19 +319,12 @@ def holding(seconds, *spans):
     return h
 
 
-def pressing(seconds, *at):
-    """Latch presses: a block-long press at each time (seconds)."""
-    h = np.zeros(blocks(seconds), dtype=bool)
-    h[[blocks(a) for a in at]] = True
-    return h
-
-
-def both(x, holds, mode='momentary', attack=0.05, release=0.1, **levels):
+def both(x, holds, attack=0.05, release=0.1, **levels):
     """The kernel and the reference on the same input and Hold states: (kernel's out, reference's out, Kernel,
     Freeze)."""
-    k = Kernel(mode=mode, attack=attack, release=release, **levels)
+    k = Kernel(attack=attack, release=release, **levels)
     got = k.run(x[:len(holds) * B], holds)
-    want, f = fz.render(x[:len(holds) * B], holds, mode=mode, attack=attack, release=release, **levels)
+    want, f = fz.render(x[:len(holds) * B], holds, attack=attack, release=release, **levels)
     return got, want, k, f
 
 
@@ -340,7 +334,7 @@ def assert_close(got, want, tol=1e-3):
 
 @pytest.mark.parametrize('second_db, stolen', [(0.0, 0), (-20.0, 1)])
 @pytest.mark.slow
-def test_momentary_takes_the_other_voice_then_steals_the_quieter(second_db, stolen):
+def test_a_grab_takes_the_other_voice_then_steals_the_quieter(second_db, stolen):
     """Three holds, each let go: the second grab takes voice 1 while voice 0 releases; the third, both releasing, takes
     the quieter by envelope x level (the older one at the same level, the second when its input was 20 dB down) and
     fades it out over LATENCY blocks. Also the most instructions a call takes, two voices sounding and a grab's
@@ -358,13 +352,13 @@ def test_momentary_takes_the_other_voice_then_steals_the_quieter(second_db, stol
 
 
 @pytest.mark.slow
-def test_latch_grabs_again_a_double_press_stops_everything_and_the_next_press_grabs():
-    """Latch: a press grabs (voice 0); one 0.32 s on grabs again (voice 1, voice 0 releases); one 0.15 s after that
-    stops everything; one 0.08 s after the stop grabs. Effect Level and Dry Level move on the way."""
+def test_hold_off_and_on_again_grabs_again_and_the_dry_gain_follows_the_voices():
+    """Hold on grabs (voice 0); off for one block 0.32 s on and on again grabs again (voice 1, voice 0 releases); off
+    0.15 s after that releases; on 0.08 s after that grabs. Effect Level and Dry Level move on the way."""
     x = harmonics(1.1)
-    h = pressing(1.1, 0.3, 0.62, 0.77, 0.85)
-    k = Kernel(mode='latch', attack=0.05, release=0.1)
-    f = fz.Freeze(mode='latch', attack=0.05, release=0.1)
+    h = holding(1.1, (0.3, 0.62), (0.62 + B / fz.FS, 0.77), (0.85, None))
+    k = Kernel(attack=0.05, release=0.1)
+    f = fz.Freeze(attack=0.05, release=0.1)
     got, want = [], []
     for n in range(len(h)):
         if n == blocks(0.5):
@@ -378,48 +372,6 @@ def test_latch_grabs_again_a_double_press_stops_everything_and_the_next_press_gr
                                                    ('start', 1), ('end', 0), ('release', 1), ('grab', 0),
                                                    ('end', 1), ('start', 0)]
     assert (c, 'release', 1) in f.log and (d, 'grab', 0) in f.log
-    assert_close(np.concatenate(got), np.concatenate(want))
-
-
-@pytest.mark.parametrize('gap, stops', [(900, True), (901, False)])
-def test_latch_double_press_counts_up_to_0_3_s_inclusive(gap, stops):
-    """(The last press's block set back, so that the second press comes `gap` blocks after the first.)"""
-    x = harmonics(0.4)
-    k = Kernel(mode='latch')
-    a = blocks(0.3)
-    k.run(x[:a * B], pressing(0.3 + B / fz.FS, 0.3)[:a])
-    k.knobs(hold=1)
-    k.call(x[a * B:(a + 1) * B])
-    assert k.state('S_PEND') and k.state('S_GRABBED')
-    k.knobs(hold=0)
-    k.run(x[(a + 1) * B:(a + 20) * B])
-    k.sim.wr(k.i0 + SYMS['S_LASTP'], a + 20 - gap)
-    k.knobs(hold=1)
-    k.call(x[(a + 20) * B:(a + 21) * B])
-    assert bool(k.state('S_PEND')) is not stops and bool(k.state('S_GRABBED')) is not stops
-
-
-@pytest.mark.slow
-def test_switching_modes_keeps_a_held_voice_and_releases_a_latched_one_without_hold():
-    """Momentary held, then Latch while held: the voice stays after Hold goes up. Momentary again without Hold:
-    it releases."""
-    x = harmonics(0.75)
-    k = Kernel(attack=0.05, release=0.1)
-    f = fz.Freeze(attack=0.05, release=0.1)
-    h = holding(0.75, (0.3, 0.5))
-    got, want = [], []
-    for n in range(len(h)):
-        if n == blocks(0.45):
-            k.knobs(mode=1)
-            f.mode = 'latch'
-        if n == blocks(0.6):
-            k.knobs(mode=0)
-            f.mode = 'momentary'
-        k.knobs(hold=h[n])
-        got.append(k.call(x[n * B:(n + 1) * B]))
-        want.append(f.process(x[n * B:(n + 1) * B], h[n]))
-    assert f.log == [(blocks(0.3), 'grab', 0), (blocks(0.3) + L, 'start', 0), (blocks(0.6), 'release', 0),
-                     (blocks(0.6) + f.blocks(0.1), 'end', 0)]
     assert_close(np.concatenate(got), np.concatenate(want))
 
 

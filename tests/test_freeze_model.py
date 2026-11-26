@@ -1,5 +1,6 @@
 """tools/patch_freeze.py: the Hold Sustain block (HX_FREEZE): its kernel's place and size in Block 3 and Entry 2, the model,
-its knobs and their pids, the browser, the primitive that runs the kernel, Entry 3's size, and whole builds."""
+its knobs and their pids, Hold following the block's on/off, the browser, loading off, the primitive that runs the
+kernel, Entry 3's size, and whole builds."""
 import hashlib
 import os
 import struct
@@ -60,10 +61,9 @@ def test_the_level_knobs_bottom_is_the_kernels_and_the_references_off():
 def test_the_knobs_are_the_kernels_pids_in_order():
     params = pf.freeze_params()
     assert [(p['slot'], p['name'], p['pid'], p['type']) for p in params] == [
-        (1, 'Mode', 5, 2), (2, 'Hold', 6, 1), (3, 'Attack', 7, 3), (4, 'Release', 8, 3), (5, 'FXLevel', 9, 3),
-        (6, 'DryLevel', 10, 3)]
+        (1, 'Attack', 5, 3), (2, 'Release', 6, 3), (3, 'FXLevel', 7, 3), (4, 'DryLevel', 8, 3), (5, 'Hold', 9, 1)]
     src = open(pf.ASM).read()
-    for name, pid in (('P_MODE', 5), ('P_HOLD', 6), ('P_ATTACK', 7), ('P_RELEASE', 8), ('P_EFFECT', 9), ('P_DRY', 10)):
+    for name, pid in (('P_ATTACK', 5), ('P_RELEASE', 6), ('P_EFFECT', 7), ('P_DRY', 8), ('P_HOLD', 9)):
         assert f'.equ {name},' in src and pf.assembled()[1][name] == pid
 
 
@@ -104,11 +104,11 @@ def test_each_knob_reaches_its_pid(built):
     pm, nodes, edges, slots = pmap(b)
     check_counts(pm, nodes, edges)
     writer = {nodes[k][3][1]: k for k in nodes if nodes[k][0] == 1}
-    assert set(writer) == {5, 6, 7, 8, 9, 10}
+    assert set(writer) == {5, 6, 7, 8, 9}
     assert all(nodes[writer[p]][3] == (0x0e, p, 1) for p in writer)
     assert b[0x0e:0x10] == [1, 2]                         # writers' path: member 1
     src = {e[1]: e[0] for e in edges}
-    assert [src[writer[p]] for p in range(5, 11)] == [slots[k] for k in range(1, 7)]
+    assert [src[writer[p]] for p in range(5, 10)] == [slots[k] for k in range(1, 6)]
 
 
 @pytest.mark.firmware
@@ -117,9 +117,8 @@ def test_the_model_and_its_knobs(built):
     m = kit.parse_entry3_full(kit.get_entry_swapped(out, 3))['models'][info['model_id']]
     assert (m['name'], m['displayName'], m['meta']['category']) == (pf.NAME, 'Hold Sustain', 'pitch')
     assert [(q['name'], q['slot'], q['type']) for q in m['params']] == [
-        ('Mode', 1, 2), ('Hold', 2, 1), ('Attack', 3, 3), ('Release', 4, 3), ('FXLevel', 5, 3), ('DryLevel', 6, 3)]
+        ('Attack', 1, 3), ('Release', 2, 3), ('FXLevel', 3, 3), ('DryLevel', 4, 3), ('Hold', 5, 1)]
     p = {q['name']: q for q in m['params']}
-    assert (p['Mode']['meta']['displayType'], p['Mode']['meta']['0'], p['Mode']['meta']['1']) == ('list', 'Momentary', 'Latch')
     assert (p['Hold']['meta']['false'], p['Hold']['meta']['true']) == ('Off', 'On')
     for k, rng in (('Attack', (0.01, 4.0, 0.3)), ('Release', (0.05, 10.0, 1.0))):
         assert (p[k]['meta']['displayType'], p[k]['meta']['units']) == ('time', 'sec')
@@ -131,7 +130,21 @@ def test_the_model_and_its_knobs(built):
 
 
 @pytest.mark.firmware
-def test_entry0_shows_six_knobs_and_names_preset_id_380(built):
+def test_hold_follows_the_blocks_on_off_as_the_stock_feedbackers_enable(built):
+    # (the M4 matches meta by string index: 'followEnable' 568 and 'true' 209, each once in the stock Entry 3)
+    data, out, info = built
+    e3 = kit.parse_entry3_full(kit.get_entry_swapped(out, 3))
+    p = {q['name']: q for q in e3['models'][info['model_id']]['params']}
+    assert p['Hold']['meta']['followEnable'] == 'true'
+    assert not [q for q in p if q != 'Hold' and 'followEnable' in p[q]['meta']]
+    s = e3['strings']
+    assert (s.index('followEnable'), s.index('true'), s.count('followEnable'), s.count('true')) == (568, 209, 1, 1)
+    stock = kit.parse_entry3_full(kit.get_entry_swapped(data, 3))
+    assert kit.find_model(stock, 'VIC_FeedbackSim')['params'][-1]['meta']['followEnable'] == 'true'
+
+
+@pytest.mark.firmware
+def test_entry0_shows_four_knobs_follows_the_on_off_and_names_preset_id_380(built):
     data, out, info = built
     m = kit.parse_entry3_full(kit.get_entry_swapped(out, 3))['models'][info['model_id']]
     assert table1(out)[m['words'][2]] == (380, pf.DSP_COST) and 380 not in {pid for pid, _ in table1(data).values()}
@@ -141,17 +154,45 @@ def test_entry0_shows_six_knobs_and_names_preset_id_380(built):
     rd = lambda va, n: e0[kit._e0_vaddr_to_foff(segs, va, n):kit._e0_vaddr_to_foff(segs, va, n) + n]
     u32 = lambda va: struct.unpack('<I', rd(va, 4))[0]
     t2, (_, n2) = u32(A.TAB2_BASE_PTR), kit._decode_thumb_movw(rd(A.TAB2_CNT_INSN, 4))
-    assert struct.unpack('<5I', rd(t2 + 44 * (n2 - 1) + 24, 20)) == (6, 6, 6, 0, 0)
+    assert struct.unpack('<5I', rd(t2 + 44 * (n2 - 1) + 24, 20)) == (4, 5, 5, 1, 0)
 
 
 @pytest.mark.firmware
-def test_the_browser_lists_it_in_a_hold_sustain_folder_under_pitch_synth(built):
+def test_the_browser_lists_it_last_in_pitch_synth_mono_as_block_kind_24(built):
+    # (kind 24, Poly Pitch's: the block's off sends bypassMode 0, so the kernel plays the input and the release)
     data, out, info = built
     before, after = browser(data), browser(out)
     name_idx = kit.parse_entry3_full(kit.get_entry_swapped(out, 3))['models'][info['model_id']]['words'][2]
-    assert after[8] == before[8] + [('Hold Sustain', [(1, name_idx, 'Hold Sustain')])]     # a plain effect: no trails
-    assert len(after[8]) == 4
+    (mono, items), *rest = before[8]
+    assert mono == 'Mono' and (24, 0x621, 'Poly Pitch') in items
+    assert after[8] == [(mono, items + [(24, name_idx, 'Hold Sustain')]), *rest]
     assert {c: f for c, f in after.items() if c != 8} == {c: f for c, f in before.items() if c != 8}
+
+
+def movws(e0, va, n):
+    """The immediates of the n `movw r2, #imm; cmp r3, r2; beq ...` from va on (beq or beq.w)."""
+    segs = kit._parse_e0_segments(e0)
+    at, out = kit._e0_vaddr_to_foff(segs, va, 4), []
+    for _ in range(n):
+        out.append(kit._decode_thumb_movw(e0[at:at + 4])[1])
+        at += 8 if e0[at + 7] == 0xd0 else 10
+    return out
+
+
+@pytest.mark.firmware
+def test_it_loads_off_in_place_of_infinite_sustain_which_no_browser_list_has(built):
+    data, out, info = built
+    name_idx = kit.parse_entry3_full(kit.get_entry_swapped(out, 3))['models'][info['model_id']]['words'][2]
+    assert info['load_off'] == [0x28dfc668, 0x28dfd20a]
+    e0, e0_stock = kit.get_entry_swapped(out, 0), kit.get_entry_swapped(data, 0)
+    for va in info['load_off']:
+        assert movws(e0_stock, va, 7) == [pf.LOAD_OFF, 0x6f1, 0x777, 0xc07, 0x78a, 0xc0b, 0x8a8]
+        assert movws(e0, va, 7) == [name_idx, 0x6f1, 0x777, 0xc07, 0x78a, 0xc0b, 0x8a8]
+    stock = kit.parse_entry3_full(kit.get_entry_swapped(data, 3))
+    assert stock['strings'][pf.LOAD_OFF] == 'L6SPB_InfSustain'
+    assert not [i for c in browser(data).values() for _, items in c for i in items if i[1] == pf.LOAD_OFF]
+    with pytest.raises(SystemExit, match='found 0 load-off lists'):
+        pf.load_off(e0, name_idx)
 
 
 @pytest.mark.firmware
@@ -186,8 +227,8 @@ def test_a_second_run_is_refused(built):
 
 
 FREEZE_BUILT_MD5 = {
-    'HX_FREEZE': '95846d3f6791fc2537587a5ae9a5a97f',                                      # beside 1 NAM slot
-    'HX_FREEZE HX_CLICK HX_FX_GATE HX_GR HX_USB_MONITOR HX_GATE_SC HX_REAL_NAMES': 'cb6f2c2a453e7917ae0cf1444eed6992',  # every DSP step, no NAM
+    'HX_FREEZE': '9fbc80a7da4bf1ab55163242d89462e3',                                      # beside 1 NAM slot
+    'HX_FREEZE HX_CLICK HX_FX_GATE HX_GR HX_USB_MONITOR HX_GATE_SC HX_REAL_NAMES': 'fc833127528a03ac5e1285cdc958af91',  # every DSP step, no NAM
 }
 
 
@@ -205,6 +246,9 @@ def test_freeze_build(tmp_path, flags):
     assert 'ALL OK' in r.stdout and '[+] Entry 0: preset_id 380' in r.stdout
     assert hashlib.md5(out.read_bytes()).hexdigest() == FREEZE_BUILT_MD5[flags]
     data = pa.load_l6ia_from_any(str(out))[0]
+    name_idx = kit.find_model(kit.parse_entry3_full(pa.get_entry_swapped(data, 3)), pf.NAME)['words'][2]
+    for va in (0x28dfc668, 0x28dfd20a):                   # (the later steps keep its name's index)
+        assert movws(kit.get_entry_swapped(data, 0), va, 1) == [name_idx]
     assert len(pa.get_entry_swapped(data, 3)) <= DEFAULT_E3
     on = block3.on({f: '1' for f in flags.split()})
     assert pa.E2_MAX - pa.l6ia.parse(data)[2]['payload_len'] == block3.e2_room(block3.slots(env)) - sum(block3.e2(f) for f in on)

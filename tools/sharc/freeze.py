@@ -5,10 +5,11 @@ Every 16-sample block the kernel decimates the input to 6 kHz into a ring (RING 
 CAPTURE ring samples (Hann window, a real NFFT-point FFT), takes the PARTIALS strongest peaks from LO_BIN to HI_BIN, and
 plays them as steady sines from `latency` blocks later, so that together they sound CONNECT_DB under the ring's last
 LEVEL samples (50 ms). Each sine starts 90 degrees on from the input's own partial (in quadrature), so that it neither
-cancels nor reinforces the input still sounding. Each grab is a voice; there are VOICES of them, so that a Latch
-re-grab can fade one sound out while the next fades in. A grab takes its voice at the press, fading the quieter one
-out over LATENCY blocks when both sound, as the kernel does before its analysis tells whether there is anything to
-play. Out = input x Dry Level + the voices x Effect Level.
+cancels nor reinforces the input still sounding. Hold going on grabs; going off releases. Each grab is a voice; there
+are VOICES of them, so that a re-grab (Hold off and on again) can fade one sound out while the next fades in. A grab
+takes its voice at the press, fading the quieter one out over LATENCY blocks when both sound, as the kernel does before
+its analysis tells whether there is anything to play. Out = input x the dry gain + the voices x Effect Level, the dry
+gain 1 + (Dry Level - 1) x the voices' largest envelope: Dry Level only while a grab sounds.
 
 decimator_taps() and quarter_wave() are the kernel's tables; pick() and analyse() are the grab;
 Freeze is one instance, with a log of what each press did. oscillate_f32() runs the kernel's sine recurrence in
@@ -34,7 +35,6 @@ GAP = 3                            # bins: a peak is taken only if more than thi
 PARTIALS = 32
 CONNECT_DB = -4.0                  # the voice's level against the input's just before the grab
 LEVEL = 300                        # ring samples the input's level is measured on: the last 50 ms
-DOUBLE = 0.3                       # seconds: a Latch press this soon after a grabbing press stops everything
 VOICES = 2
 TWIDDLES = 2048                    # the quarter-wave table's steps (the FFT's twiddles)
 LATENCY = 96                       # blocks from a grab to its sound (32 ms), and the fade of a voice a grab cuts
@@ -144,9 +144,9 @@ class Freeze:
     log: (block, what, voice) for each grab, start, empty (a grab with nothing to play), release, steal, cancel and end.
     latency: blocks from a grab to its voice, LATENCY or more (more when the kernel's analysis had to wait)."""
 
-    def __init__(self, mode='momentary', attack=0.3, release=1.0, effect_db=0.0, dry_db=0.0, latency=LATENCY):
+    def __init__(self, attack=0.3, release=1.0, effect_db=0.0, dry_db=0.0, latency=LATENCY):
         assert latency >= LATENCY                          # (a voice a grab cuts is gone when the new one starts)
-        self.mode, self.attack, self.release, self.latency = mode, attack, release, latency
+        self.attack, self.release, self.latency = attack, release, latency
         self.effect, self.dry = self._gain(effect_db), self._gain(dry_db)
         self.taps = decimator_taps()
         self.hist = np.zeros(TAPS - 1)
@@ -154,7 +154,7 @@ class Freeze:
         self.voices = [None] * VOICES
         self.pending = [None] * VOICES                     # (start block, partials, phases) of a grab in analysis
         self.hold, self.n = False, 0
-        self.last_press, self.last_grabbed = None, False
+        self.dry_gain = None                               # at the last block's end
         self.log = []
 
     @staticmethod
@@ -162,7 +162,7 @@ class Freeze:
         return 0.0 if db is None or db <= OFF_DB else 10.0 ** (db / 20.0)
 
     def knobs(self, effect_db=..., dry_db=...):
-        """Effect Level and Dry Level; the new gain is reached over the next block."""
+        """Effect Level and Dry Level; the new gains are reached over the next block."""
         self._next = (self.effect if effect_db is ... else self._gain(effect_db),
                       self.dry if dry_db is ... else self._gain(dry_db))
 
@@ -202,27 +202,12 @@ class Freeze:
         self.log.append((self.n, 'grab', v))
         return v
 
-    def _press(self):
-        if self.mode == 'latch':
-            if self.last_grabbed and (self.n - self.last_press) * BLOCK <= DOUBLE * FS:
-                for v in range(VOICES):
-                    self._release(v)
-                self.last_grabbed = False
-            else:
-                for v in range(VOICES):
-                    self._release(v)
-                self._grab()
-                self.last_grabbed = True
-            self.last_press = self.n
-        else:
-            self._grab()
-
     def process(self, block, hold):
         x = np.asarray(block, dtype=float)
         assert len(x) == BLOCK
         if hold and not self.hold:
-            self._press()
-        if self.mode == 'momentary' and not hold:
+            self._grab()
+        if not hold:
             for v in range(VOICES):
                 self._release(v)
         self.hold = hold
@@ -243,11 +228,15 @@ class Freeze:
             if voice:
                 wet += voice.block(self.n)
         g = np.arange(BLOCK) / BLOCK
-        effect0, dry0 = self.effect, self.dry
+        effect0 = self.effect
         if hasattr(self, '_next'):
             self.effect, self.dry = self._next
             del self._next
-        out = x * (dry0 + (self.dry - dry0) * g) + wet * (effect0 + (self.effect - effect0) * g)
+        top = max((voice.env(self.n + 1) for voice in self.voices if voice), default=0.0)
+        dry1 = 1.0 + (self.dry - 1.0) * top
+        dry0 = dry1 if self.dry_gain is None else self.dry_gain
+        self.dry_gain = dry1
+        out = x * (dry0 + (dry1 - dry0) * g) + wet * (effect0 + (self.effect - effect0) * g)
         buf = np.concatenate([self.hist, x])
         for j in (7, 15):
             self.ring[self.at] = buf[j:j + TAPS] @ self.taps

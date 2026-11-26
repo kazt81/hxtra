@@ -1,5 +1,5 @@
 """The freeze block's reference (tools/sharc/freeze.py): its decimator, the grab's analysis, the voices' level and
-envelopes, what each press does in Momentary and Latch, and the kernel's sines in float32."""
+envelopes, what Hold going on and off does, the dry gain, and the kernel's sines in float32."""
 import math
 
 import numpy as np
@@ -30,9 +30,11 @@ def holds(total, *spans):
     return h
 
 
-def presses(total, *at):
-    """Latch presses: a block-long press at each time in seconds."""
-    return holds(total, *((a, a + B / FS) for a in at))
+def regrabs(total, on, *at):
+    """Hold on from `on` (seconds) to the end, off for one block at each time in `at`: a re-grab at the block after."""
+    h = holds(total, (on, total))
+    h[[blocks(a) for a in at]] = False
+    return h
 
 
 HARMONICS = 110.0 * np.arange(1, 25), 1.0 / np.arange(1, 25)      # 110 Hz to 2,640 Hz
@@ -219,13 +221,31 @@ def test_each_block_sets_the_sines_back_to_size_1():
     assert np.abs(v.z) == pytest.approx(np.ones(len(v.z)), abs=1e-15)
 
 
-def test_dry_level_and_effect_level_move_over_one_block():
+def test_dry_level_works_only_while_a_grab_sounds():
     f = fz.Freeze(dry_db=0.0)
     f.knobs(dry_db=-6.0)
-    out = f.process(np.ones(B), False)
+    assert np.array_equal(f.process(np.ones(B), False), np.ones(B))
+    x = STEADY[:blocks(2.0) * B]
+    out, f = fz.render(x, holds(2.0, (0.5, 1.0)), attack=0.1, release=0.2, effect_db=None, dry_db=None)
+    start, off = blocks(0.5) + L, blocks(1.0)
+    end = off + f.blocks(0.2)
+    assert np.array_equal(out[:start * B], x[:start * B])
+    assert not out[(start + f.blocks(0.1)) * B:off * B].any()              # the dry gain 1 - the envelope
+    assert np.array_equal(out[end * B:], x[end * B:])
+
+
+def test_the_dry_gain_follows_the_envelope_within_a_block():
+    _, f = fz.render(STEADY[:blocks(0.18) * B], holds(0.18, (0.1, 0.18)), attack=0.1, dry_db=-6.0)
     g = 10 ** (-6 / 20)
-    assert out == pytest.approx(1 + (g - 1) * np.arange(B) / B)
-    assert f.process(np.ones(B), False) == pytest.approx(np.full(B, g))
+    v = f.voices[0]
+    n = f.n
+    assert 0 < v.env(n) < v.env(n + 1) < 1                          # (in the attack)
+    v.amp[:] = 0.0                                     # (no voice in the output: only the dry)
+    out = f.process(np.ones(B), True)
+    assert out == pytest.approx(1 + (g - 1) * (v.env(n) + (v.env(n + 1) - v.env(n)) * np.arange(B) / B))
+
+
+def test_effect_level_moves_over_one_block():
     _, f = fz.render(STEADY[:blocks(1.0) * B], holds(1.0, (0.1, 1.0)), dry_db=None)
     wet = f.voices[0].block(f.n)
     f.voices[0].z = f.voices[0].z * f.voices[0].w16.conj()      # (the same block again)
@@ -234,133 +254,77 @@ def test_dry_level_and_effect_level_move_over_one_block():
     assert out == pytest.approx(wet * (1 + (10 ** (-12 / 20) - 1) * np.arange(B) / B))
 
 
-# ---- Momentary
+# ---- Hold
 
-def test_momentary_plays_while_held_and_releases_when_let_go():
+def test_hold_plays_while_on_and_releases_when_off():
     _, f = fz.render(STEADY, holds(4.0, (1.0, 2.0)), release=0.5)
     on, off = blocks(1.0), blocks(2.0)
     assert f.log == [(on, 'grab', 0), (on + L, 'start', 0), (off, 'release', 0), (off + f.blocks(0.5), 'end', 0)]
 
 
-def test_momentary_let_go_during_the_analysis_cancels_the_grab():
+def test_hold_off_during_the_analysis_cancels_the_grab():
     _, f = fz.render(STEADY[:blocks(2.0) * B], holds(2.0, (1.0, 1.0 + 10 * B / FS)))
     on = blocks(1.0)
     assert f.log == [(on, 'grab', 0), (on + 10, 'cancel', 0)]
 
 
-def test_momentary_presses_close_together_take_the_other_voice():
-    _, f = fz.render(STEADY, holds(4.0, (1.0, 1.5), (1.7, 2.5)), release=0.5)
-    assert [(what, v) for _, what, v in f.log][:6] == [('grab', 0), ('start', 0), ('release', 0), ('grab', 1),
-                                                       ('start', 1), ('end', 0)]
-
-
-# ---- Latch
-
-def test_latch_holds_after_the_press_and_a_press_grabs_again():
-    _, f = fz.render(STEADY, presses(4.0, 1.0, 2.0), mode='latch', release=0.5)
+def test_hold_off_and_on_again_grabs_into_the_other_voice():
+    _, f = fz.render(STEADY, regrabs(4.0, 1.0, 2.0), release=0.5)
     a, b = blocks(1.0), blocks(2.0)
-    assert f.log == [(a, 'grab', 0), (a + L, 'start', 0), (b, 'release', 0), (b, 'grab', 1), (b + L, 'start', 1),
-                     (b + f.blocks(0.5), 'end', 0)]
-
-
-def test_latch_double_press_stops_everything_the_first_press_grabbed_too():
-    _, f = fz.render(STEADY, presses(4.0, 1.0, 2.0, 2.2), mode='latch', release=0.5)
-    b, c = blocks(2.0), blocks(2.2)
-    assert [e for e in f.log if e[0] >= b] == [(b, 'release', 0), (b, 'grab', 1), (b + L, 'start', 1),
-                                               (c, 'release', 1), (b + f.blocks(0.5), 'end', 0),
-                                               (c + f.blocks(0.5), 'end', 1)]
-
-
-@pytest.mark.parametrize('gap, stops', [(900, True), (901, False)])
-def test_latch_double_press_counts_up_to_0_3_s_inclusive(gap, stops):
-    h = np.zeros(blocks(4.0), dtype=bool)
-    h[[blocks(1.0), blocks(1.0) + gap]] = True
-    _, f = fz.render(STEADY, h, mode='latch')
-    assert ((blocks(1.0) + gap, 'grab', 1) in f.log) is not stops
-
-
-def test_latch_double_press_within_the_analysis_cancels_the_grab():
-    _, f = fz.render(STEADY, presses(4.0, 1.0, 1.0 + 20 * B / FS), mode='latch')
-    a = blocks(1.0)
-    assert f.log == [(a, 'grab', 0), (a + 20, 'cancel', 0)]
-
-
-def test_latch_press_after_a_stop_grabs_however_soon():
-    _, f = fz.render(STEADY, presses(4.0, 1.0, 1.2, 1.3), mode='latch', release=0.5)
-    c = blocks(1.3)
-    assert (c, 'grab', 1) in f.log
+    assert f.log == [(a, 'grab', 0), (a + L, 'start', 0), (b, 'release', 0), (b + 1, 'grab', 1),
+                     (b + 1 + L, 'start', 1), (b + f.blocks(0.5), 'end', 0)]
 
 
 def test_a_third_voice_takes_the_quieter_one_over_the_analysis():
-    out, f = fz.render(STEADY, presses(4.0, 1.0, 2.0, 3.0), mode='latch', release=3.0)
+    _, f = fz.render(STEADY, regrabs(4.0, 1.0, 2.0, 3.0), release=3.0)
     c = blocks(3.0)
-    assert [e for e in f.log if e[0] >= c] == [(c, 'release', 1), (c, 'steal', 0), (c, 'grab', 0),
-                                               (c + L, 'end', 0), (c + L, 'start', 0)]
+    assert [e for e in f.log if e[0] >= c] == [(c, 'release', 1), (c + 1, 'steal', 0), (c + 1, 'grab', 0),
+                                               (c + 1 + L, 'end', 0), (c + 1 + L, 'start', 0)]
 
 
 def test_a_third_voice_takes_the_quieter_one_even_if_newer():
-    _, f = fz.render(STEADY, presses(4.0, 1.0, 2.0, 3.0), mode='latch', attack=3.0, release=3.0)
+    _, f = fz.render(STEADY, regrabs(4.0, 1.0, 2.0, 3.0), attack=3.0, release=3.0)
     c = blocks(3.0)
-    assert [e for e in f.log if e[0] == c] == [(c, 'release', 1), (c, 'steal', 1), (c, 'grab', 1)]
+    assert [e for e in f.log if c <= e[0] <= c + 1] == [(c, 'release', 1), (c + 1, 'steal', 1), (c + 1, 'grab', 1)]
 
 
 def test_a_third_voice_weighs_each_voice_by_its_own_level():
     x = STEADY.copy()
     x[blocks(1.5) * B:] *= 0.1                           # the second grab is 20 dB quieter
-    _, f = fz.render(x, presses(4.0, 1.0, 2.0, 3.0), mode='latch', release=3.0)
+    _, f = fz.render(x, regrabs(4.0, 1.0, 2.0, 3.0), release=3.0)
     c = blocks(3.0)
-    assert (c, 'steal', 1) in f.log
+    assert (c + 1, 'steal', 1) in f.log
 
 
 def test_a_voice_already_fading_out_is_not_cut_again():
-    h = np.zeros(blocks(4.0), dtype=bool)
     a, b, c = blocks(1.0), blocks(2.0), blocks(3.0)
-    h[[a, b, c, c + 10, c + 20]] = True                  # the third press steals; a stop cancels it; a grab follows
-    _, f = fz.render(STEADY, h, mode='latch', release=3.0)
-    assert [e for e in f.log if e[1] == 'steal'] == [(c, 'steal', 0)]
+    h = np.zeros(blocks(4.0), dtype=bool)
+    h[a:b] = h[b + 1:c] = h[c + 1:c + 10] = h[c + 20:] = True      # the third grab steals; Hold off cancels it; a grab
+    _, f = fz.render(STEADY, h, release=3.0)                         # follows
+    assert [e for e in f.log if e[1] == 'steal'] == [(c + 1, 'steal', 0)]
     v = f.log.index((c + 20, 'grab', 0))
-    assert (c + L, 'end', 0) in f.log[v:]
+    assert (c + 1 + L, 'end', 0) in f.log[v:]
 
 
 def test_a_grab_of_nothing_still_fades_the_quieter_voice_out():
     x = STEADY.copy()
     x[blocks(2.5) * B:] = 0.0
-    _, f = fz.render(x, presses(4.0, 1.0, 2.0, 3.0), mode='latch', release=3.0)
+    _, f = fz.render(x, regrabs(4.0, 1.0, 2.0, 3.0), release=3.0)
     c = blocks(3.0)
-    assert [e for e in f.log if e[0] >= c] == [(c, 'release', 1), (c, 'steal', 0), (c, 'grab', 0), (c + L, 'end', 0),
-                                               (c + L, 'empty', 0)]
+    assert [e for e in f.log if e[0] >= c] == [(c, 'release', 1), (c + 1, 'steal', 0), (c + 1, 'grab', 0),
+                                               (c + 1 + L, 'end', 0), (c + 1 + L, 'empty', 0)]
 
 
 def test_a_later_start_keeps_the_fade_at_the_latency():
-    _, f = fz.render(STEADY, presses(4.0, 1.0, 2.0, 3.0), mode='latch', release=3.0, latency=L + 30)
+    _, f = fz.render(STEADY, regrabs(4.0, 1.0, 2.0, 3.0), release=3.0, latency=L + 30)
     c = blocks(3.0)
-    assert [e for e in f.log if e[0] >= c] == [(c, 'release', 1), (c, 'steal', 0), (c, 'grab', 0), (c + L, 'end', 0),
-                                               (c + L + 30, 'start', 0)]
+    assert [e for e in f.log if e[0] >= c] == [(c, 'release', 1), (c + 1, 'steal', 0), (c + 1, 'grab', 0),
+                                               (c + 1 + L, 'end', 0), (c + 1 + L + 30, 'start', 0)]
 
 
 def test_a_latency_under_the_fade_is_refused():
     with pytest.raises(AssertionError):
         fz.Freeze(latency=L - 1)
-
-
-def test_switching_to_latch_keeps_the_held_voice():
-    f = fz.Freeze()
-    for k in range(blocks(2.0)):
-        f.process(STEADY[k * B:(k + 1) * B], k >= blocks(1.0))
-    f.mode = 'latch'
-    for k in range(blocks(2.0), blocks(3.0)):
-        f.process(STEADY[k * B:(k + 1) * B], False)
-    assert [what for _, what, _ in f.log] == ['grab', 'start']
-
-
-def test_switching_to_momentary_without_hold_releases_a_latched_voice():
-    f = fz.Freeze(mode='latch')
-    x = STEADY
-    for k in range(blocks(2.0)):
-        f.process(x[k * B:(k + 1) * B], k == blocks(1.0))
-    f.mode = 'momentary'
-    f.process(x[:B], False)
-    assert f.log[-1] == (blocks(2.0), 'release', 0)
 
 
 # ---- the kernel's sines in float32

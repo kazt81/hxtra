@@ -65,7 +65,7 @@ def test_room_ends_at_an_even_instruction():
 
 def test_costs_are_whole_instruction_pairs():
     assert {f: block3.cost(f) for f in EVERY} == {'HX_CLICK': 213, 'HX_FX_GATE': 291, 'HX_GR': 780, 'HX_USB_MONITOR': 414,
-                                                        'HX_GATE_SC': 324, 'HX_FREEZE': 6453}
+                                                        'HX_GATE_SC': 324, 'HX_FREEZE': 6441}
     for f in EVERY:
         n_dm, n_pm = block3.size(f)
         assert block3.cost(f) % 3 == 0 and block3.cost(f) >= n_dm + n_pm * 3 // 2
@@ -73,7 +73,7 @@ def test_costs_are_whole_instruction_pairs():
 
 def test_entry_2_costs_are_the_ldr_blocks_each_feature_adds():
     assert {f: block3.e2(f) for f in EVERY} == {'HX_CLICK': 908, 'HX_FX_GATE': 980, 'HX_GR': 3276, 'HX_USB_MONITOR': 1456,
-                                                      'HX_GATE_SC': 1056, 'HX_FREEZE': 9820}
+                                                      'HX_GATE_SC': 1056, 'HX_FREEZE': 9772}
 
 
 def test_entry_2_room_is_what_the_stock_stream_and_nam_leave():

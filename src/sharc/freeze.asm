@@ -2,13 +2,15 @@
 //
 // CUSTOM_AMP_ENTRY is a primitive of the stock HX Stomp 3.80 firmware, called once per 16-sample block with I0 the
 // instance's DM block, I1 the input, I2 the output and I3 its call-list entry (-> the instance -> its SDRAM block, as
-// NAM's kernel finds it). Each call: the input into the decimator's history, the presses, the voices (out = in x Dry
-// Level + each voice x its envelope x Effect Level), then two decimated samples into the ring in SDRAM and a slice of
-// a grab's analysis (or of FZ_TAB made again after one); until the tables are made, a slice of them instead.
+// NAM's kernel finds it). Each call: the input into the decimator's history, Hold, the voices (out = in x the dry gain
+// + each voice x its envelope x Effect Level; the dry gain is 1 + (Dry Level - 1) x the voices' largest envelope),
+// then two decimated samples into the ring in SDRAM and a slice of a grab's analysis (or of FZ_TAB made again after
+// one); until the tables are made, a slice of them instead.
 // It changes no register.
 //
-// Knobs (the generic store puts pid p in DM(p, I0)): DM(5) Mode, DM(6) Hold, DM(7) Attack (s), DM(8) Release (s),
-// DM(9) Effect Level (dB), DM(10) Dry Level (dB); at or under OFF_DB (the knobs' Off) the level is 0.
+// Knobs (the generic store puts pid p in DM(p, I0)): DM(5) Attack (s), DM(6) Release (s), DM(7) Effect Level (dB),
+// DM(8) Dry Level (dB), DM(9) Hold (the block's on/off); at or under OFF_DB (the knobs' Off) the level is 0. Hold
+// going on grabs; going off releases.
 // The first 145 words are 0 when the block is created; the words after them are not (stale), so the first call
 // zeroes them.
 //
@@ -37,32 +39,29 @@
 .equ RND32,        0x10000
 .equ TRUNC,        0x8000
 
-.equ P_MODE,       5                    // knobs: 0 Momentary, 1 Latch
-.equ P_HOLD,       6
-.equ P_ATTACK,     7
-.equ P_RELEASE,    8
-.equ P_EFFECT,     9
-.equ P_DRY,        10
+.equ P_ATTACK,     5                    // knobs
+.equ P_RELEASE,    6
+.equ P_EFFECT,     7
+.equ P_DRY,        8
+.equ P_HOLD,       9
 .equ S_INIT,       11                   // the instance's state: not 0 once the first call has set it up
 .equ S_N,          12                   // blocks since then
 .equ S_AT,         13                   // the ring's next sample
 .equ S_WRITTEN,    14                   // ring samples written, up to CAPTURE
-.equ S_EFF,        15                   // Effect Level's and Dry Level's gains in the last block
+.equ S_EFF,        15                   // Effect Level's gain and the dry gain at the last block's end
 .equ S_DRY,        16
 .equ S_HP,         17                   // the history's next sample
 .equ S_HOLD,       18                   // Hold in the last block
-.equ S_LASTP,      19                   // Latch: the last press's block, and whether it grabbed
-.equ S_GRABBED,    20
-.equ S_WLAST,      21                   // the calls count at this instance's last call (the turn's owner check)
-.equ S_PEND,       22                   // a grab: not 0 until its voice starts or it is cancelled
-.equ S_PV,         23                   // the voice it takes
-.equ S_PBUF,       24                   // the sines it fills: set 0, 1 or 2, one no sounding voice uses
-.equ S_PSTART,     25                   // the block its voice starts at
-.equ S_PAT,        26                   // the ring's next sample and the samples written at its press
-.equ S_PWRIT,      27
-.equ S_DONE,       28                   // its analysis: 0 running, 1 sines ready, 2 nothing to play
-.equ S_PLEV,       29                   // its level: the capture's last LEVEL samples' sum of squares
-.equ S_SDR,        30                   // the SDRAM block at the last call
+.equ S_WLAST,      19                   // the calls count at this instance's last call (the turn's owner check)
+.equ S_PEND,       20                   // a grab: not 0 until its voice starts or it is cancelled
+.equ S_PV,         21                   // the voice it takes
+.equ S_PBUF,       22                   // the sines it fills: set 0, 1 or 2, one no sounding voice uses
+.equ S_PSTART,     23                   // the block its voice starts at
+.equ S_PAT,        24                   // the ring's next sample and the samples written at its press
+.equ S_PWRIT,      25
+.equ S_DONE,       26                   // its analysis: 0 running, 1 sines ready, 2 nothing to play
+.equ S_PLEV,       27                   // its level: the capture's last LEVEL samples' sum of squares
+.equ S_SDR,        28                   // the SDRAM block at the last call
 .equ V_ON,         32                   // voice 0 (voice v at VOICE v on; I7 = I0 + VOICE v): not 0 while it sounds
 .equ V_BUF,        33                   // its sines' set
 .equ V_START,      34                   // its envelope: attack from V_START over V_ATT blocks; release and steal
@@ -84,7 +83,6 @@
 .equ DM_WORDS,     S_SINES + 3 * SINES_N + 1
 .equ OFF_DB,       -60.0                // the level knobs' bottom, shown Off
 .equ LATENCY,      96                   // blocks from a press to its voice, and the fade of a voice a grab cuts
-.equ DOUBLE,       900                  // blocks: a Latch press this soon after a grabbing press stops everything
 .equ PARTIALS,     32
 .equ LEVEL,        300                  // the capture's last samples the input's level is measured on
 .equ TAPS,         127
@@ -277,19 +275,17 @@ fz_h:   DM(I4, M4) = F0;
     DM(S_HP, I0) = R0;
     L4 = 0;
 
-    R13 = DM(S_N, I0);                  // presses (R13 = this block, through the voice)
+    R13 = DM(S_N, I0);                  // Hold (R13 = this block, through the voice)
     R0 = DM(P_HOLD, I0);
     R1 = DM(S_HOLD, I0);
     R0 = PASS R0;
     IF EQ JUMP fz_up;
     R1 = PASS R1;
-    IF EQ CALL fz_press;
+    IF EQ CALL fz_grab;
     R0 = 1;
     JUMP fz_held;
 fz_up:
-    R0 = DM(P_MODE, I0);
-    R0 = PASS R0;
-    IF EQ CALL fz_release;
+    CALL fz_release;
     R0 = 0;
 fz_held:
     DM(S_HOLD, I0) = R0;
@@ -385,12 +381,23 @@ fz_m0:  DM(I4, M4) = R0;
 fz_ov:  MODIFY(I7, VOICE);
 
 fz_levels:
-    F0 = DM(P_EFFECT, I0);              // the levels: from the last block's gains (F6, F7) by steps (F14, F13)
-    CALL fz_gain;
+    I7 = I0;                            // F5 = the voices' largest envelope at the next block's start
+    F5 = 0.0;
+    LCNTR = VOICES, DO fz_em UNTIL LCE;
+        R0 = DM(V_ON, I7);
+        F1 = DM(V_E1, I7);
+        R0 = PASS R0;
+        IF NE F5 = MAX(F5, F1);
+fz_em:  MODIFY(I7, VOICE);
+    F0 = DM(P_EFFECT, I0);              // the gains: from the last block's (F6, F7) by steps (F14, F13); dry
+    CALL fz_gain;                       // 1 + (Dry Level - 1) x F5
     F12 = PASS F0;
     F0 = DM(P_DRY, I0);
     CALL fz_gain;
-    F13 = PASS F0;
+    F1 = 1.0;
+    F0 = F0 - F1;
+    F0 = F0 * F5;
+    F13 = F0 + F1;
     F6 = DM(S_EFF, I0);
     F7 = DM(S_DRY, I0);
     R0 = DM(S_N, I0);
@@ -407,7 +414,7 @@ fz_lv:
     F13 = F13 - F7;
     F13 = F13 * F0;
 
-    I6 = I1;                            // the output: in x Dry Level + FZ_MIX x Effect Level
+    I6 = I1;                            // the output: in x the dry gain + FZ_MIX x Effect Level
     I7 = I2;
     I12 = FZ_MIX + 1;
     M12 = 1;
@@ -547,27 +554,7 @@ in_t:
     DM(S_INIT, I0) = R0;
     RTS;
 
-// ---- presses (R13 = this block)
-
-fz_press:
-    R0 = DM(P_MODE, I0);
-    R0 = PASS R0;
-    IF EQ JUMP fz_grab;                 // Momentary
-    R2 = DM(S_GRABBED, I0);             // Latch: a press within DOUBLE blocks of a grabbing press stops everything
-    R1 = DM(S_LASTP, I0);
-    DM(S_LASTP, I0) = R13;
-    R1 = R13 - R1;
-    R0 = DOUBLE;
-    COMP(R1, R0);
-    IF GT R2 = R2 - R2;                 // (R2: stop)
-    R0 = 1;
-    R2 = R0 - R2;
-    DM(S_GRABBED, I0) = R2;
-    CALL fz_release;
-    R2 = DM(S_GRABBED, I0);
-    R2 = PASS R2;
-    IF NE JUMP fz_grab;
-    RTS;
+// ---- Hold (R13 = this block)
 
 fz_release:                             // a grab in analysis: cancelled; each other voice: into its release
     R3 = -1;                            // (R3: the grab's voice)
