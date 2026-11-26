@@ -62,6 +62,7 @@
 .equ S_PWRIT,      27
 .equ S_DONE,       28                   // its analysis: 0 running, 1 sines ready, 2 nothing to play
 .equ S_PLEV,       29                   // its level: the capture's last LEVEL samples' sum of squares
+.equ S_SDR,        30                   // the SDRAM block at the last call
 .equ V_ON,         32                   // voice 0 (voice v at VOICE v on; I7 = I0 + VOICE v): not 0 while it sounds
 .equ V_BUF,        33                   // its sines' set
 .equ V_START,      34                   // its envelope: attack from V_START over V_ATT blocks; release and steal
@@ -78,9 +79,9 @@
 .equ VOICES,       2
 .equ S_HIST,       145                  // the decimator's history: the last HIST_N input samples, a ring
 .equ HIST_N,       143                  // TAPS + 16
-.equ S_SINES,      S_HIST + HIST_N      // three sets of 32 sines, 160 words each: pair p at 10p is c, s, cos w,
-.equ SINES_N,      160                  // sin w, 0.5/a^2, two sines a word pair
-.equ DM_WORDS,     S_SINES + 3 * SINES_N
+.equ S_SINES,      S_HIST + HIST_N      // three sets of 32 sines, 160 words each, from an even address (I0 may be odd):
+.equ SINES_N,      160                  // pair p at 10p is c, s, cos w, sin w, 0.5/a^2, two sines a word pair
+.equ DM_WORDS,     S_SINES + 3 * SINES_N + 1
 .equ LATENCY,      96                   // blocks from a press to its voice, and the fade of a voice a grab cuts
 .equ DOUBLE,       900                  // blocks: a Latch press this soon after a grabbing press stops everything
 .equ PARTIALS,     32
@@ -241,6 +242,21 @@ CUSTOM_AMP_ENTRY:
     R0 = DM(S_INIT, I0);
     R0 = PASS R0;
     IF EQ CALL fz_init;
+    R0 = DM(S_SDR, I0);                 // the SDRAM block not the last call's (or the first call): the ring starts
+    R1 = DM(FZ_SDR);                    // again and a grab in analysis is cancelled
+    COMP(R0, R1);
+    IF EQ JUMP fz_same;
+    DM(S_SDR, I0) = R1;
+    R0 = 0;
+    DM(S_AT, I0) = R0;
+    DM(S_WRITTEN, I0) = R0;
+    DM(S_PEND, I0) = R0;
+    R1 = DM(FZ_G + G_OWNER);
+    R2 = I0;
+    COMP(R1, R2);
+    IF NE JUMP fz_same;
+    DM(FZ_G + G_OWNER) = R0;
+fz_same:
 
     R0 = I0;                            // the input into the history first: the output may be the input's place
     R1 = S_HIST;
@@ -726,7 +742,7 @@ rc_1:
     F0 = -0.5;
     RTS;
 
-fz_set:                                 // I5 = the sines of set R0
+fz_set:                                 // I5 = the sines of set R0, at I0 + S_SINES + 160 R0 rounded up to even
     R1 = LSHIFT R0 BY 7;
     R0 = LSHIFT R0 BY 5;
     R0 = R0 + R1;
@@ -734,6 +750,8 @@ fz_set:                                 // I5 = the sines of set R0
     R0 = R0 + R1;
     R1 = I0;
     R0 = R0 + R1;
+    R0 = R0 + 1;
+    R0 = BCLR R0 BY 0;
     I5 = R0;
     RTS;
 

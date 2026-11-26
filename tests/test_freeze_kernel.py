@@ -36,9 +36,10 @@ class Kernel:
     instance in the same simulator (at other addresses), its turn and tables shared."""
 
     def __init__(self, effect_db=0.0, dry_db=0.0, tables=True, sdram_words=SDR_WORDS, stale=True, out=None, seed=1,
-                 mode='momentary', attack=0.3, release=1.0, share=None):
+                 mode='momentary', attack=0.3, release=1.0, share=None, odd=False):
         k = 0 if share is None else 1
         self.i0, self.bi, self.entry, self.sdram = I0 + 0x400 * k, BI + 0x200 * k, ENTRY + 0x100 * k, SDRAM + 0x2000 * k
+        self.i0 += odd
         self.out = (BO + 0x200 * k) if out is None else out
         if share is None:
             self.sim = sim = ssim.Sim()
@@ -244,8 +245,12 @@ def blocks(seconds):
 
 def sines(k, v):
     """The sines of voice v in the kernel: c + i s (amplitude and phase), frequencies (Hz) and amplitudes."""
-    base = I0 + SYMS['S_SINES'] + SYMS['SINES_N'] * k.state('V_BUF', v)
-    return set_sines(k, base)
+    return set_sines(k, sines_base(k, k.state('V_BUF', v)))
+
+
+def sines_base(k, n):
+    """Where set n of the sines starts: I0 + S_SINES rounded up to even, then 160 n on."""
+    return ((k.i0 + SYMS['S_SINES'] + 1) & ~1) + SYMS['SINES_N'] * n
 
 
 def set_sines(k, base):
@@ -274,7 +279,7 @@ def test_a_grabs_sines_are_the_references_partials():
         f.process(x[n * B:(n + 1) * B], holds[n])
     assert k.state('S_PEND') and k.state('S_DONE') == 1 and k.state('S_PV') == 0
     _, partials, phases = f.pending[0]
-    z, hz, amp = set_sines(k, I0 + SYMS['S_SINES'] + SYMS['SINES_N'] * k.state('S_PBUF'))
+    z, hz, amp = set_sines(k, sines_base(k, k.state('S_PBUF')))
     ref_f, ref_a = np.array([g[0] for g in partials]), np.array([g[1] for g in partials])
     assert np.abs(hz - ref_f).max() < 1e-3
     assert np.abs(amp / ref_a - 1).max() < 2e-4
@@ -585,3 +590,36 @@ def test_a_dma_that_never_ends_cancels_the_grab():
     got = k.run(x[n * B:(n + 3) * B], [1, 1, 1])
     assert k.g('G_FAIL') == 1 and k.g('G_OWNER') == 0 and not k.state('S_PEND')
     assert np.abs(got - x[n * B:(n + 3) * B]).max() < 1e-6
+
+
+def test_an_odd_i0_plays_as_an_even_one_with_the_sines_at_even_addresses():
+    """The stock may give an odd I0; the sines, read and written two words at a time (SIMD), start at an even address
+    all the same, and the output is the even I0's to the bit."""
+    x = harmonics(0.45)
+    holds = holding(0.45, (0.3, None))
+    k, j = Kernel(attack=0.05), Kernel(attack=0.05, odd=True)
+    assert k.i0 % 2 == 0 and j.i0 % 2 == 1
+    assert np.array_equal(k.run(x, holds), j.run(x, holds))
+    assert j.state('V_ON', 0) and sines_base(j, j.state('V_BUF', 0)) % 2 == 0
+    assert np.array_equal(sines(j, 0)[0], sines(k, 0)[0])
+
+
+def test_a_moved_sdram_block_starts_the_ring_again_and_cancels_a_grab():
+    """The SDRAM block's start not the last call's: the ring starts again in the new block (nothing old is grabbed)
+    and a grab in analysis is cancelled, its turn freed."""
+    x = harmonics(0.4)
+    k = Kernel()
+    n = blocks(0.3)
+    k.run(x[:n * B])
+    k.knobs(hold=1)
+    k.run(x[n * B:(n + 3) * B], [1, 1, 1])
+    assert k.state('S_PEND') and k.g('G_OWNER') == k.i0 and k.state('S_WRITTEN') == fz.CAPTURE
+    moved = SDRAM + 0x4000
+    k.sim.wr(k.entry + 0x10 + 6, moved)
+    k.sim.wr(k.entry + 0x10 + 7, moved + SDR_WORDS)
+    k.call(x[(n + 3) * B:(n + 4) * B])
+    assert not k.state('S_PEND') and k.g('G_OWNER') == 0
+    assert k.state('S_SDR') == moved and k.state('S_AT') == 2 and k.state('S_WRITTEN') == 2
+    want = decimated(x[:(n + 4) * B])[-2:]
+    got = [ssim.b2f(k.sim.rd(moved + i)) for i in range(2)]
+    assert np.abs(np.array(got) - want).max() < 1e-6
