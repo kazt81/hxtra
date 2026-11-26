@@ -1,7 +1,17 @@
 // freeze.asm - the freeze block's kernel; tools/sharc/freeze.py is its reference.
 //
-// This part is a grab's analysis. Each step runs one slice of its work a call (R4 = the slice), so that the kernel can
-// spread the analysis over its blocks. FZ_RE and FZ_IM hold the 1,024 complex points' real and imaginary parts.
+// CUSTOM_AMP_ENTRY is a primitive of the stock HX Stomp 3.80 firmware, called once per 16-sample block with I0 the
+// instance's DM block, I1 the input, I2 the output and I3 its call-list entry (-> the instance -> its SDRAM block, as
+// NAM's kernel finds it). Each call: the input into the decimator's history, the output (in x Dry Level + the voice x
+// Effect Level), then two decimated samples into the ring in SDRAM; until the tables are made, a slice of them instead.
+// It changes no register.
+//
+// Knobs (the generic store puts pid p in DM(p, I0)): DM(5) Mode, DM(6) Hold, DM(7) Attack (s), DM(8) Release (s),
+// DM(9) Effect Level (dB), DM(10) Dry Level (dB); at or under -120 dB the level is 0.
+// The first 145 words are 0 when the block is created; the words after them are not (stale), so the first call
+// zeroes them.
+//
+// The analysis of a grab runs as steps, one slice of a step a call (R4 = the slice):
 //   FZ_TABLES  R4 = 0..TABLE_SLICES-1   FZ_TAB, cos(2 pi (m - 512) / 2048) for m = 0..1535 (so cos t = FZ_TAB[t + 512]
 //                                       and sin t = FZ_TAB[t] for t = 0..1023 in 2,048ths of a turn), then the
 //                                       decimator's taps FZ_TAPS, scaled last to sum 1. Once, before any grab
@@ -17,6 +27,32 @@
 //                                       FZ_RE + k: X[k] and X[NC - k] from Z[k] and Z[NC - k]. SPLIT_N = 2^SPLIT_SHIFT
 //                                       pairs a slice
 // They change R0-R15, I4-I7, I12-I15, M0, M3, M4, M8, M11, M12 and M13, and need L4-L7 and L12-L15 = 0.
+
+.equ PEYEN,        0x200000
+.equ BDCST9,       0x400000
+.equ BDCST1,       0x800000
+.equ CBUFEN,       0x1000000
+.equ RND32,        0x10000
+.equ TRUNC,        0x8000
+
+.equ P_EFFECT,     9                    // knobs
+.equ P_DRY,        10
+.equ S_INIT,       11                   // the instance's state: not 0 once the first call has set it up
+.equ S_N,          12                   // blocks since then
+.equ S_AT,         13                   // the ring's next sample
+.equ S_WRITTEN,    14                   // ring samples written, up to CAPTURE
+.equ S_EFF,        15                   // Effect Level's and Dry Level's gains in the last block
+.equ S_DRY,        16
+.equ S_HP,         17                   // the history's next sample
+.equ S_HIST,       145                  // the decimator's history: the last HIST_N input samples, a ring
+.equ HIST_N,       143                  // TAPS + 16
+.equ DM_WORDS,     S_HIST + HIST_N
+.equ TAPS,         127
+.equ RING,         4096                 // the ring in SDRAM: RING samples, then a copy of its first MIRROR
+.equ MIRROR,       32
+.equ SDR_NEED,     RING + MIRROR
+.equ CAPTURE,      1500
+.equ G_TAB,        0                    // FZ_G: table slices made
 
 .equ NC,           1024                 // complex points
 .equ HALF_CAP,     750                  // points with samples: CAPTURE / 2
@@ -39,6 +75,10 @@ FZ_REV5:  .word 0, 16, 8, 24, 4, 20, 12, 28, 2, 18, 10, 26, 6, 22, 14, 30     //
 FZ_ROT:   .float 0.9999912153221553, 0.004191572320602106   // cos and sin of 2 pi / 1499: the window's step
 
 .section dm FZ_DM_BASE+34              // zeros at boot: one zero-fill block in the boot stream
+FZ_SAVE:  .space 64                    // the caller's registers; R0-R15 with S0-S15 from FZ_SAVE + 32
+FZ_G:     .space 4                     // the instances' shared state
+FZ_SDR:   .space 1                     // this call's SDRAM block, 0 without one
+FZ_WET:   .space 16                    // the voice's samples this block
 FZ_STATE: .space 8                     // FZ_FFT's loop counts around its butterflies, which use every data register
 FZ_TAB:   .space 1536
 FZ_TAPS:  .space 127
@@ -46,6 +86,253 @@ FZ_RE:    .space 1024
 FZ_IM:    .space 1024
 
 .section pm FZ_PM_BASE
+
+CUSTOM_AMP_ENTRY:
+    DM(FZ_SAVE + 0) = MODE1;
+    DM(FZ_SAVE + 1) = I4;
+    DM(FZ_SAVE + 2) = I12;
+    DM(FZ_SAVE + 3) = M4;
+    DM(FZ_SAVE + 4) = M12;
+    DM(FZ_SAVE + 5) = L4;
+    DM(FZ_SAVE + 6) = L12;
+    L4 = 0;
+    L12 = 0;
+    I4 = FZ_SAVE + 32;
+    I12 = FZ_SAVE + 34;
+    M4 = 4;
+    M12 = 4;
+    BIT CLR MODE1 BDCST9 | BDCST1;
+    BIT SET MODE1 PEYEN;
+    NOP;
+    DM(I4, M4) = R0, PM(I12, M12) = R1;   // in SIMD each moves Rn and Sn
+    DM(I4, M4) = R2, PM(I12, M12) = R3;
+    DM(I4, M4) = R4, PM(I12, M12) = R5;
+    DM(I4, M4) = R6, PM(I12, M12) = R7;
+    DM(I4, M4) = R8, PM(I12, M12) = R9;
+    DM(I4, M4) = R10, PM(I12, M12) = R11;
+    DM(I4, M4) = R12, PM(I12, M12) = R13;
+    DM(I4, M4) = R14, PM(I12, M12) = R15;
+    BIT CLR MODE1 PEYEN | TRUNC;
+    BIT SET MODE1 RND32 | CBUFEN;
+    DM(FZ_SAVE + 7) = B4;
+    DM(FZ_SAVE + 8) = I5;
+    DM(FZ_SAVE + 9) = I6;
+    DM(FZ_SAVE + 10) = I7;
+    DM(FZ_SAVE + 11) = I13;
+    DM(FZ_SAVE + 12) = I14;
+    DM(FZ_SAVE + 13) = I15;
+    DM(FZ_SAVE + 14) = M0;
+    DM(FZ_SAVE + 15) = M3;
+    DM(FZ_SAVE + 16) = M8;
+    DM(FZ_SAVE + 17) = M11;
+    DM(FZ_SAVE + 18) = M13;
+    DM(FZ_SAVE + 19) = L5;
+    DM(FZ_SAVE + 20) = L6;
+    DM(FZ_SAVE + 21) = L7;
+    DM(FZ_SAVE + 22) = L13;
+    DM(FZ_SAVE + 23) = L14;
+    DM(FZ_SAVE + 24) = L15;
+    L5 = 0;
+    L6 = 0;
+    L7 = 0;
+    L13 = 0;
+    L14 = 0;
+    L15 = 0;
+    M4 = 1;
+    M12 = 1;
+
+    R0 = DM(2, I3);                     // the SDRAM block, if it holds the ring
+    I5 = R0;
+    R1 = DM(6, I5);
+    R2 = DM(7, I5);
+    R2 = R2 - R1;
+    R3 = SDR_NEED;
+    R2 = R2 - R3;
+    IF LT R1 = R1 - R1;
+    DM(FZ_SDR) = R1;
+
+    R0 = DM(S_INIT, I0);
+    R0 = PASS R0;
+    IF EQ CALL fz_init;
+
+    F0 = DM(P_EFFECT, I0);              // the levels: from the last block's gains (F4, F5) by steps (F6, F7)
+    CALL fz_gain;
+    F12 = PASS F0;
+    F0 = DM(P_DRY, I0);
+    CALL fz_gain;
+    F13 = PASS F0;
+    F4 = DM(S_EFF, I0);
+    F5 = DM(S_DRY, I0);
+    R0 = DM(S_N, I0);
+    R0 = PASS R0;
+    IF NE JUMP fz_lv;
+    F4 = PASS F12;
+    F5 = PASS F13;
+fz_lv:
+    DM(S_EFF, I0) = F12;
+    DM(S_DRY, I0) = F13;
+    F14 = 0.0625;
+    F6 = F12 - F4;
+    F6 = F6 * F14;
+    F7 = F13 - F5;
+    F7 = F7 * F14;
+
+    R0 = I0;                            // the input into the history first: the output may be the input's place
+    R1 = S_HIST;
+    R0 = R0 + R1;
+    B4 = R0;
+    L4 = HIST_N;
+    R1 = DM(S_HP, I0);
+    M3 = R1;
+    MODIFY(I4, M3);
+    I6 = I1;
+    LCNTR = 16, DO fz_h UNTIL LCE;
+        F0 = DM(I6, M4);
+fz_h:   DM(I4, M4) = F0;
+    R0 = I4;
+    R1 = B4;
+    R0 = R0 - R1;
+    DM(S_HP, I0) = R0;
+
+    I6 = I1;                            // the output
+    I7 = I2;
+    I12 = FZ_WET;
+    LCNTR = 16, DO fz_mix UNTIL LCE;
+        F0 = DM(I6, M4), F1 = PM(I12, M12);
+        F2 = F0 * F5;
+        F3 = F1 * F4;
+        F2 = F2 + F3;
+        F5 = F5 + F7;
+        F4 = F4 + F6;
+fz_mix: DM(I7, M4) = F2;
+
+    R0 = DM(FZ_G + G_TAB);              // until the tables are made: a slice of them, and no decimation
+    R1 = TABLE_SLICES;
+    COMP(R0, R1);
+    IF LT JUMP fz_mktab;
+    R1 = DM(FZ_SDR);
+    R1 = PASS R1;
+    IF EQ JUMP fz_done;
+    MODIFY(I4, -135);                   // samples 7 and 15 of the block, each from the 127 before it
+    I12 = FZ_TAPS;
+    CALL fz_dot;
+    F2 = PASS F8;
+    MODIFY(I4, -120);
+    I12 = FZ_TAPS;
+    CALL fz_dot;
+    F3 = PASS F8;
+    L4 = 0;
+    R1 = DM(FZ_SDR);
+    R0 = DM(S_AT, I0);
+    R1 = R1 + R0;
+    I5 = R1;
+    DM(0, I5) = F2;
+    DM(1, I5) = F3;
+    R8 = MIRROR;
+    COMP(R0, R8);
+    IF GE JUMP fz_rw;
+    DM(RING, I5) = F2;
+    DM(RING + 1, I5) = F3;
+fz_rw:
+    R0 = R0 + 1;
+    R0 = R0 + 1;
+    R2 = RING - 1;
+    R0 = R0 AND R2;
+    DM(S_AT, I0) = R0;
+    R0 = DM(S_WRITTEN, I0);
+    R0 = R0 + 1;
+    R0 = R0 + 1;
+    R2 = CAPTURE;
+    R0 = MIN(R0, R2);
+    DM(S_WRITTEN, I0) = R0;
+    JUMP fz_done;
+fz_mktab:
+    L4 = 0;
+    R4 = PASS R0;
+    CALL FZ_TABLES;
+    R0 = DM(FZ_G + G_TAB);
+    R0 = R0 + 1;
+    DM(FZ_G + G_TAB) = R0;
+fz_done:
+    R0 = DM(S_N, I0);
+    R0 = R0 + 1;
+    DM(S_N, I0) = R0;
+
+    I4 = FZ_SAVE + 32;                  // the caller's registers back
+    I12 = FZ_SAVE + 34;
+    M4 = 4;
+    M12 = 4;
+    L4 = 0;
+    L12 = 0;
+    BIT SET MODE1 PEYEN;
+    NOP;
+    R0 = DM(I4, M4), R1 = PM(I12, M12);
+    R2 = DM(I4, M4), R3 = PM(I12, M12);
+    R4 = DM(I4, M4), R5 = PM(I12, M12);
+    R6 = DM(I4, M4), R7 = PM(I12, M12);
+    R8 = DM(I4, M4), R9 = PM(I12, M12);
+    R10 = DM(I4, M4), R11 = PM(I12, M12);
+    R12 = DM(I4, M4), R13 = PM(I12, M12);
+    R14 = DM(I4, M4), R15 = PM(I12, M12);
+    B4 = DM(FZ_SAVE + 7);
+    I5 = DM(FZ_SAVE + 8);
+    I6 = DM(FZ_SAVE + 9);
+    I7 = DM(FZ_SAVE + 10);
+    I13 = DM(FZ_SAVE + 11);
+    I14 = DM(FZ_SAVE + 12);
+    I15 = DM(FZ_SAVE + 13);
+    M0 = DM(FZ_SAVE + 14);
+    M3 = DM(FZ_SAVE + 15);
+    M8 = DM(FZ_SAVE + 16);
+    M11 = DM(FZ_SAVE + 17);
+    M13 = DM(FZ_SAVE + 18);
+    L5 = DM(FZ_SAVE + 19);
+    L6 = DM(FZ_SAVE + 20);
+    L7 = DM(FZ_SAVE + 21);
+    L13 = DM(FZ_SAVE + 22);
+    L14 = DM(FZ_SAVE + 23);
+    L15 = DM(FZ_SAVE + 24);
+    I4 = DM(FZ_SAVE + 1);
+    I12 = DM(FZ_SAVE + 2);
+    M4 = DM(FZ_SAVE + 3);
+    M12 = DM(FZ_SAVE + 4);
+    L4 = DM(FZ_SAVE + 5);
+    L12 = DM(FZ_SAVE + 6);
+    MODE1 = DM(FZ_SAVE + 0);
+    NOP;
+    RTS (LR);                           // as NAM's kernel returns
+
+fz_init:                                // the words after the first 145: 0
+    R0 = I0;
+    R1 = S_HIST;
+    R0 = R0 + R1;
+    I5 = R0;
+    R0 = 0;
+    LCNTR = DM_WORDS - S_HIST, DO fz_z UNTIL LCE;
+fz_z:   DM(I5, M4) = R0;
+    R0 = 1;
+    DM(S_INIT, I0) = R0;
+    RTS;
+
+fz_dot:                                 // F8 = TAPS samples from I4 (M4) dot the taps from I12 (M12)
+    F8 = 0.0;
+    R12 = R12 - R12, F0 = DM(I4, M4), F4 = PM(I12, M12);
+    LCNTR = TAPS, DO fz_d UNTIL LCE;
+fz_d:   F12 = F0 * F4, F8 = F8 + F12, F0 = DM(I4, M4), F4 = PM(I12, M12);
+    F8 = F8 + F12;
+    RTS;
+
+fz_gain:                                // F0 = the gain of F0 dB, 0 at or under -120 dB
+    F8 = -120.0;
+    COMP(F0, F8);
+    IF LE JUMP fz_g0;
+    F8 = 0.16609640474436813;           // log2 10 / 20
+    F0 = F0 * F8;
+    JUMP fz_exp2;
+fz_g0:
+    F0 = 0.0;
+    RTS;
+
 
 // ---- FZ_TABLES: R4 = the slice.
 
@@ -492,4 +779,33 @@ fz_recip:
     F1 = F0 * F8;
     F1 = F9 - F1;
     F0 = F8 * F1;
+    RTS;
+
+// fz_exp2: F0 = 2^F0 (|F0| < 126): 2^n e^(f ln 2), n the nearest integer, its series to f^6 (within 2e-7).
+// Changes R1 and F8-F11.
+fz_exp2:
+    R1 = FIX F0;
+    F8 = FLOAT R1;
+    F8 = F0 - F8;
+    F9 = 0.6931471805599453;
+    F8 = F8 * F9;
+    F10 = 0.001388888888888889;         // 1/6!
+    F11 = 0.008333333333333333;
+    F10 = F10 * F8;
+    F10 = F10 + F11;
+    F11 = 0.041666666666666664;
+    F10 = F10 * F8;
+    F10 = F10 + F11;
+    F11 = 0.16666666666666666;
+    F10 = F10 * F8;
+    F10 = F10 + F11;
+    F11 = 0.5;
+    F10 = F10 * F8;
+    F10 = F10 + F11;
+    F11 = 1.0;
+    F10 = F10 * F8;
+    F10 = F10 + F11;
+    F10 = F10 * F8;
+    F10 = F10 + F11;
+    F0 = SCALB F10 BY R1;
     RTS;
