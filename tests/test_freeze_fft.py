@@ -193,9 +193,9 @@ def test_no_loop_ends_in_a_branch():
     assert not bad
 
 
-def test_only_the_rotation_and_bit_reversal_are_data_at_boot():
+def test_only_the_bit_reversal_the_rotation_and_the_steps_are_data_at_boot():
     sections = [sec for sec in assemble()[0] if sec.kind == 'dm']
-    assert [len(sec.words) for sec in sections if any(sec.words)] == [34]
-    assert sum(len(sec.words) for sec in sections) == 34 + 64 + 4 + 1 + 16 + 8 + 1536 + fz.TAPS + 2048
+    assert [len(sec.words) for sec in sections if any(sec.words)] == [32 + 2 + 18]
+    assert sum(len(sec.words) for sec in sections) == 52 + 64 + 16 + 1 + 32 + 32 + 8 + 1536 + fz.TAPS + 2048
     rot = [struct.unpack('<f', struct.pack('<I', w))[0] for w in sections[0].words[32:34]]
     assert rot == pytest.approx([math.cos(2 * math.pi / 1499), math.sin(2 * math.pi / 1499)])

@@ -35,7 +35,11 @@
 .equ RND32,        0x10000
 .equ TRUNC,        0x8000
 
-.equ P_EFFECT,     9                    // knobs
+.equ P_MODE,       5                    // knobs: 0 Momentary, 1 Latch
+.equ P_HOLD,       6
+.equ P_ATTACK,     7
+.equ P_RELEASE,    8
+.equ P_EFFECT,     9
 .equ P_DRY,        10
 .equ S_INIT,       11                   // the instance's state: not 0 once the first call has set it up
 .equ S_N,          12                   // blocks since then
@@ -44,15 +48,54 @@
 .equ S_EFF,        15                   // Effect Level's and Dry Level's gains in the last block
 .equ S_DRY,        16
 .equ S_HP,         17                   // the history's next sample
+.equ S_HOLD,       18                   // Hold in the last block
+.equ S_LASTP,      19                   // Latch: the last press's block, and whether it grabbed
+.equ S_GRABBED,    20
+.equ S_PEND,       21                   // a grab: not 0 until its voice starts or it is cancelled
+.equ S_PSTART,     22                   // the block its voice starts at, at the earliest
+.equ S_PAT,        23                   // the ring's next sample and the samples written at its press
+.equ S_PWRIT,      24
+.equ S_DONE,       25                   // its analysis: 0 running, 1 sines ready, 2 nothing to play
+.equ S_PBUF,       26                   // the sines it fills: 0 or 1
+.equ S_VON,        27                   // the voice: not 0 while it sounds
+.equ S_VBUF,       28                   // its sines
+.equ S_VSTART,     29                   // its envelope: attack from S_VSTART over S_ATT blocks; release and steal
+.equ S_ATT,        30
+.equ S_RELON,      31
+.equ S_RSTART,     32
+.equ S_RLEN,       33
+.equ S_STLON,      34
+.equ S_SSTART,     35
+.equ S_WLAST,      36                   // the calls count at this instance's last call (the turn's owner check)
 .equ S_HIST,       145                  // the decimator's history: the last HIST_N input samples, a ring
 .equ HIST_N,       143                  // TAPS + 16
-.equ DM_WORDS,     S_HIST + HIST_N
+.equ S_SINES,      S_HIST + HIST_N      // two sets of 32 sines, 160 words each: pair p at 10p is c, s, cos w,
+.equ SINES_N,      160                  // sin w, 1/a^2, two sines a word pair
+.equ DM_WORDS,     S_SINES + 2 * SINES_N
+.equ LATENCY,      150                  // blocks from a press to its voice, and the fade of a voice a grab cuts
+.equ DOUBLE,       900                  // blocks: a Latch press this soon after a grabbing press stops everything
+.equ PARTIALS,     32
+.equ LEVEL,        300                  // the capture's last samples the input's level is measured on
 .equ TAPS,         127
 .equ RING,         4096                 // the ring in SDRAM: RING samples, then a copy of its first MIRROR
 .equ MIRROR,       32
 .equ SDR_NEED,     RING + MIRROR
 .equ CAPTURE,      1500
 .equ G_TAB,        0                    // FZ_G: table slices made
+.equ G_OWNER,      1                    // the turn: its owner's I0, 0 when free
+.equ G_CALLS,      2                    // calls of every instance
+.equ G_SEEN,       3                    // the calls count at the owner's last call
+.equ G_STEP,       4                    // the owner's step and slice
+.equ G_SLICE,      5
+.equ G_COUNT,      6                    // candidates
+.equ G_TAKEN,      7                    // partials taken
+.equ G_POS,        8                    // the select's next candidate, the best so far and its place
+.equ G_BEST,       9
+.equ G_BESTI,      10
+.equ G_LEVEL,      11                   // the sum of the squares of the capture's last LEVEL samples
+.equ G_SUMA,       12                   // the sum of the partials' squared amplitudes
+.equ G_E0,         13                   // the envelope at this block's start and the next's
+.equ G_E1,         14
 
 .equ NC,           1024                 // complex points
 .equ HALF_CAP,     750                  // points with samples: CAPTURE / 2
@@ -68,17 +111,31 @@
 .equ K_LO,         19                   // the lowest bin the grab looks at, less 1
 .equ K_END,        513                  // pairs k = K_LO..512
 .equ LATE,         5                    // the first stage that goes group by group
+.equ FFT_SLICES,   5120 >> FFT_SHIFT
+.equ SPLIT_SLICES, (494 + (1 << SPLIT_SHIFT) - 1) >> SPLIT_SHIFT
+.equ LEVEL_SLICES, (LEVEL + 31) >> 5     // 32 samples a slice
+.equ LO_BIN,       20                   // candidates: bins LO_BIN..HI_BIN-1, CAND_N a slice
+.equ HI_BIN,       938
+.equ CAND_N,       192
+.equ CAND_SLICES,  (HI_BIN - LO_BIN + CAND_N - 1) / CAND_N
+.equ SELECT_N,     384                  // candidates looked at a slice
+.equ PARTS_N,      6                    // partials a slice
+.equ PARTS_SLICES, (PARTIALS + PARTS_N - 1) / PARTS_N
+.equ N_STEPS,      9
 
 .section dm FZ_DM_BASE
 FZ_REV5:  .word 0, 16, 8, 24, 4, 20, 12, 28, 2, 18, 10, 26, 6, 22, 14, 30     // 5-bit numbers reversed
           .word 1, 17, 9, 25, 5, 21, 13, 29, 3, 19, 11, 27, 7, 23, 15, 31
 FZ_ROT:   .float 0.9999912153221553, 0.004191572320602106   // cos and sin of 2 pi / 1499: the window's step
+FZ_STEPS: .word FZ_ZERO, 1, FZ_LD, LOAD_SLICES, FZ_LVL, LEVEL_SLICES, FZ_FFT, FFT_SLICES, FZ_SPLIT, SPLIT_SLICES
+          .word FZ_CAND, CAND_SLICES, FZ_SELECT, 0, FZ_PARTS, PARTS_SLICES, FZ_SCALE, 1   // a grab's steps, slices
 
-.section dm FZ_DM_BASE+34              // zeros at boot: one zero-fill block in the boot stream
+.section dm FZ_DM_BASE+52              // zeros at boot: one zero-fill block in the boot stream
 FZ_SAVE:  .space 64                    // the caller's registers; R0-R15 with S0-S15 from FZ_SAVE + 32
-FZ_G:     .space 4                     // the instances' shared state
+FZ_G:     .space 16                    // the instances' shared state
 FZ_SDR:   .space 1                     // this call's SDRAM block, 0 without one
-FZ_WET:   .space 16                    // the voice's samples this block
+FZ_WET:   .space 32                    // the voice's samples this block, its two lanes (even, odd sines) a pair
+FZ_TAKEN: .space 32                    // the bins taken, strongest first
 FZ_STATE: .space 8                     // FZ_FFT's loop counts around its butterflies, which use every data register
 FZ_TAB:   .space 1536
 FZ_TAPS:  .space 127
@@ -155,6 +212,152 @@ CUSTOM_AMP_ENTRY:
     R0 = PASS R0;
     IF EQ CALL fz_init;
 
+    R0 = I0;                            // the input into the history first: the output may be the input's place
+    R1 = S_HIST;
+    R0 = R0 + R1;
+    B4 = R0;
+    L4 = HIST_N;
+    R1 = DM(S_HP, I0);
+    M3 = R1;
+    MODIFY(I4, M3);
+    I6 = I1;
+    LCNTR = 16, DO fz_h UNTIL LCE;
+        F0 = DM(I6, M4);
+fz_h:   DM(I4, M4) = F0;
+    R0 = I4;
+    R1 = B4;
+    R0 = R0 - R1;
+    DM(S_HP, I0) = R0;
+    L4 = 0;
+
+    R13 = DM(S_N, I0);                  // presses (R13 = this block, through the voice)
+    R0 = DM(P_HOLD, I0);
+    R1 = DM(S_HOLD, I0);
+    R0 = PASS R0;
+    IF EQ JUMP fz_up;
+    R1 = PASS R1;
+    IF EQ CALL fz_press;
+    R0 = 1;
+    JUMP fz_held;
+fz_up:
+    R0 = DM(P_MODE, I0);
+    R0 = PASS R0;
+    IF EQ CALL fz_release;
+    R0 = 0;
+fz_held:
+    DM(S_HOLD, I0) = R0;
+
+    R0 = DM(S_VON, I0);                 // the voice: its end, then a grab's start
+    R0 = PASS R0;
+    IF EQ JUMP fz_vs;
+    R0 = DM(S_RELON, I0);
+    R0 = PASS R0;
+    IF EQ JUMP fz_ve;
+    R0 = DM(S_RSTART, I0);
+    R0 = R13 - R0;
+    R1 = DM(S_RLEN, I0);
+    COMP(R0, R1);
+    IF GE JUMP fz_off;
+fz_ve:
+    R0 = DM(S_STLON, I0);
+    R0 = PASS R0;
+    IF EQ JUMP fz_vs;
+    R0 = DM(S_SSTART, I0);
+    R0 = R13 - R0;
+    R1 = LATENCY;
+    COMP(R0, R1);
+    IF LT JUMP fz_vs;
+fz_off:
+    R0 = 0;
+    DM(S_VON, I0) = R0;
+fz_vs:
+    R0 = DM(S_PEND, I0);
+    R0 = PASS R0;
+    IF EQ JUMP fz_osc;
+    R0 = DM(S_DONE, I0);
+    R0 = PASS R0;
+    IF EQ JUMP fz_osc;
+    R1 = DM(S_PSTART, I0);
+    COMP(R13, R1);
+    IF LT JUMP fz_osc;
+    R1 = 0;
+    DM(S_PEND, I0) = R1;
+    R1 = 2;
+    COMP(R0, R1);
+    IF EQ JUMP fz_osc;                  // nothing to play
+    R0 = DM(S_PBUF, I0);
+    DM(S_VBUF, I0) = R0;
+    DM(S_VSTART, I0) = R13;
+    R0 = 0;
+    DM(S_RELON, I0) = R0;
+    DM(S_STLON, I0) = R0;
+    F0 = DM(P_ATTACK, I0);
+    CALL fz_blocks;
+    DM(S_ATT, I0) = R0;
+    R0 = 1;
+    DM(S_VON, I0) = R0;
+
+fz_osc:                                 // FZ_WET: the voice's 16 samples, its sines a block on
+    I12 = FZ_WET;
+    R0 = 0;
+    LCNTR = 32, DO fz_w0 UNTIL LCE;
+fz_w0:  PM(I12, M12) = R0;
+    F0 = 0.0;
+    DM(FZ_G + G_E0) = F0;
+    DM(FZ_G + G_E1) = F0;
+    R0 = DM(S_VON, I0);
+    R0 = PASS R0;
+    IF EQ JUMP fz_levels;
+    CALL fz_env;
+    DM(FZ_G + G_E0) = F12;
+    R13 = R13 + 1;
+    CALL fz_env;
+    DM(FZ_G + G_E1) = F12;
+    R0 = DM(S_VBUF, I0);
+    CALL fz_set;
+    F14 = 0.5;
+    S14 = R14;
+    F15 = 1.5;
+    S15 = R15;
+    M0 = 0;
+    M3 = 2;
+    M4 = 2;
+    BIT SET MODE1 PEYEN;
+    NOP;
+    LCNTR = 16, DO os_p UNTIL LCE;      // two sines a pass, one in each lane
+        F0 = DM(I5, M3);
+        F1 = DM(I5, M3);
+        F4 = DM(I5, M3);
+        F5 = DM(I5, M3);
+        F9 = DM(I5, M3);
+        I4 = FZ_WET;
+        LCNTR = 16, DO os_j UNTIL LCE;
+            F8 = DM(I4, M0);
+            F8 = F8 + F0;
+            DM(I4, M4) = F8;
+            F2 = F0 * F4;
+            F3 = F1 * F5;
+            F6 = F1 * F4;
+            F7 = F0 * F5;
+            F0 = F2 - F3;
+os_j:       F1 = F6 + F7;
+        F2 = F0 * F0;                   // size back to a: x (1.5 - 0.5 (c^2 + s^2) / a^2)
+        F3 = F1 * F1;
+        F2 = F2 + F3;
+        F2 = F2 * F9;
+        F2 = F2 * F14;
+        F2 = F15 - F2;
+        F0 = F0 * F2;
+        F1 = F1 * F2;
+        MODIFY(I5, -10);
+        DM(I5, M3) = F0;
+        DM(I5, M3) = F1;
+os_p:   MODIFY(I5, 6);
+    BIT CLR MODE1 PEYEN;
+    NOP;
+    M4 = 1;
+
+fz_levels:
     F0 = DM(P_EFFECT, I0);              // the levels: from the last block's gains (F4, F5) by steps (F6, F7)
     CALL fz_gain;
     F12 = PASS F0;
@@ -176,34 +379,25 @@ fz_lv:
     F6 = F6 * F14;
     F7 = F13 - F5;
     F7 = F7 * F14;
-
-    R0 = I0;                            // the input into the history first: the output may be the input's place
-    R1 = S_HIST;
-    R0 = R0 + R1;
-    B4 = R0;
-    L4 = HIST_N;
-    R1 = DM(S_HP, I0);
-    M3 = R1;
-    MODIFY(I4, M3);
-    I6 = I1;
-    LCNTR = 16, DO fz_h UNTIL LCE;
-        F0 = DM(I6, M4);
-fz_h:   DM(I4, M4) = F0;
-    R0 = I4;
-    R1 = B4;
-    R0 = R0 - R1;
-    DM(S_HP, I0) = R0;
+    F8 = DM(FZ_G + G_E0);               // the envelope (F8) by its step (F9)
+    F9 = DM(FZ_G + G_E1);
+    F9 = F9 - F8;
+    F9 = F9 * F14;
 
     I6 = I1;                            // the output
     I7 = I2;
     I12 = FZ_WET;
     LCNTR = 16, DO fz_mix UNTIL LCE;
         F0 = DM(I6, M4), F1 = PM(I12, M12);
+        F2 = PM(I12, M12);
+        F1 = F1 + F2;
+        F1 = F1 * F8;
+        F1 = F1 * F4;
         F2 = F0 * F5;
-        F3 = F1 * F4;
-        F2 = F2 + F3;
+        F2 = F2 + F1;
         F5 = F5 + F7;
         F4 = F4 + F6;
+        F8 = F8 + F9;
 fz_mix: DM(I7, M4) = F2;
 
     R0 = DM(FZ_G + G_TAB);              // until the tables are made: a slice of them, and no decimation
@@ -213,7 +407,12 @@ fz_mix: DM(I7, M4) = F2;
     R1 = DM(FZ_SDR);
     R1 = PASS R1;
     IF EQ JUMP fz_done;
-    MODIFY(I4, -135);                   // samples 7 and 15 of the block, each from the 127 before it
+    L4 = HIST_N;                        // samples 7 and 15 of the block, each from the 127 before it
+    R1 = DM(S_HP, I0);
+    M3 = R1;
+    I4 = B4;
+    MODIFY(I4, M3);
+    MODIFY(I4, -135);
     I12 = FZ_TAPS;
     CALL fz_dot;
     F2 = PASS F8;
@@ -245,6 +444,7 @@ fz_rw:
     R2 = CAPTURE;
     R0 = MIN(R0, R2);
     DM(S_WRITTEN, I0) = R0;
+    CALL fz_turn;
     JUMP fz_done;
 fz_mktab:
     L4 = 0;
@@ -302,7 +502,7 @@ fz_done:
     NOP;
     RTS (LR);                           // as NAM's kernel returns
 
-fz_init:                                // the words after the first 145: 0
+fz_init:                                // the words after the first 145: 0; a turn left by a block made here before: free
     R0 = I0;
     R1 = S_HIST;
     R0 = R0 + R1;
@@ -310,8 +510,562 @@ fz_init:                                // the words after the first 145: 0
     R0 = 0;
     LCNTR = DM_WORDS - S_HIST, DO fz_z UNTIL LCE;
 fz_z:   DM(I5, M4) = R0;
+    R1 = DM(FZ_G + G_OWNER);
+    R2 = I0;
+    COMP(R1, R2);
+    IF NE JUMP in_t;
+    DM(FZ_G + G_OWNER) = R0;
+in_t:
     R0 = 1;
     DM(S_INIT, I0) = R0;
+    RTS;
+
+// ---- presses (R13 = this block)
+
+fz_press:
+    R0 = DM(P_MODE, I0);
+    R0 = PASS R0;
+    IF EQ JUMP fz_grab;                 // Momentary
+    R2 = DM(S_GRABBED, I0);             // Latch: a press within DOUBLE blocks of a grabbing press stops everything
+    R1 = DM(S_LASTP, I0);
+    DM(S_LASTP, I0) = R13;
+    R1 = R13 - R1;
+    R0 = DOUBLE;
+    COMP(R1, R0);
+    IF GT R2 = R2 - R2;                 // (R2: stop)
+    DM(FZ_G + G_POS) = R2;              // (kept over the release)
+    CALL fz_release;
+    R2 = DM(FZ_G + G_POS);
+    R0 = 1;
+    R2 = R0 - R2;
+    DM(S_GRABBED, I0) = R2;
+    R2 = PASS R2;
+    IF NE JUMP fz_grab;
+    RTS;
+
+fz_release:                             // a grab in analysis: cancelled; the voice: into its release
+    R0 = DM(S_PEND, I0);
+    R0 = PASS R0;
+    IF EQ JUMP rl_v;
+    R0 = 0;
+    DM(S_PEND, I0) = R0;
+    R1 = DM(FZ_G + G_OWNER);
+    R2 = I0;
+    COMP(R1, R2);
+    IF NE RTS;
+    DM(FZ_G + G_OWNER) = R0;
+    RTS;
+rl_v:
+    R0 = DM(S_VON, I0);
+    R1 = DM(S_RELON, I0);
+    R2 = DM(S_STLON, I0);
+    R1 = R1 OR R2;
+    R0 = PASS R0;
+    IF EQ RTS;
+    R1 = PASS R1;
+    IF NE RTS;
+    R0 = 1;
+    DM(S_RELON, I0) = R0;
+    DM(S_RSTART, I0) = R13;
+    F0 = DM(P_RELEASE, I0);
+    CALL fz_blocks;
+    DM(S_RLEN, I0) = R0;
+    RTS;
+
+fz_grab:                                // the voice, if it sounds, fades out over LATENCY; the analysis waits its turn
+    R0 = DM(FZ_SDR);
+    R0 = PASS R0;
+    IF EQ RTS;
+    R0 = DM(S_VON, I0);
+    R1 = DM(S_STLON, I0);
+    R0 = PASS R0;
+    IF EQ JUMP gr_p;
+    R1 = PASS R1;
+    IF NE JUMP gr_p;
+    R0 = 1;
+    DM(S_STLON, I0) = R0;
+    DM(S_SSTART, I0) = R13;
+gr_p:
+    R0 = 1;
+    DM(S_PEND, I0) = R0;
+    R1 = DM(S_VBUF, I0);
+    R1 = R0 - R1;
+    DM(S_PBUF, I0) = R1;
+    R0 = LATENCY;
+    R0 = R13 + R0;
+    DM(S_PSTART, I0) = R0;
+    R0 = DM(S_AT, I0);
+    DM(S_PAT, I0) = R0;
+    R0 = DM(S_WRITTEN, I0);
+    DM(S_PWRIT, I0) = R0;
+    R0 = 0;
+    DM(S_DONE, I0) = R0;
+    RTS;
+
+fz_blocks:                              // R0 = F0 seconds in blocks, at least 1. Changes R1, F1
+    F1 = 3000.0;
+    F0 = F0 * F1;
+    R0 = FIX F0;
+    R1 = 1;
+    R0 = MAX(R0, R1);
+    RTS;
+
+fz_env:                                 // F12 = the envelope at block R13: attack x (1 - release) x (1 - steal)
+    R1 = DM(S_VSTART, I0);
+    R1 = R13 - R1;
+    R2 = DM(S_ATT, I0);
+    CALL fz_ramp;
+    F12 = PASS F0;
+    R1 = DM(S_RELON, I0);
+    R1 = PASS R1;
+    IF EQ JUMP en_s;
+    R1 = DM(S_RSTART, I0);
+    R1 = R13 - R1;
+    R2 = DM(S_RLEN, I0);
+    CALL fz_ramp;
+    F1 = 1.0;
+    F0 = F1 - F0;
+    F12 = F12 * F0;
+en_s:
+    R1 = DM(S_STLON, I0);
+    R1 = PASS R1;
+    IF EQ RTS;
+    R1 = DM(S_SSTART, I0);
+    R1 = R13 - R1;
+    R2 = LATENCY;
+    CALL fz_ramp;
+    F1 = 1.0;
+    F0 = F1 - F0;
+    F12 = F12 * F0;
+    RTS;
+
+fz_ramp:                                // F0 = min(R1, R2) / R2. Changes R1, F1, F3, F8, F9
+    R1 = MIN(R1, R2);
+    F3 = FLOAT R1;
+    F0 = FLOAT R2;
+    CALL fz_recip;
+    F0 = F0 * F3;
+    RTS;
+
+fz_set:                                 // I5 = the sines of set R0
+    R1 = LSHIFT R0 BY 7;
+    R0 = LSHIFT R0 BY 5;
+    R0 = R0 + R1;
+    R1 = S_SINES;
+    R0 = R0 + R1;
+    R1 = I0;
+    R0 = R0 + R1;
+    I5 = R0;
+    RTS;
+
+// ---- the turn: the work area is one for every instance; its owner runs a slice of its grab's analysis a call
+
+fz_turn:
+    R0 = DM(FZ_G + G_CALLS);
+    R0 = R0 + 1;
+    DM(FZ_G + G_CALLS) = R0;
+    R1 = DM(S_WLAST, I0);
+    DM(S_WLAST, I0) = R0;
+    R2 = DM(S_PEND, I0);
+    R2 = PASS R2;
+    IF EQ RTS;
+    R2 = DM(S_DONE, I0);
+    R2 = PASS R2;
+    IF NE RTS;
+    R4 = DM(FZ_G + G_OWNER);
+    R5 = I0;
+    COMP(R4, R5);
+    IF EQ JUMP tn_run;
+    R4 = PASS R4;
+    IF EQ JUMP tn_take;
+    R6 = DM(FZ_G + G_SEEN);             // an owner not called since this instance's last call has gone
+    COMP(R6, R1);
+    IF GE RTS;
+tn_take:
+    DM(FZ_G + G_OWNER) = R5;
+    R6 = 0;
+    DM(FZ_G + G_STEP) = R6;
+    DM(FZ_G + G_SLICE) = R6;
+tn_run:
+    DM(FZ_G + G_SEEN) = R0;
+    R0 = DM(FZ_G + G_STEP);
+    R0 = LSHIFT R0 BY 1;
+    R1 = FZ_STEPS;
+    R0 = R0 + R1;
+    I4 = R0;
+    R0 = DM(0, I4);
+    I13 = R0;
+    M8 = 0;
+    R4 = DM(FZ_G + G_SLICE);
+    CALL (M8, I13);
+    R1 = PASS R0;                       // (a step of no fixed slices: not 0 when it is done)
+    R4 = DM(FZ_G + G_SLICE);
+    R4 = R4 + 1;
+    DM(FZ_G + G_SLICE) = R4;
+    R0 = DM(FZ_G + G_STEP);
+    R2 = LSHIFT R0 BY 1;
+    R3 = FZ_STEPS + 1;
+    R2 = R2 + R3;
+    I4 = R2;
+    R2 = DM(0, I4);
+    R2 = PASS R2;
+    IF EQ JUMP tn_var;
+    COMP(R4, R2);
+    IF LT RTS;
+    JUMP tn_next;
+tn_var:
+    R1 = PASS R1;
+    IF EQ RTS;
+tn_next:
+    R0 = R0 + 1;
+    DM(FZ_G + G_STEP) = R0;
+    R4 = 0;
+    DM(FZ_G + G_SLICE) = R4;
+    R2 = N_STEPS;
+    COMP(R0, R2);
+    IF LT RTS;
+    DM(FZ_G + G_OWNER) = R4;
+    RTS;
+
+// ---- the steps around the analysis routines (R4 = the slice)
+
+FZ_LD:                                  // FZ_LOAD from the ring
+    R5 = DM(S_PAT, I0);
+    R0 = CAPTURE;
+    R5 = R5 - R0;
+    R0 = LSHIFT R4 BY LOAD_SHIFT + 1;
+    R5 = R5 + R0;
+    R0 = RING - 1;
+    R5 = R5 AND R0;
+    R0 = DM(FZ_SDR);
+    R5 = R5 + R0;
+    R7 = DM(S_PWRIT, I0);
+    R0 = CAPTURE;
+    R7 = R0 - R7;
+    JUMP FZ_LOAD;
+
+FZ_LVL:                                 // G_LEVEL: the sum of the squares of the capture's last LEVEL samples
+    R6 = LSHIFT R4 BY 5;
+    R0 = CAPTURE - LEVEL;
+    R6 = R6 + R0;                       // its first sample in the capture
+    R2 = CAPTURE;
+    R2 = R2 - R6;
+    R0 = 32;
+    R2 = MIN(R2, R0);
+    R0 = DM(S_PAT, I0);
+    R1 = CAPTURE;
+    R0 = R0 - R1;
+    R0 = R0 + R6;
+    R1 = RING - 1;
+    R0 = R0 AND R1;
+    R1 = DM(FZ_SDR);
+    R0 = R0 + R1;
+    I4 = R0;
+    M4 = 1;
+    R7 = DM(S_PWRIT, I0);
+    R1 = CAPTURE;
+    R7 = R1 - R7;
+    F8 = DM(FZ_G + G_LEVEL);
+    R4 = PASS R4;
+    IF EQ R8 = R8 - R8;
+    LCNTR = R2, DO lv UNTIL LCE;
+        R0 = DM(I4, M4);
+        COMP(R6, R7);
+        IF LT R0 = R0 - R0;             // not written yet: 0
+        F0 = F0 * F0;
+        F8 = F8 + F0;
+lv:     R6 = R6 + 1;
+    DM(FZ_G + G_LEVEL) = F8;
+    RTS;
+
+FZ_CAND:                                // candidates: (bin, power) pairs from FZ_IM, bins above the one below and
+    R0 = LSHIFT R4 BY 7;                // not below the one above
+    R6 = LSHIFT R4 BY 6;
+    R6 = R6 + R0;
+    R0 = LO_BIN;
+    R6 = R6 + R0;                       // k
+    R0 = CAND_N;
+    R0 = R6 + R0;
+    R2 = HI_BIN;
+    R2 = MIN(R0, R2);
+    R2 = R2 - R6;
+    R3 = DM(FZ_G + G_COUNT);
+    R4 = PASS R4;
+    IF EQ R3 = R3 - R3;
+    R0 = LSHIFT R3 BY 1;
+    R1 = FZ_IM;
+    R0 = R0 + R1;
+    I5 = R0;
+    R0 = FZ_RE - 1;
+    R0 = R0 + R6;
+    I4 = R0;
+    M4 = 1;
+    F0 = DM(I4, M4);
+    F1 = DM(I4, M4);
+    LCNTR = R2, DO cd UNTIL LCE;
+        F2 = DM(I4, M4);
+        COMP(F1, F0);
+        IF LE JUMP cd_no;
+        COMP(F1, F2);
+        IF LT JUMP cd_no;
+        DM(I5, M4) = R6;
+        DM(I5, M4) = F1;
+cd_no:  F0 = PASS F1;
+        F1 = PASS F2;
+cd:     R6 = R6 + 1;
+    R0 = I5;
+    R1 = FZ_IM;
+    R0 = R0 - R1;
+    R0 = LSHIFT R0 BY -1;
+    DM(FZ_G + G_COUNT) = R0;
+    RTS;
+
+FZ_SELECT:                              // the strongest candidate (the lower bin on a tie), PARTIALS times, each
+    R0 = PASS R4;                       // pass looking at every candidate; a taken one and those within 3 bins
+    IF NE JUMP se_go;                   // of it are set to -1. SELECT_N looks a slice; R0 = 1 when done
+    R0 = 0;
+    DM(FZ_G + G_TAKEN) = R0;
+    DM(FZ_G + G_POS) = R0;
+    DM(FZ_G + G_BEST) = R0;
+    DM(FZ_G + G_BESTI) = R0;
+se_go:
+    R2 = DM(FZ_G + G_COUNT);
+    R10 = DM(FZ_G + G_POS);
+    F8 = DM(FZ_G + G_BEST);
+    R9 = DM(FZ_G + G_BESTI);
+    R5 = SELECT_N;
+    M3 = 2;
+se_pass:
+    R3 = R2 - R10;
+    R3 = MIN(R3, R5);
+    R5 = R5 - R3;
+    R3 = PASS R3;
+    IF LE JUMP se_chk;
+    R0 = LSHIFT R10 BY 1;
+    R1 = FZ_IM + 1;
+    R0 = R0 + R1;
+    I4 = R0;
+    LCNTR = R3, DO sc UNTIL LCE;
+        F0 = DM(I4, M3);
+        COMP(F0, F8);
+        IF GT F8 = PASS F0;
+        IF GT R9 = PASS R10;
+sc:     R10 = R10 + 1;
+se_chk:
+    COMP(R10, R2);
+    IF LT JUMP se_out;                  // the pass goes on in the next slice
+    F8 = PASS F8;
+    IF LE JUMP se_end;                  // none left
+    R0 = LSHIFT R9 BY 1;
+    R1 = FZ_IM;
+    R0 = R0 + R1;
+    I4 = R0;
+    R6 = DM(0, I4);                     // its bin
+    R0 = DM(FZ_G + G_TAKEN);
+    R1 = FZ_TAKEN;
+    R1 = R1 + R0;
+    I5 = R1;
+    DM(0, I5) = R6;
+    R0 = R0 + 1;
+    DM(FZ_G + G_TAKEN) = R0;
+    F1 = -1.0;
+    DM(1, I4) = F1;
+    R9 = PASS R9;
+    IF EQ JUMP se_hi;
+    R0 = DM(-2, I4);
+    R0 = R6 - R0;
+    R1 = 3;
+    COMP(R0, R1);
+    IF GT JUMP se_hi;
+    DM(-1, I4) = F1;
+se_hi:
+    R0 = R9 + 1;
+    COMP(R0, R2);
+    IF GE JUMP se_n;
+    R0 = DM(2, I4);
+    R0 = R0 - R6;
+    R1 = 3;
+    COMP(R0, R1);
+    IF GT JUMP se_n;
+    DM(3, I4) = F1;
+se_n:
+    R0 = DM(FZ_G + G_TAKEN);
+    R1 = PARTIALS;
+    COMP(R0, R1);
+    IF GE JUMP se_end;
+    R10 = 0;
+    R9 = 0;
+    F8 = 0.0;
+    R5 = PASS R5;
+    IF GT JUMP se_pass;
+se_out:
+    DM(FZ_G + G_POS) = R10;
+    DM(FZ_G + G_BEST) = F8;
+    DM(FZ_G + G_BESTI) = R9;
+    R0 = 0;
+    RTS;
+se_end:
+    R0 = 1;
+    RTS;
+
+FZ_PARTS:                               // partials k = PARTS_N R4 on: frequency and amplitude by the parabola in
+    R0 = PASS R4;                       // log2 of the powers, into the grab's sines at its start phase; the sines
+    IF NE JUMP pa_go;                   // past those taken: silent
+    R0 = 0;
+    DM(FZ_G + G_SUMA) = R0;
+pa_go:
+    R0 = LSHIFT R4 BY 2;
+    R13 = LSHIFT R4 BY 1;
+    R13 = R13 + R0;                     // k
+    R0 = PARTS_N;
+    R14 = R13 + R0;
+    R0 = PARTIALS;
+    R14 = MIN(R14, R0);
+pa_k:
+    COMP(R13, R14);
+    IF GE RTS;
+    CALL fz_sine;
+    R0 = DM(FZ_G + G_TAKEN);
+    COMP(R13, R0);
+    IF GE JUMP pa_zero;
+    R0 = FZ_TAKEN;
+    R0 = R0 + R13;
+    I4 = R0;
+    R12 = DM(0, I4);                    // b
+    R0 = FZ_RE - 1;
+    R0 = R0 + R12;
+    I4 = R0;
+    F0 = DM(0, I4);
+    CALL pa_log;
+    F4 = PASS F0;                       // l-
+    F0 = DM(1, I4);
+    CALL pa_log;
+    F5 = PASS F0;                       // l0
+    F0 = DM(2, I4);
+    CALL pa_log;
+    F6 = PASS F0;                       // l+
+    F7 = F4 - F6;
+    F0 = F5 + F5;
+    F0 = F4 - F0;
+    F0 = F0 + F6;
+    F15 = 0.0;
+    F0 = PASS F0;
+    IF EQ JUMP pa_d;
+    CALL fz_recip;
+    F0 = F0 * F7;
+    F1 = 0.5;
+    F15 = F0 * F1;                      // d
+pa_d:
+    F0 = F7 * F15;
+    F1 = 0.25;
+    F0 = F0 * F1;
+    F0 = F5 - F0;
+    F1 = 0.5;
+    F0 = F0 * F1;
+    CALL fz_exp2;
+    F1 = 0.0026684456304202803;         // 2 / 749.5, the window's sum
+    F4 = F0 * F1;                       // a
+    F5 = F4 * F4;
+    F0 = DM(FZ_G + G_SUMA);
+    F0 = F0 + F5;
+    DM(FZ_G + G_SUMA) = F0;
+    DM(8, I5) = F5;                     // (a^2 until FZ_SCALE)
+    F0 = FLOAT R12;
+    F0 = F0 + F15;
+    F1 = 0.00006103515625;              // 1 / 16384: turns a sample
+    F6 = F0 * F1;
+    F0 = PASS F6;
+    CALL fz_cos;
+    DM(4, I5) = F0;
+    F0 = 0.25;
+    F0 = F6 - F0;
+    CALL fz_cos;
+    DM(6, I5) = F0;
+    F0 = FLOAT R13;
+    F1 = 0.6180339887498949;            // the start phase: k (sqrt 5 - 1) / 2 turns
+    F6 = F0 * F1;
+    F0 = PASS F6;
+    CALL fz_cos;
+    F0 = F0 * F4;
+    DM(0, I5) = F0;
+    F0 = 0.25;
+    F0 = F6 - F0;
+    CALL fz_cos;
+    F0 = F0 * F4;
+    DM(2, I5) = F0;
+    R13 = R13 + 1;
+    JUMP pa_k;
+pa_zero:
+    R0 = 0;
+    DM(0, I5) = R0;
+    DM(2, I5) = R0;
+    DM(6, I5) = R0;
+    DM(8, I5) = R0;
+    F0 = 1.0;
+    DM(4, I5) = F0;
+    R13 = R13 + 1;
+    JUMP pa_k;
+
+pa_log:                                 // F0 = log2 F0, F0 at least 1e-30
+    F1 = 1e-30;
+    F0 = MAX(F0, F1);
+    JUMP fz_log2;
+
+fz_sine:                                // I5 = sine R13 of the grab's set: pair R13 / 2, lane R13 & 1
+    R0 = DM(S_PBUF, I0);
+    CALL fz_set;
+    R0 = LSHIFT R13 BY -1;
+    R1 = LSHIFT R0 BY 3;
+    R0 = LSHIFT R0 BY 1;
+    R0 = R0 + R1;
+    R1 = 1;
+    R1 = R13 AND R1;
+    R0 = R0 + R1;
+    M3 = R0;
+    MODIFY(I5, M3);
+    RTS;
+
+FZ_SCALE:                               // the sines to the input's level less 4 dB: g = sqrt(2 P 10^-0.4 / sum a^2),
+    R0 = DM(FZ_G + G_TAKEN);            // c, s x g, 1/(g a)^2. Nothing taken or no input: nothing to play
+    R0 = PASS R0;
+    IF EQ JUMP sc_none;
+    F0 = DM(FZ_G + G_LEVEL);
+    F0 = PASS F0;
+    IF LE JUMP sc_none;
+    F1 = 0.0026540478036899815;         // 2 10^-0.4 / LEVEL
+    F4 = F0 * F1;
+    F0 = DM(FZ_G + G_SUMA);
+    CALL fz_recip;
+    F5 = F0 * F4;                       // g^2
+    F0 = PASS F5;
+    CALL fz_log2;
+    F1 = 0.5;
+    F0 = F0 * F1;
+    CALL fz_exp2;
+    F4 = PASS F0;                       // g
+    R13 = 0;
+    R14 = DM(FZ_G + G_TAKEN);
+sc_k:
+    CALL fz_sine;
+    F0 = DM(0, I5);
+    F0 = F0 * F4;
+    DM(0, I5) = F0;
+    F0 = DM(2, I5);
+    F0 = F0 * F4;
+    DM(2, I5) = F0;
+    F0 = DM(8, I5);
+    F0 = F0 * F5;
+    CALL fz_recip;
+    DM(8, I5) = F0;
+    R13 = R13 + 1;
+    COMP(R13, R14);
+    IF LT JUMP sc_k;
+    R0 = 1;
+    DM(S_DONE, I0) = R0;
+    RTS;
+sc_none:
+    R0 = 2;
+    DM(S_DONE, I0) = R0;
     RTS;
 
 fz_dot:                                 // F8 = TAPS samples from I4 (M4) dot the taps from I12 (M12)
@@ -808,4 +1562,43 @@ fz_exp2:
     F10 = F10 * F8;
     F10 = F10 + F11;
     F0 = SCALB F10 BY R1;
+    RTS;
+
+// fz_log2: F0 = log2 F0 (F0 > 0): the exponent, then the mantissa m in [1/sqrt 2, sqrt 2) by
+// 2 atanh((m - 1)/(m + 1)) / ln 2, its series to u^9 (within 1e-7). Changes R2, R3, F0, F1 and F8-F11.
+fz_log2:
+    R2 = LOGB F0;
+    R3 = -R2;
+    F0 = SCALB F0 BY R3;
+    F8 = 1.4142135623730951;
+    COMP(F0, F8);
+    IF LE JUMP lg_m;
+    F8 = 0.5;
+    F0 = F0 * F8;
+    R2 = R2 + 1;
+lg_m:
+    F8 = 1.0;
+    F11 = F0 - F8;
+    F0 = F0 + F8;
+    CALL fz_recip;
+    F0 = F0 * F11;                      // u
+    F9 = F0 * F0;
+    F10 = 0.1111111111111111;
+    F11 = 0.14285714285714285;
+    F10 = F10 * F9;
+    F10 = F10 + F11;
+    F11 = 0.2;
+    F10 = F10 * F9;
+    F10 = F10 + F11;
+    F11 = 0.3333333333333333;
+    F10 = F10 * F9;
+    F10 = F10 + F11;
+    F11 = 1.0;
+    F10 = F10 * F9;
+    F10 = F10 + F11;
+    F0 = F0 * F10;
+    F8 = 2.8853900817779268;            // 2 / ln 2
+    F0 = F0 * F8;
+    F8 = FLOAT R2;
+    F0 = F0 + F8;
     RTS;

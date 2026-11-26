@@ -31,7 +31,8 @@ class Kernel:
     """The kernel and one instance, made as the stock makes one: its first 145 words 0 but DM(3) = 1, the rest and its
     SDRAM block stale (random). call() runs one block and checks that no register changed."""
 
-    def __init__(self, effect_db=0.0, dry_db=0.0, tables=True, sdram_words=SDR_WORDS, stale=True, out=BO, seed=1):
+    def __init__(self, effect_db=0.0, dry_db=0.0, tables=True, sdram_words=SDR_WORDS, stale=True, out=BO, seed=1,
+                 mode='momentary', attack=0.3, release=1.0):
         self.sim = sim = ssim.Sim()
         sim.strict_cbufen = True
         sim.load(SECS)
@@ -52,13 +53,19 @@ class Kernel:
                 sim.setR(4, u)
                 sim.call(SYMS['FZ_TABLES'])
             sim.wr(SYMS['FZ_G'] + SYMS['G_TAB'], SYMS['TABLE_SLICES'])
-        self.knobs(effect_db=effect_db, dry_db=dry_db)
+        self.knobs(effect_db=effect_db, dry_db=dry_db, mode=mode == 'latch', hold=0, attack=attack, release=release)
         self.instructions = []
 
-    def knobs(self, effect_db=..., dry_db=...):
+    def knobs(self, effect_db=..., dry_db=..., mode=None, hold=None, attack=None, release=None):
         for pid, db in ((SYMS['P_EFFECT'], effect_db), (SYMS['P_DRY'], dry_db)):
             if db is not ...:
                 self.sim.wr(I0 + pid, ssim.f2b(-200.0 if db is None else db))
+        for pid, v in ((SYMS['P_MODE'], mode), (SYMS['P_HOLD'], hold)):
+            if v is not None:
+                self.sim.wr(I0 + pid, int(v))
+        for pid, v in ((SYMS['P_ATTACK'], attack), (SYMS['P_RELEASE'], release)):
+            if v is not None:
+                self.sim.wr(I0 + pid, ssim.f2b(v))
 
     def state(self, name):
         return self.sim.rd(I0 + SYMS[name])
@@ -87,8 +94,13 @@ class Kernel:
         assert not sim.loops and not sim.pcstk
         return np.array([ssim.b2f(sim.rd(self.out + k)) for k in range(B)])
 
-    def run(self, x):
-        return np.concatenate([self.call(x[k * B:(k + 1) * B]) for k in range(len(x) // B)])
+    def run(self, x, holds=None):
+        out = []
+        for k in range(len(x) // B):
+            if holds is not None:
+                self.knobs(hold=holds[k])
+            out.append(self.call(x[k * B:(k + 1) * B]))
+        return np.concatenate(out)
 
     def ring(self, n):
         return np.array([ssim.b2f(self.sim.rd(SDRAM + k)) for k in range(n)])
@@ -195,5 +207,62 @@ def test_without_its_sdram_block_it_plays_the_input_and_writes_nothing():
 def test_instructions_a_call():
     k = Kernel()
     k.run(tone(0.01))
-    print(max(k.instructions))
-    assert max(k.instructions) < 1000
+    print(k.instructions[0], max(k.instructions[1:]))
+    assert k.instructions[0] < 1500 and max(k.instructions[1:]) < 1000
+
+
+def harmonics(seconds):
+    t = np.arange(round(seconds * fz.FS)) / fz.FS
+    return 0.05 * sum(np.cos(2 * np.pi * 110.0 * n * t + 0.3 * n) / n for n in range(1, 25))
+
+
+def blocks(seconds):
+    return round(seconds * fz.FS / B)
+
+
+def sines(k):
+    """The voice's sines in the kernel: frequencies (Hz) and amplitudes."""
+    import math
+    base = I0 + SYMS['S_SINES'] + SYMS['SINES_N'] * k.state('S_VBUF')
+    f, a = [], []
+    for i in range(fz.PARTIALS):
+        w = base + 10 * (i >> 1) + (i & 1)
+        c, s_, inv = (ssim.b2f(k.sim.rd(w + o)) for o in (4, 6, 8))
+        f.append(math.atan2(s_, c) * fz.FS / (2 * math.pi))
+        a.append(1 / math.sqrt(inv) if inv > 0 else 0.0)
+    return np.array(f), np.array(a)
+
+
+def test_a_grabs_sines_are_the_references_partials():
+    """The frequencies within 1e-3 Hz (a sample's turn in float32 is good to about 4e-4 Hz near 2.7 kHz), the
+    amplitudes within 2e-4 of theirs, the start phases the golden-ratio pattern's."""
+    x = harmonics(0.7)
+    holds = np.zeros(len(x) // B, dtype=bool)
+    holds[blocks(0.3):] = True
+    k = Kernel(attack=0.05)
+    f = fz.Freeze(attack=0.05)
+    for n in range(blocks(0.3) + fz.LATENCY + 1):
+        k.knobs(hold=holds[n])
+        k.call(x[n * B:(n + 1) * B])
+        f.process(x[n * B:(n + 1) * B], holds[n])
+    assert k.state('S_VON') and f.voice
+    hz, amp = sines(k)
+    assert np.abs(hz - np.angle(f.voice.steps[1]) * fz.FS / (2 * np.pi)).max() < 1e-3
+    assert np.abs(amp / f.voice.amp - 1).max() < 2e-4
+
+
+def test_momentary_grab_plays_the_references_voice():
+    """Out to within 1e-3 of the reference over 0.35 s of voice (its frequencies' float32 offsets add up)."""
+    x = harmonics(1.0)
+    holds = np.zeros(len(x) // B, dtype=bool)
+    holds[blocks(0.3):blocks(0.7)] = True
+    k = Kernel(attack=0.05, release=0.1)
+    got = k.run(x, holds)
+    want, f = fz.render(x, holds, attack=0.05, release=0.1)
+    assert f.log == [(blocks(0.3), 'grab'), (blocks(0.3) + fz.LATENCY, 'start'), (blocks(0.7), 'release'),
+                     (blocks(0.8), 'end')]
+    start = (blocks(0.3) + fz.LATENCY) * B
+    assert np.abs(got[:start] - want[:start]).max() < 1e-6
+    assert np.abs(got - want).max() < 1e-3 * np.abs(want).max()
+    assert np.abs(got[blocks(0.8) * B:] - want[blocks(0.8) * B:]).max() < 1e-6
+    print(max(k.instructions[1:]))
