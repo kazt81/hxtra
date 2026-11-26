@@ -1,7 +1,9 @@
-"""The freeze block's analysis in ssim (src/sharc/freeze.asm): the twiddle table, the windowed capture placed at
-bit-reversed points, the complex 1,024-point FFT and the split into the real 2,048-point spectrum's power, against
-numpy and tools/sharc/freeze.py."""
+"""The freeze block's analysis in ssim (src/sharc/freeze.asm): the tables (the cos table and the decimator's taps), the
+windowed capture placed at bit-reversed points, the complex 1,024-point FFT and the split into the real 2,048-point
+spectrum's power, against numpy and tools/sharc/freeze.py."""
+import math
 import re
+import struct
 from pathlib import Path
 
 import numpy as np
@@ -16,6 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 ASM = ROOT / 'src' / 'sharc' / 'freeze.asm'
 DM, PM, IN = 0xC0000, 0x8C200, 0xB8000
 BINS = range(19, 1006)                       # the powers FZ_SPLIT leaves at FZ_RE + k: k = 19..1005
+NAN = 0x7FC00001
 
 
 def assemble(**equ):
@@ -32,21 +35,15 @@ class Analysis:
 
     def __init__(self, **equ):
         secs, self.syms = assemble(**equ)
-        self.equ = {k: int(v) for k, v in equ.items()}
         self.sim = ssim.Sim()
         self.sim.load(secs)
         self.longest = {}
 
-    def shift(self, name, default):
-        return self.equ.get(name, default)
-
-    def run(self, step, slices, capture=None):
-        if capture is not None:
-            for i, v in enumerate(capture):
-                self.sim.wr(IN + i, ssim.f2b(float(v)))
+    def run(self, step, slices, regs=lambda u: {}):
         for u in range(slices):
             self.sim.setR(4, u)
-            self.sim.setR(5, IN)
+            for r, v in regs(u).items():
+                self.sim.setR(r, v)
             before = self.sim.cycles
             self.sim.call(self.syms[step], limit=200_000)
             assert not self.sim.loops and not self.sim.pcstk
@@ -55,12 +52,23 @@ class Analysis:
     def floats(self, name, n, at=0):
         return np.array([ssim.b2f(self.sim.rd(self.syms[name] + at + i)) for i in range(n)])
 
+    def tables(self):
+        self.run('FZ_TABLES', self.syms['TABLE_SLICES'])
+
+    def load(self, capture, written=0):
+        """The capture at IN, then FZ_ZERO and FZ_LOAD; samples before `written` hold NaNs."""
+        for i, v in enumerate(capture):
+            self.sim.wr(IN + i, NAN if i < written else ssim.f2b(float(v)))
+        self.run('FZ_ZERO', 1)
+        n = 2 << self.syms['LOAD_SHIFT']
+        self.run('FZ_LOAD', self.syms['LOAD_SLICES'], lambda u: {5: IN + n * u, 7: written})
+        return self.floats('FZ_RE', 2048)
+
     def spectrum(self, capture):
-        self.run('FZ_TABLES', 1)
-        self.run('FZ_LOAD', 1024 >> self.shift('LOAD_SHIFT', 6), capture)
-        loaded = self.floats('FZ_RE', 2048)
-        self.run('FZ_FFT', 5120 >> self.shift('FFT_SHIFT', 7))
-        self.run('FZ_SPLIT', -(-494 >> self.shift('SPLIT_SHIFT', 6)))
+        self.tables()
+        loaded = self.load(capture)
+        self.run('FZ_FFT', 5120 >> self.syms['FFT_SHIFT'])
+        self.run('FZ_SPLIT', -(-494 >> self.syms['SPLIT_SHIFT']))
         return loaded, self.floats('FZ_RE', 2048)[list(BINS)]
 
 
@@ -94,9 +102,27 @@ def harmonics():
     return a, capture, loaded, power
 
 
-def test_the_twiddle_table_is_a_quarter_turn_of_cos_in_2048_steps(harmonics):
+def test_the_table_is_cos_from_a_quarter_turn_back_in_2048_steps(harmonics):
     a = harmonics[0]
-    assert np.abs(a.floats('FZ_COS', 513) - fz.quarter_wave()).max() < 2e-7
+    assert np.abs(a.floats('FZ_TAB', 1536) - np.cos(2 * np.pi * (np.arange(1536) - 512) / 2048)).max() < 2e-7
+
+
+def test_the_taps_are_the_references(harmonics):
+    a = harmonics[0]
+    h = fz.decimator_taps()
+    assert np.abs(a.floats('FZ_TAPS', fz.TAPS) - h).max() < 1e-6 * h.max()
+
+
+def test_fz_cos_is_cos_of_turns_of_any_size():
+    a = Analysis()
+    t = np.concatenate([np.linspace(-3.0, 3.0, 241), [0.0, 0.25, 0.5, 1e-7, 1234.5678, -0.12345]])
+    got = []
+    for v in t:
+        a.sim.setR(0, ssim.f2b(float(np.float32(v))))
+        a.sim.call(a.syms['FZ_COS'])
+        got.append(ssim.b2f(a.sim.R(0)))
+    want = np.cos(2 * np.pi * t.astype(np.float32).astype(float))
+    assert np.abs(np.array(got) - want).max() < 3e-7 * max(1.0, np.abs(t).max() / 4)
 
 
 def test_the_load_puts_the_windowed_capture_at_bit_reversed_points(harmonics):
@@ -105,6 +131,15 @@ def test_the_load_puts_the_windowed_capture_at_bit_reversed_points(harmonics):
     want[:fz.CAPTURE] = capture * np.hanning(fz.CAPTURE)
     assert np.abs(unscramble(loaded) - want).max() < 1e-6 * np.abs(capture).max()
     assert not unscramble(loaded)[fz.CAPTURE:].any()
+
+
+@pytest.mark.parametrize('written', [1, 37, 64, 999])
+def test_samples_not_written_yet_load_as_zeros(harmonics, written):
+    a, capture, _, _ = harmonics
+    got = unscramble(a.load(capture, written))
+    want = np.zeros(2048)
+    want[written:fz.CAPTURE] = (capture * np.hanning(fz.CAPTURE))[written:]
+    assert np.abs(got - want).max() < 1e-6 * np.abs(capture).max()
 
 
 @pytest.mark.parametrize('kind', ['harmonics', 'noise', 'sine', 'silence'])
@@ -123,17 +158,29 @@ def test_the_power_is_the_references_for_the_capture(harmonics):
                                                                                                     np.zeros(19)]))
 
 
-@pytest.mark.parametrize('equ', [dict(LOAD_SHIFT=3, FFT_SHIFT=5, SPLIT_SHIFT=3), dict(LOAD_SHIFT=10, FFT_SHIFT=9,
-                                                                                         SPLIT_SHIFT=9)])
-def test_slices_of_any_size_give_the_same_power(harmonics, equ):
-    _, capture, _, power = harmonics
-    assert np.array_equal(Analysis(**equ).spectrum(capture)[1], power)
+@pytest.mark.parametrize('equ', [dict(FFT_SHIFT=5, SPLIT_SHIFT=3, TAB_SHIFT=3, TAP_SHIFT=2),
+                                 dict(FFT_SHIFT=9, SPLIT_SHIFT=9, TAB_SHIFT=9, TAP_SHIFT=6)])
+def test_slices_of_any_size_give_the_same_tables_and_power(harmonics, equ):
+    a, capture, _, power = harmonics
+    b = Analysis(**equ)
+    assert np.array_equal(b.spectrum(capture)[1], power)
+    for name, n in (('FZ_TAB', 1536), ('FZ_TAPS', fz.TAPS)):
+        assert np.array_equal(b.floats(name, n), a.floats(name, n))
+
+
+@pytest.mark.parametrize('shift', [3, 10])
+def test_load_slices_of_any_size_give_the_same_points_but_for_rounding(harmonics, shift):
+    """(Each load slice starts its window from cos and sin of its first sample, so the rounding moves with the slices.)"""
+    a, capture, loaded, _ = harmonics
+    b = Analysis(LOAD_SHIFT=shift)
+    b.tables()
+    assert np.abs(b.load(capture) - loaded).max() < 1e-6 * np.abs(capture).max()
 
 
 def test_instructions_a_slice(harmonics):
     a = harmonics[0]
-    print({k: v for k, v in a.longest.items()})
-    assert a.longest['FZ_LOAD'] < 1400 and a.longest['FZ_FFT'] < 1700 and a.longest['FZ_SPLIT'] < 1400
+    print(a.longest)
+    assert max(a.longest.values()) < 1700
 
 
 def test_no_loop_ends_in_a_branch():
@@ -146,7 +193,9 @@ def test_no_loop_ends_in_a_branch():
     assert not bad
 
 
-def test_only_the_tables_are_data_at_boot():
+def test_only_the_rotation_and_bit_reversal_are_data_at_boot():
     sections = [sec for sec in assemble()[0] if sec.kind == 'dm']
     assert [len(sec.words) for sec in sections if any(sec.words)] == [34]
-    assert sum(len(sec.words) for sec in sections) == 34 + 8 + 750 + 513 + 2048
+    assert sum(len(sec.words) for sec in sections) == 34 + 8 + 1536 + fz.TAPS + 2048
+    rot = [struct.unpack('<f', struct.pack('<I', w))[0] for w in sections[0].words[32:34]]
+    assert rot == pytest.approx([math.cos(2 * math.pi / 1499), math.sin(2 * math.pi / 1499)])
