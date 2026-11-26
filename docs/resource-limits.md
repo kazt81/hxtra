@@ -14,9 +14,9 @@ The HX Stomp has two processors. The **M4** (LPC4350, the CPU) runs the screen, 
 
 | Resource | Left now | Spent by | Status |
 | --- | --- | --- | --- |
-| SHARC internal RAM (Block 3 room, `tools/block3.py`) | **512 words** beside 3 NAM slots; 2,528 (2), 7,290 (1), 14,239 (no NAM) | DSP code, DSP state: Metronome 213, FX Loop gate 291, GR meter 780 | verified offline |
-| Preset model IDs (1..832) | **8** | each new model | verified offline |
-| Entry 2 partition (DSP boot stream, 512 KiB, `tools/block3.py`) | **12,028 bytes** beside 3 NAM slots; 12,100 (2), 12,124 (1), 33,640 (no NAM) | DSP code (6 bytes an instruction) and initial data (4 bytes a word; data that is all zeros takes 12 bytes, a zero-fill block), 44 bytes a primitive record: Metronome 908, FX Loop gate 980, GR meter 3,276, USB & Send Routing 1,456, Input Sidechain 1,056 | verified offline |
+| SHARC internal RAM (Block 3 room, `tools/block3.py`) | **512 words** beside 3 NAM slots; 2,528 (2), 7,290 (1), 14,239 (no NAM) | DSP code, DSP state: Metronome 213, FX Loop gate 291, GR meter 780, Hold Sustain 6,453 | verified offline |
+| Preset model IDs (1..832) | **7** | each new model (Hold Sustain took 380) | verified offline |
+| Entry 2 partition (DSP boot stream, 512 KiB, `tools/block3.py`) | **12,028 bytes** beside 3 NAM slots; 12,100 (2), 12,124 (1), 33,640 (no NAM) | DSP code (6 bytes an instruction) and initial data (4 bytes a word; data that is all zeros takes 12 bytes, a zero-fill block), 44 bytes a primitive record: Metronome 908, FX Loop gate 980, GR meter 3,276, USB & Send Routing 1,456, Input Sidechain 1,056, Hold Sustain 9,820 | verified offline |
 | Entry 3 (model database) | **between 1 KB and 11 KB** past the default build's `0xf0d00` bytes: `0xf10f0` is known to work, and by `0xf3888` the unit drops every amp and preamp (the partition itself has 53 KB) | models (~1.8 KB), knobs (~1 KB per model) | verified on unit |
 | Blob 0 buffer (DSP composite library) | 88,551 words (~27 more cloned composites) | models | verified offline |
 | DSP time per preset | M4 admits up to 90%; 15% always taken | blocks in a preset | verified offline |
@@ -28,7 +28,7 @@ The HX Stomp has two processors. The **M4** (LPC4350, the CPU) runs the screen, 
 
 1. **M4-only feature?** It almost certainly fits. Put code in a segment 6 cave. Use a free Global Settings ID (claim it on its line in `tools/setting_ids.py`) or a per-block knob for configuration.
 2. **Needs DSP code or DSP state?** Count its 48-bit instructions (1.5 words each) plus its data words against the Block 3 room `python3 tools/block3.py` prints for each NAM slot count, less what the other DSP features take. Add it to `block3.FEATURES` with `WEB = 'dsp'`, and give its tool an `e2_size()` (the bytes it adds to Entry 2, `patch_amp.ldr_size`) beside `dsp_size()`, so `build.py` places it and the setup page counts it in both. If it doesn't fit beside 2 NAM slots, choose a way out below *before* writing it.
-3. **Adds a block model?** It uses one of the 8 preset IDs, ~46 KB of Entry 0, ~1.8 KB of Entry 3, ~15 KB of Entry 4 and ~3,250 Blob 0 words.
+3. **Adds a block model?** It uses one of the 7 preset IDs left, ~46 KB of Entry 0, ~1.8 KB of Entry 3, ~15 KB of Entry 4 and ~3,250 Blob 0 words.
 4. **Adds knobs to existing models?** About 1 KB of Entry 3 and 8 KB of Entry 4 per model (`patch_comp.py`: 3 knobs × 6 models = 6 KB + 50 KB).
 5. **Wraps a stock DSP primitive?** The wrapper's cycles are charged to the stock block's declared cost, so the M4's 90% check never sees them. Keep the wrapper cheap, and remember that some models contain a core several times (the 3-Band Comp has six `0x271a` cores).
 6. **New images or glyphs?** About 3.2 MB fit in the Entry 8 read window. Fonts are ASCII only. Slots 0x01..0x1f are free in every font except `hx21_regularFont`, where emoji takes slots from 0x01 upward; other features take them from 0x1f downward.

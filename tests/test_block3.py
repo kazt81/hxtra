@@ -65,7 +65,7 @@ def test_room_ends_at_an_even_instruction():
 
 def test_costs_are_whole_instruction_pairs():
     assert {f: block3.cost(f) for f in EVERY} == {'HX_CLICK': 213, 'HX_FX_GATE': 291, 'HX_GR': 780, 'HX_USB_MONITOR': 414,
-                                                        'HX_GATE_SC': 324}
+                                                        'HX_GATE_SC': 324, 'HX_FREEZE': 6453}
     for f in EVERY:
         n_dm, n_pm = block3.size(f)
         assert block3.cost(f) % 3 == 0 and block3.cost(f) >= n_dm + n_pm * 3 // 2
@@ -73,7 +73,7 @@ def test_costs_are_whole_instruction_pairs():
 
 def test_entry_2_costs_are_the_ldr_blocks_each_feature_adds():
     assert {f: block3.e2(f) for f in EVERY} == {'HX_CLICK': 908, 'HX_FX_GATE': 980, 'HX_GR': 3276, 'HX_USB_MONITOR': 1456,
-                                                      'HX_GATE_SC': 1056}
+                                                      'HX_GATE_SC': 1056, 'HX_FREEZE': 9820}
 
 
 def test_entry_2_room_is_what_the_stock_stream_and_nam_leave():
@@ -108,9 +108,10 @@ def test_every_selection_that_fits_places_clear_of_each_other_and_inside_the_roo
 
 
 def test_features_pack_down_from_the_top_in_order():
-    env = env_of(EVERY, 2)
-    click, gate, gr, usb, sc = (ranges(f, env) for f in EVERY)
-    assert click[1][1] == block3.room(2)[1]
+    env = env_of(EVERY, 0)
+    click, gate, gr, usb, sc, freeze = (ranges(f, env) for f in EVERY)
+    assert click[1][1] == block3.room(0)[1]
+    assert freeze[0][1] <= freeze[1][0] <= freeze[1][1] <= sc[0][0]
     assert sc[0][1] <= sc[1][0] <= sc[1][1] <= usb[0][0]
     assert usb[0][1] <= usb[1][0] <= usb[1][1] <= gr[0][0]
     assert gr[0][1] <= gr[1][0] <= gr[1][1] <= gate[0][0] <= gate[1][1] <= click[1][0]
@@ -127,7 +128,12 @@ def test_slots_unset_is_the_most_that_fit():
     assert block3.slots({}) == 3
     assert block3.slots(env_of(['HX_CLICK', 'HX_FX_GATE'])) == 3
     assert block3.slots(env_of(['HX_GR'])) == 2
-    assert block3.slots(env_of(EVERY)) == 2
+    assert block3.slots(env_of([f for f in EVERY if f != 'HX_FREEZE'])) == 2
+    assert block3.slots(env_of(['HX_FREEZE'])) == 1
+    assert block3.slots(env_of(['HX_FREEZE', 'HX_GR'])) == 0
+    assert block3.cost('HX_FREEZE') + block3.cost('HX_GR') <= block3.words(1)     # Block 3 has room beside 1 slot, Entry 2 not
+    assert block3.e2('HX_FREEZE') + block3.e2('HX_GR') > block3.e2_room(1)
+    assert block3.slots(env_of(EVERY)) == 0
 
 
 def test_slots_set_is_checked():

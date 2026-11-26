@@ -123,6 +123,7 @@ def test_sources_cover_the_build():
             "tools/sharc/nam_multi.py", "tools/sharc/nam_multi_kernel.asm",
             *(f"tools/features/{f.name}" for f in (ROOT / "tools/features").glob("*.py")),
             "tools/patch_click.py", "build.py", "src/sharc/click.asm",      # the Metronome: patch_click.py reads both
+            "tools/patch_freeze.py", "src/sharc/freeze.asm",                # the Hold Sustain block
             "tools/patch_gate.py", "src/sharc/fx_gate.asm",                 # the gate in the FX Loop and Return blocks
             "tools/patch_sidechain.py", "src/sharc/gate_sc.asm",            # the Noise Gate's Input Sidechain
             "tools/patch_comp.py", "src/sharc/frame_probe.asm"}             # the GR meter's knobs and DSP code
@@ -174,12 +175,13 @@ def test_page_lists_the_dsp_features_and_slot_counts():
 
 
 def test_page_default_is_two_nam_slots_and_every_dsp_feature_and_fits():
-    # The default (issue #111): 2 NAM slots with the GR meter, the Metronome and the FX Loop gate
+    # The default (issue #111): 2 NAM slots with the GR meter, the Metronome and the FX Loop gate; every DSP feature but the
+    # Hold Sustain block, which fits beside 1 NAM slot or none
     import block3
     boxes, slots, nam = page_dsp()
     picked = slots[0][1]
     assert nam and slots[0][0] and not slots[1][0] and picked == 2
-    assert all(boxes.values())
+    assert [f for f, on in boxes.items() if not on] == ["HX_FREEZE"] and not block3.fits(2, ["HX_FREEZE"])
     assert block3.fits(picked, [f for f, on in boxes.items() if on])
 
 
@@ -219,17 +221,20 @@ def test_site_root_keeps_the_anchor():
     assert 'location.replace("web/" + location.hash)' in site
 
 
-def page_combo(slots, leave_out=()):
-    """The flags of the page's combination with every feature and DSP feature that fits but leave_out, at slots NAM slots."""
-    dsp = [f for f in m4cache.web_dsp() if f not in leave_out]
+def page_combo(slots, leave_out=(), add=()):
+    """The flags of the page's combination with every feature and DSP feature ticked by default, and those of add, that fits
+    but leave_out, at slots NAM slots."""
+    ticked = page_dsp()[0]
+    dsp = [f for f in m4cache.web_dsp() if (ticked[f] or f in add) and f not in leave_out]
     while not block3.fits(slots, dsp):
         dsp.pop(0)
     return m4cache.web_flags() + dsp + [m4cache.slots_flag(slots)]
 
 
-# the default selection, then one of each kind the v1.2.0 cache lacked a module for (issue #163)
+# the default selection, then one of each kind the v1.2.0 cache lacked a module for (issue #163), then the Hold Sustain block
 PAGE_COMBOS = {"default": (2, ()), "no GR": (2, ("HX_GR",)), "no Metronome": (2, ("HX_CLICK",)),
-               "no USB Monitor": (2, ("HX_USB_MONITOR",)), "3 NAM slots": (3, ()), "no NAM, no DSP": (0, tuple(m4cache.web_dsp()))}
+               "no USB Monitor": (2, ("HX_USB_MONITOR",)), "3 NAM slots": (3, ()), "no NAM, no DSP": (0, tuple(m4cache.web_dsp())),
+               "Hold Sustain": (1, (), ("HX_FREEZE",))}
 
 
 def test_page_combos_are_offered():

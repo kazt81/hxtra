@@ -56,6 +56,7 @@ var SOURCES = [
   "tools/effects.py",
   "tools/patch_menu.py",
   "tools/patch_click.py",
+  "tools/patch_freeze.py",
   "tools/patch_gate.py",
   "tools/patch_sidechain.py",
   "tools/patch_usbmon.py",
@@ -71,6 +72,7 @@ var SOURCES = [
   "tools/features/bpm.py",
   "tools/features/breathing_line.py",
   "tools/features/dsp_meter.py",
+  "tools/features/freeze.py",
   "tools/features/fx_gate.py",
   "tools/features/gate_sidechain.py",
   "tools/features/gr.py",
@@ -116,6 +118,7 @@ var SOURCES = [
   "src/m4/usb_monitor.s",
   "src/m4/virtual_settings.s",
   "src/sharc/click.asm",
+  "src/sharc/freeze.asm",
   "src/sharc/frame_probe.asm",
   "src/sharc/fx_gate.asm",
   "src/sharc/gate_sc.asm",
@@ -253,6 +256,11 @@ async function build(stock, flags, slots) {
       step(5, "Adding the kernel to the DSP program…",
            ["tools/patch_click.py", "build/nam_lite.l6ia", "build/nam_lite_click.l6ia"]);
       p.FS.rename("/repo/build/nam_lite_click.l6ia", "/repo/build/nam_lite.l6ia");
+    }
+    if (flags.indexOf("HX_FREEZE") >= 0) {
+      step(5, "Adding the kernel to the DSP program…",
+           ["tools/patch_freeze.py", "build/nam_lite.l6ia", "build/nam_lite_freeze.l6ia"]);
+      p.FS.rename("/repo/build/nam_lite_freeze.l6ia", "/repo/build/nam_lite.l6ia");
     }
     if (flags.indexOf("HX_FX_GATE") >= 0) {
       step(5, "Adding the kernel to the DSP program…",

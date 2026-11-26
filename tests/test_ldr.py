@@ -103,7 +103,7 @@ def test_the_build_loads_no_all_zero_init_block(tmp_path):
     if not stock:
         pytest.skip('HX_STOMP_HXF is not set')
     out = tmp_path / 'out.hxf'
-    env = dict(os.environ, HX_GR='1', HX_CLICK='1', HX_FX_GATE='1', HX_USB_MONITOR='1', HX_GATE_SC='1')
+    env = dict(os.environ, HX_GR='1', HX_CLICK='1', HX_FX_GATE='1', HX_USB_MONITOR='1', HX_GATE_SC='1', HX_FREEZE='1')   # (no NAM)
     r = subprocess.run([sys.executable, str(ROOT / 'build.py'), stock, '-o', str(out), '--no-check'],
                        capture_output=True, text=True, cwd=ROOT, env=env)
     assert r.returncode == 0, r.stdout + r.stderr

@@ -8,7 +8,7 @@
 // It changes no register.
 //
 // Knobs (the generic store puts pid p in DM(p, I0)): DM(5) Mode, DM(6) Hold, DM(7) Attack (s), DM(8) Release (s),
-// DM(9) Effect Level (dB), DM(10) Dry Level (dB); at or under -120 dB the level is 0.
+// DM(9) Effect Level (dB), DM(10) Dry Level (dB); at or under OFF_DB (the knobs' Off) the level is 0.
 // The first 145 words are 0 when the block is created; the words after them are not (stale), so the first call
 // zeroes them.
 //
@@ -82,6 +82,7 @@
 .equ S_SINES,      S_HIST + HIST_N      // three sets of 32 sines, 160 words each, from an even address (I0 may be odd):
 .equ SINES_N,      160                  // pair p at 10p is c, s, cos w, sin w, 0.5/a^2, two sines a word pair
 .equ DM_WORDS,     S_SINES + 3 * SINES_N + 1
+.equ OFF_DB,       -60.0                // the level knobs' bottom, shown Off
 .equ LATENCY,      96                   // blocks from a press to its voice, and the fade of a voice a grab cuts
 .equ DOUBLE,       900                  // blocks: a Latch press this soon after a grabbing press stops everything
 .equ PARTIALS,     32
@@ -1399,8 +1400,8 @@ fz_d:   F12 = F0 * F4, F8 = F8 + F12, F0 = DM(I4, M4), F4 = PM(I12, M12);
     F8 = F8 + F12;
     RTS;
 
-fz_gain:                                // F0 = the gain of F0 dB, 0 at or under -120 dB
-    F8 = -120.0;
+fz_gain:                                // F0 = the gain of F0 dB, 0 at or under OFF_DB
+    F8 = OFF_DB;
     COMP(F0, F8);
     IF LE JUMP fz_g0;
     F8 = 0.16609640474436813;           // log2 10 / 20

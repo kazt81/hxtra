@@ -63,6 +63,7 @@ body:
         - label: Noise gate in the FX Loop and Return blocks (HX_FX_GATE)
         - label: Input Sidechain on the Noise Gate block (HX_GATE_SC)
         - label: "USB monitoring: Path A Out (HX_USB_MONITOR)"
+        - label: Hold Sustain block (HX_FREEZE)
         - label: Real block names (HX_REAL_NAMES)
   - type: dropdown
     id: features
@@ -79,6 +80,7 @@ body:
         - Tap command
         - Breathing line
         - Metronome
+        - Hold Sustain block
         - Gain-reduction meter
         - Tuner settings
         - Real block names

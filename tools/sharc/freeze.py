@@ -38,6 +38,7 @@ DOUBLE = 0.3                       # seconds: a Latch press this soon after a gr
 VOICES = 2
 TWIDDLES = 2048                    # the quarter-wave table's steps (the FFT's twiddles)
 LATENCY = 96                       # blocks from a grab to its sound (32 ms), and the fade of a voice a grab cuts
+OFF_DB = -60.0                     # Effect Level and Dry Level at or under it: 0 (the knobs' bottom, shown Off)
 DELAY = TAPS // 2                  # the decimator's delay, in 48 kHz samples
 
 
@@ -158,7 +159,7 @@ class Freeze:
 
     @staticmethod
     def _gain(db):
-        return 0.0 if db is None else 10.0 ** (db / 20.0)
+        return 0.0 if db is None or db <= OFF_DB else 10.0 ** (db / 20.0)
 
     def knobs(self, effect_db=..., dry_db=...):
         """Effect Level and Dry Level; the new gain is reached over the next block."""
