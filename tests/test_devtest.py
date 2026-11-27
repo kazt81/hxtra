@@ -1,5 +1,5 @@
-"""tools/hx_devtest.py: reading the screen's text as Vision gives it, where the UI is, dialling a setting, taps on the clock, and a
-run's results and clean-up, against a fake mirror session and a fake OCR."""
+"""tools/hx_devtest.py: reading the screen's text as Vision gives it, where the UI is, the footswitch mode, dialling a setting, taps on
+the clock, and a run's results and clean-up, against a fake mirror session and a fake OCR."""
 import json
 import threading
 import time
@@ -81,6 +81,8 @@ def test_text_is_compared_as_vision_reads_it():
     assert dt.norm('BAS:Studio Jazz®') == dt.norm('BAS:Studio Jazz#') == 'bas:studiojazz', 'the edited marker'
     assert dt.named('00: Metronome', 'Metronome') and dt.named('≥ Deluxe Comp', 'Deluxe Comp')
     assert not dt.named('Amp+Cab', 'Amp') and not dt.named('1x12 Mesa', 'Mesa')
+    assert dt.named('ull1 Metronome', 'Metronome') and dt.named('ull • Gain', 'Gain'), "Volume/Pan's bars icon"
+    assert not dt.named('Preamp', 'Amp') and not dt.named('Pull Gain', 'Gain')
 
 
 def test_lines_are_in_screen_pixels_and_found_by_text_pattern_and_region():
@@ -232,3 +234,144 @@ def test_list_and_unknown_cases(capsys):
     assert 'more_snapshots' in capsys.readouterr().out
     with pytest.raises(SystemExit, match='no case nope'):
         dt.main(['--only', 'nope'])
+
+
+class Modes(dt.Unit):
+    """Home in footswitch mode Stomp, Scroll, Preset or Snapshot (0..3), PAGE◀ and PAGE▶ stepping it; a TAP label in the modes taps."""
+
+    def __init__(self, mode, taps=(0, 1), session=None):
+        super().__init__(session or FakeSession(), FakeOcr(HOME))
+        self.mode, self.taps = mode, taps
+
+    def press(self, name, settle=0):
+        self.mode = (self.mode + {'page_right': 1, 'page_left': -1}.get(name, 0)) % 4
+
+    def read(self, img=None):
+        return dt.lines_of(json.loads(ocr_reply(HOME if self.mode in self.taps else HOME[:3])))
+
+
+@pytest.mark.parametrize('taps', [(0, 1), (0,)], ids=['scroll-taps', 'scroll-no-tap'])
+@pytest.mark.parametrize('start', range(4))
+def test_stomp_mode_is_found_from_any_mode_and_the_mode_found_put_back(start, taps, monkeypatch):
+    monkeypatch.setattr(dt, 'MODE_WAIT', 0)
+    u = Modes(start, taps)
+    steps = u.stomp_mode()
+    assert u.mode == 0 and steps == -start % 4
+    u.mode = 3                                  # a case left it in Snapshot mode
+    u.restore_mode(steps)
+    assert u.mode == start
+
+
+def test_with_no_tap_label_in_any_mode_stomp_mode_fails_where_it_began(monkeypatch):
+    monkeypatch.setattr(dt, 'MODE_WAIT', 0)
+    u = Modes(2, taps=())
+    with pytest.raises(dt.Fail, match='no TAP/TUNER'):
+        u.stomp_mode()
+    assert u.mode == 2
+
+
+def test_the_tap_label_is_not_a_block_or_preset_named_tape():
+    assert [bool(dt.TAP.search(dt.norm(t))) for t in ('TАP/', 'TUNER', 'TAP/TUNER', 'Tape Echo', 'Tape')] == [True, True, True,
+                                                                                                          False, False]
+
+
+def test_a_run_puts_home_in_stomp_mode_for_each_case_and_back_after(tmp_path, monkeypatch):
+    s = FakeSession()
+    monkeypatch.setattr(dt, 'OUT', str(tmp_path))
+    monkeypatch.setattr(dt, 'MODE_WAIT', 0)
+    monkeypatch.setattr(hm, 'Session', lambda **kw: s)
+    units, modes = [], []
+    monkeypatch.setattr(dt, 'Unit', lambda session: units.append(Modes(3, session=session)) or units[-1])
+
+    def lost(u):
+        modes.append(u.mode)
+        u.press('page_left')
+        raise dt.Fail('the camera did not change')
+    monkeypatch.setattr(dt, 'CASES', [('a', '', lambda u: modes.append(u.mode)), ('lost', '', lost),
+                                      ('b', '', lambda u: modes.append(u.mode))])
+    assert [r['status'] for r in dt.run()] == ['PASS', 'FAIL', 'PASS']
+    assert modes == [0, 0, 0], 'Stomp mode for each case, again after one failed in another mode'
+    assert units[0].mode == 3, 'Snapshot mode, as the run found it'
+
+
+# Global Settings > Displays, page 1: LED Ring Brightness, then Tap LED Color in the stock Tap Tempo LED's slot (REPLACES = 26)
+DISPLAYS = [('Displays', 120, 118, 80, 20), ('5', 45, 160, 10, 16), ('Rainbow', 140, 160, 70, 16), ('LED Ring', 20, 200, 70, 16),
+            ('Brightness', 15, 218, 80, 16), ('Tap LED', 130, 200, 60, 16), ('Color', 135, 218, 50, 16)]
+
+
+def test_tap_led_color_is_found_by_its_label_on_knob_2():
+    assert dt.label_knob(unit(DISPLAYS), dt.TAP_LED) == 2
+    merged = DISPLAYS[:5] + [('Tap LED Color', 120, 205, 90, 16)]
+    assert dt.label_knob(unit(merged), dt.TAP_LED) == 2, 'its two lines read as one'
+    assert dt.tap_colours()[-3:] == ('Rainbow', 'Random', 'Off')
+
+
+class Displays(Dial):
+    """Global Settings > Displays with Tap LED Color, its value stepped a click at a time; the TAP ring (FS3) follows it."""
+
+    def __init__(self, value, page=DISPLAYS):
+        super().__init__(dt.tap_colours(), dt.tap_colours().index(value))
+        self.ocr, self.knobs, self.went = FakeOcr(page), [], []
+
+    def turn(self, name, clicks, settle=0):
+        self.knobs.append(name)
+        super().turn(name, clicks)
+
+    def global_settings(self, section):
+        self.went.append(section)
+
+    def home(self):
+        self.went.append('home')
+
+    def leds(self):
+        return [(0, 0), (0, 0), (0x00ff06 if self.values[self.at] == 'Green' else 0x0300ff, 2)]
+
+
+def test_tap_color_dials_the_knob_labelled_tap_led_and_puts_the_value_back(monkeypatch):
+    monkeypatch.setattr(dt, 'tap_footswitch', lambda u: 'fs3')
+    u = Displays('Off')
+    dt.t_tap_color(u)
+    assert set(u.knobs) == {'knob2'} and u.values[u.at] == 'Off'
+
+
+def test_a_changing_tap_ring_is_held_on_red_for_the_case_and_put_back_after_a_failure():
+    u = Displays('Rainbow')
+    seen = []
+    with pytest.raises(dt.Fail):
+        with dt.steady_tap(u):
+            seen.append(u.values[u.at])
+            raise dt.Fail('leaving Global EQ changed the rings')
+    assert seen == ['Red'] and u.values[u.at] == 'Rainbow' and set(u.knobs) == {'knob2'}
+    assert u.went == ['Displays', 'home', 'Displays', 'home']
+
+
+def test_a_fixed_tap_colour_or_none_is_left_alone():
+    u = Displays('Green')
+    with dt.steady_tap(u):
+        pass
+    assert u.knobs == [] and u.values[u.at] == 'Green' and u.went == ['Displays', 'home']
+    u = Displays('Random', page=DISPLAYS[:5])
+    with dt.steady_tap(u):
+        pass
+    assert u.knobs == [] and u.went == ['Displays', 'home'], 'a build without Tap LED Color'
+
+
+def test_the_dsp_total_is_read_through_the_small_fonts_misreads():
+    assert dt.meter_total("Ч5/'75") == 45 and dt.meter_total('007 BAS:Studio Jaz31/75') == 31
+    assert dt.meter_total('Amp 2 31/75') == 31, 'a title ending in a digit'
+    assert dt.meter_total('99/75') is None and dt.meter_total('MXR 10-Band EQ') is None
+
+
+EDIT_MISREAD = [('007 BAS:Studio Jaz', 6, 6, 250, 16), ("Ч5/'75", 270, 6, 46, 12)] + EDIT[1:]
+EDIT_NO_TOTAL = [('007 BAS:Studio Jaz', 6, 6, 250, 16)] + EDIT[1:]
+
+
+def test_dsp_meter_takes_a_misread_total_and_reads_the_corner_enlarged_when_the_screen_misses_it():
+    u = unit(HOME, EDIT_MISREAD, HOME)
+    dt.t_dsp_meter(u)
+    assert not any(a.endswith('zoom.png') for a in u.ocr.asked)
+    u = unit(HOME, EDIT_NO_TOTAL, [("Ч5/'75", 12, 12, 40, 14)], HOME)
+    dt.t_dsp_meter(u)
+    assert u.ocr.asked[2].endswith('zoom.png')
+    with pytest.raises(dt.Fail, match='no n/75'):
+        dt.t_dsp_meter(unit(HOME, *[EDIT_NO_TOTAL] * 6, HOME))
