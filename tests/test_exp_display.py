@@ -118,8 +118,8 @@ _code = {}
 
 class Display:
     """exp_display.s in the M4: FILL and TEXT draw into self.px (TEXT as the box its digits' pixels take), GET_VALUE answers from
-    self.settings (unset: no value, so the defaults), two view lists show the Home view and the top view, and self.relayouts
-    keeps the arguments of each call of the Home layout."""
+    self.settings (EXP 1 left and EXP 2 right to start with; an ID not in it is unset, so its default), two view lists show the
+    Home view and the top view, and self.relayouts keeps the arguments of each call of the Home layout."""
 
     def __init__(self, m4emu, with_gr=False):
         key = 'gr' if with_gr else 'plain'
@@ -128,6 +128,7 @@ class Display:
         code, self.sym = _code[key]
         m = self.m = m4emu.M4(code, MOD)
         self.settings, self.px, self.texts, self.fills, self.locked, self.relayouts = {}, {}, [], [], 0, []
+        self.settings.update({IDS['left']: 1, IDS['right']: 2})
         m.stub(GET_VALUE, self.get_value)
         m.stub(FILL, self.fill)
         m.stub(TEXT, self.text)
@@ -283,7 +284,7 @@ def test_settings_values_defaults_and_ids():
     s = {x.key: x for x in ed.SETTINGS}
     assert [x.label for x in ed.SETTINGS] == [b'Left\nHome EXP', b'Right\nHome EXP'], 'Home EXP over Left, over Right'
     assert s['left'].values == s['right'].values == (b'Off', b'EXP 1', b'EXP 2')
-    assert (s['left'].default, s['right'].default) == (1, 2)
+    assert (s['left'].default, s['right'].default) == (0, 0), 'Off: Home stays stock until a side is turned on'
     ids = setting_ids.by_name()
     assert (ids['exp_display.left'], ids['exp_display.right']) == (0xe9, 0xea)
     fields = {who: (cid, bit, bits) for _, cid, bit, bits, who, _ in setting_ids.VIRTUAL}
@@ -579,7 +580,19 @@ def test_moving_the_tip_under_togglexp_keeps_midi_on_the_other_controller_live(d
 
 # --- what each side shows ---
 
-def test_defaults_show_exp_1_left_and_exp_2_right_live_from_the_jacks(d):
+def test_unset_sides_are_off_and_leave_home_stock(d):
+    """Unset, both sides read their default, Off: the paint draws nothing, and the tick asks for nothing as a pedal moves."""
+    d.settings.clear()
+    d.pedal(0, 0.63)
+    d.paint()
+    assert d.word(SIDES) == 0 and d.fills == [] and d.texts == [] and d.px == {}
+    d.event(0, 0.4)
+    assert d.ticks(60) == []
+    d.paint()
+    assert d.fills == [] and d.texts == []
+
+
+def test_exp_1_left_and_exp_2_right_live_from_the_jacks(d):
     d.pedal(0, 0.63)
     d.pedal(1, 0.25)
     assert (d.word(SEED), d.word(SEED + 4)) == (0, 0), 'not seeded at boot'
@@ -743,7 +756,7 @@ def test_sides_follow_their_source_setting(d):
     assert_readout(d, 0, '20', RED, 'EXP1')
     assert_readout(d, 1, '20', RED, 'EXP1')
     d.paint(left=3, right=7)
-    assert d.word(SIDES) == 0x0201, 'a value above the max reads as the default'
+    assert d.word(SIDES) == 0, 'a value above the max reads as the default, Off'
 
 
 def test_an_off_side_draws_nothing_and_turning_one_off_wipes_it(d):

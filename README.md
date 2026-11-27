@@ -119,7 +119,7 @@ The meter also shows while you edit the compressor, so you can dial in Threshold
 *Global Settings › Displays, pages 2 and 3*
 
 - Shows where EXP 1 and EXP 2 are on the Home screen: a bar at each edge of the screen, from 0 at the bottom to 100 just under the line across the middle, and above that line, beside the signal flow, EXP1 or EXP2 over the value from 0 to 100, in the pedal's colour (EXP 1 red, EXP 2 green, as TogglEXP lights them).
-- **Home EXP Left** and **Home EXP Right** (Off, EXP 1, EXP 2): what each side shows; EXP 1 on the left and EXP 2 on the right to start with.
+- **Home EXP Left** and **Home EXP Right** (Off, EXP 1, EXP 2): what each side shows; both Off to start with, so the Home screen stays stock until you turn a side on.
 - The value is the one your blocks get, so MIDI CC 1 and 2 move it too. With EXP 1 or EXP 2 Position saved per preset or per snapshot (Global Settings › EXP Pedals), changing preset, or snapshot when it is per snapshot, gives your blocks the saved position: the bar then shows only its outline until you move the pedal, while the value shows where the pedal is. With TogglEXP and one pedal, the side the pedal no longer moves turns grey and keeps its last value. With no pedal and nothing from MIDI in the last 3 seconds, a side shows an empty bar and --.
 - With the gain reduction meter on the Home screen, the bars and values move aside for it.
 

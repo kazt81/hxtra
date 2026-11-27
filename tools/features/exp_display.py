@@ -10,8 +10,8 @@ ORDER = 115                         # after gr, whose LAYOUT it reads, and after
 MODULE = 'src/m4/exp_display.s'
 SOURCES = (b'Off', b'EXP 1', b'EXP 2')
 SETTINGS = (
-    Setting('left', b'Left\nHome EXP', SOURCES, default=1),
-    Setting('right', b'Right\nHome EXP', SOURCES, default=2),
+    Setting('left', b'Left\nHome EXP', SOURCES),
+    Setting('right', b'Right\nHome EXP', SOURCES),
 )
 
 PEDAL_LIT, PEDAL_LISTENER = 0x28d96d7c, 0x28d947d1
