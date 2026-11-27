@@ -227,8 +227,8 @@ def test_a_second_run_is_refused(built):
 
 
 FREEZE_BUILT_MD5 = {
-    'HX_FREEZE': '150ea6d7a0f8ef1b10c2b9daca99f839',                                      # beside 1 NAM slot
-    'HX_FREEZE HX_CLICK HX_FX_GATE HX_GR HX_USB_MONITOR HX_GATE_SC HX_REAL_NAMES': 'dcb038f363c0236195318b6db96b451f',  # every DSP step, no NAM
+    'HX_FREEZE': 'f6f458bc1dde2b6239c01806cb34cf8d',                                      # beside 1 NAM slot
+    'HX_FREEZE HX_CLICK HX_FX_GATE HX_GR HX_USB_MONITOR HX_GATE_SC HX_REAL_NAMES': '8a90b7e7967d66fb1d311b792c67c150',  # every DSP step, no NAM
 }
 
 
