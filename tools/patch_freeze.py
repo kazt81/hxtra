@@ -31,6 +31,7 @@ sys.path.insert(0, os.path.join(SCRIPT_DIR, 'sharc'))
 
 import block3
 import kit_patch_amp as kit
+from features import freeze as feature
 import l6ia
 import nam_multi
 import patch_amp as pa
@@ -39,7 +40,7 @@ import patch_comp
 FLAG = 'HX_FREEZE'
 ASM = os.path.join(SCRIPT_DIR, '..', 'src', 'sharc', 'freeze.asm')
 NAME, DISPLAY = 'HD2_PitchHoldSustainMono', 'Hold Sustain'
-PRESET_ID = 380                     # fixed for ever: presets store it (147 and 148 were an early NAM build's)
+PRESET_ID = feature.PRESET_ID      # 380 (147 and 148 were an early NAM build's)
 DSP_COST = 500                      # 5.0%, until the unit's meter measures it
 CLONE = 'L6SPB_PolyPitch'           # Pitch/Synth > Mono, block kind 24: never bypassed, as Feedbacker and Poly Sustain
 CATEGORY = 8                        # Pitch/Synth
@@ -50,9 +51,9 @@ REGISTRY = (0x611e90, 0, 0x611ef4, 0x611ddd)    # a hooked primitive's init, 0, 
 LEVEL = [('displayType', 'db'), ('valueMinString', 'Off')]      # -60 dB and under: the kernel's 0
 SECONDS = [('displayType', 'time'), ('units', 'sec')]
 # (slot, name, pid, type, min, max, default, meta) by display order, Hold last and hidden. Types: 3 float, 1 bool.
-PARAMS = ((1, 'Attack', 5, 3, 0.01, 4.0, 0.3, SECONDS),
-          (2, 'Release', 6, 3, 0.05, 10.0, 1.0, SECONDS),
-          (3, 'FXLevel', 7, 3, -60.0, 6.0, 0.0, [('displayName', 'FX Level'), ('displayNameShort', 'FX Lvl')] + LEVEL),
+PARAMS = ((1, 'Attack', 5, 3, 0.01, 4.0, 0.1, SECONDS),
+          (2, 'Release', 6, 3, 0.05, 10.0, 0.5, SECONDS),
+          (3, 'FXLevel', 7, 3, -60.0, 6.0, -12.0, [('displayName', 'FX Level'), ('displayNameShort', 'FX Lvl')] + LEVEL),
           (4, 'DryLevel', 8, 3, -60.0, 6.0, 0.0, [('displayName', 'Dry Level'), ('displayNameShort', 'Dry Lvl')] + LEVEL),
           (5, 'Hold', 9, 1, 0, 0, 0, [('false', 'Off'), ('true', 'On'), ('followEnable', 'true')]))
 SHOWN = 4                           # Table 2's displayParamCount: Hold is not shown

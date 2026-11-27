@@ -102,6 +102,7 @@ var SOURCES = [
   "src/m4/bpm.s",
   "src/m4/breathing_line.s",
   "src/m4/dsp_meter.s",
+  "src/m4/freeze.s",
   "src/m4/gr_meter.s",
   "src/m4/label_color.s",
   "src/m4/long_press.s",

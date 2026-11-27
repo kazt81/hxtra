@@ -85,7 +85,7 @@ def test_web_worker_runs_it_after_the_metronome_and_before_the_knob_tools():
 
 def test_off_unless_asked_for_and_last_on_the_page():
     assert feature.FLAG not in m4cache.web_flags() + m4cache.web_options() and m4cache.web_dsp()[-1] == feature.FLAG
-    assert not hasattr(feature, 'apply') and not hasattr(feature, 'SETTINGS')
+    assert callable(feature.apply) and not hasattr(feature, 'SETTINGS')       # its hooks only (src/m4/freeze.s)
 
 
 # ---- the firmware it builds (from the stock file: it needs nothing else)
@@ -120,13 +120,13 @@ def test_the_model_and_its_knobs(built):
         ('Attack', 1, 3), ('Release', 2, 3), ('FXLevel', 3, 3), ('DryLevel', 4, 3), ('Hold', 5, 1)]
     p = {q['name']: q for q in m['params']}
     assert (p['Hold']['meta']['false'], p['Hold']['meta']['true']) == ('Off', 'On')
-    for k, rng in (('Attack', (0.01, 4.0, 0.3)), ('Release', (0.05, 10.0, 1.0))):
+    for k, rng in (('Attack', (0.01, 4.0, 0.1)), ('Release', (0.05, 10.0, 0.5))):
         assert (p[k]['meta']['displayType'], p[k]['meta']['units']) == ('time', 'sec')
         assert (p[k]['min'], p[k]['max'], p[k]['default']) == pytest.approx(rng)
-    for k, name, short in (('FXLevel', 'FX Level', 'FX Lvl'), ('DryLevel', 'Dry Level', 'Dry Lvl')):
+    for k, name, short, dflt in (('FXLevel', 'FX Level', 'FX Lvl', -12.0), ('DryLevel', 'Dry Level', 'Dry Lvl', 0.0)):
         assert (p[k]['meta']['displayName'], p[k]['meta']['displayNameShort']) == (name, short)
         assert (p[k]['meta']['displayType'], p[k]['meta']['valueMinString']) == ('db', 'Off')
-        assert (p[k]['min'], p[k]['max'], p[k]['default']) == (-60.0, 6.0, 0.0)
+        assert (p[k]['min'], p[k]['max'], p[k]['default']) == (-60.0, 6.0, dflt)
 
 
 @pytest.mark.firmware
@@ -227,8 +227,8 @@ def test_a_second_run_is_refused(built):
 
 
 FREEZE_BUILT_MD5 = {
-    'HX_FREEZE': '9fbc80a7da4bf1ab55163242d89462e3',                                      # beside 1 NAM slot
-    'HX_FREEZE HX_CLICK HX_FX_GATE HX_GR HX_USB_MONITOR HX_GATE_SC HX_REAL_NAMES': 'fc833127528a03ac5e1285cdc958af91',  # every DSP step, no NAM
+    'HX_FREEZE': '150ea6d7a0f8ef1b10c2b9daca99f839',                                      # beside 1 NAM slot
+    'HX_FREEZE HX_CLICK HX_FX_GATE HX_GR HX_USB_MONITOR HX_GATE_SC HX_REAL_NAMES': 'dcb038f363c0236195318b6db96b451f',  # every DSP step, no NAM
 }
 
 
