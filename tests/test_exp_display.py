@@ -287,7 +287,7 @@ def test_settings_values_defaults_and_ids():
     ids = setting_ids.by_name()
     assert (ids['exp_display.left'], ids['exp_display.right']) == (0xe9, 0xea)
     fields = {who: (cid, bit, bits) for _, cid, bit, bits, who, _ in setting_ids.VIRTUAL}
-    assert [fields[f'exp_display.{k}'] for k in ('left', 'right')] == [(116, 0, 8), (116, 8, 8)]
+    assert [fields[f'exp_display.{k}'] for k in ('left', 'right')] == [(113, 8, 4), (113, 12, 4)]
     assert (ed.FLAG, ed.MENU) == ('HX_EXP_DISPLAY', 'Displays')
     assert ed.FLAG in m4cache.web_flags(), 'every page build has it: the page has boxes only for the DSP features'
     assert ed.ORDER > gr.ORDER, 'built after the GR meter, whose words it reads'
