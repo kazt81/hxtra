@@ -258,8 +258,11 @@ def pack_init_l48(addr48, insn_words):
 
 
 def pack_init_l32(addr32, data_words):
-    """Build an ADSP-21469 LDR INIT_L32 (tag=4) block as little-endian 32-bit words."""
+    """Build an ADSP-21469 LDR INIT_L32 (tag=4) block as little-endian 32-bit words; for data that is all zeros, a zero-fill
+    (tag=1) block instead, three words whatever the length, as stock loads its own zeroed arrays."""
     dw = [int(x) & 0xffffffff for x in data_words]
+    if dw and not any(dw):
+        return [1, len(dw), addr32]
     return [4, len(dw), addr32] + dw
 
 
