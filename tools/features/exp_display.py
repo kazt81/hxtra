@@ -5,7 +5,6 @@ import image_store
 from features import Setting, gr
 
 FLAG = 'HX_EXP_DISPLAY'
-WEB = 'opt-in'
 MENU = 'Displays'
 ORDER = 115                         # after gr, whose LAYOUT it reads, and after preset_color, so Preset LED Color keeps its page
 MODULE = 'src/m4/exp_display.s'

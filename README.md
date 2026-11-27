@@ -116,7 +116,7 @@ The meter also shows while you edit the compressor, so you can dial in Threshold
 
 ### <img src="docs/assets/icons/exp-display.svg" width="28" height="28" align="top" alt=""> EXP Display
 
-*Global Settings › Displays, pages 2 and 3; off unless you tick it on the setup page*
+*Global Settings › Displays, pages 2 and 3*
 
 - Shows where EXP 1 and EXP 2 are on the Home screen: a bar at each edge of the screen, from 0 at the bottom to 100 just under the line across the middle, and above that line, beside the signal flow, EXP1 or EXP2 over the value from 0 to 100, in the pedal's colour (EXP 1 red, EXP 2 green, as TogglEXP lights them).
 - **Home EXP Left** and **Home EXP Right** (Off, EXP 1, EXP 2): what each side shows; EXP 1 on the left and EXP 2 on the right to start with.
@@ -368,7 +368,7 @@ If you hear crackling, leave those out on the setup page.
 <td valign="top">
 
 ### <img src="docs/assets/icons/faq-choose.svg" width="28" height="28" align="top" alt=""> Can I choose which features I get?
-Partly. On the setup page you pick the **DSP features**: how many NAM A2 Lite blocks (3, 2, 1 or none), the gain reduction meter, the Metronome, the FX Loop gate, USB & Send Routing and Input Sidechain. They share the HX Stomp's spare DSP memory, so the page shows what's left as you tick, and fewer NAM blocks leave room for more of the others. Real block names and EXP Display are boxes too. Every other feature is always in; to leave one of those out, [build it yourself](docs/building.md).
+Partly. On the setup page you pick the **DSP features**: how many NAM A2 Lite blocks (3, 2, 1 or none), the gain reduction meter, the Metronome, the FX Loop gate, USB & Send Routing and Input Sidechain. They share the HX Stomp's spare DSP memory, so the page shows what's left as you tick, and fewer NAM blocks leave room for more of the others. Real block names is a box too. Every other feature is always in; to leave one of those out, [build it yourself](docs/building.md).
 
 &nbsp;
 

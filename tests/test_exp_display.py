@@ -7,6 +7,7 @@ from fractions import Fraction
 import pytest
 
 import features
+import m4cache
 import patch_menu as pm
 import setting_ids
 from features import exp_display as ed, gr, preset_color
@@ -287,7 +288,8 @@ def test_settings_values_defaults_and_ids():
     assert (ids['exp_display.left'], ids['exp_display.right']) == (0xe9, 0xea)
     fields = {who: (cid, bit, bits) for _, cid, bit, bits, who, _ in setting_ids.VIRTUAL}
     assert [fields[f'exp_display.{k}'] for k in ('left', 'right')] == [(116, 0, 8), (116, 8, 8)]
-    assert (ed.FLAG, ed.WEB, ed.MENU) == ('HX_EXP_DISPLAY', 'opt-in', 'Displays')
+    assert (ed.FLAG, ed.MENU) == ('HX_EXP_DISPLAY', 'Displays')
+    assert ed.FLAG in m4cache.web_flags(), 'every page build has it: the page has boxes only for the DSP features'
     assert ed.ORDER > gr.ORDER, 'built after the GR meter, whose words it reads'
     assert ed.ORDER > preset_color.ORDER, 'Preset LED Color keeps Displays page 2'
 
@@ -329,7 +331,7 @@ def test_build_serves_the_settings_virtually_and_hooks_its_nine_sites():
 
 @pytest.mark.firmware
 def test_off_by_default():
-    assert 'exp_display' not in [features.name(m) for m in menu_entry0(stock_e0(), None, {})[1]], 'opt-in'
+    assert 'exp_display' not in [features.name(m) for m in menu_entry0(stock_e0(), None, {})[1]], 'only with HX_EXP_DISPLAY'
 
 
 @pytest.mark.firmware
