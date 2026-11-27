@@ -153,6 +153,8 @@ exp_tick:
     cmp r0, #REQUEST_MS
     blo 3f
     str r1, [r4, #LASTREQ]
+    bl showing                      @ in another view DIRTY waits, checked every REQUEST_MS
+    cbz r0, 3f
     movs r0, #0
     str r0, [r4, #DIRTY]
     movs r1, #1

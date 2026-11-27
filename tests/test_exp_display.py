@@ -519,6 +519,26 @@ def test_tick_asks_even_when_nothing_repaints_home(d):
     assert d.ticks(1) == [1]
 
 
+@pytest.mark.parametrize('a, b', [(0x28128270, TOP), (HOME, ALERT)], ids=['another view in list A', 'another view in list B'])
+def test_tick_asks_only_while_home_and_the_top_view_show(d, a, b):
+    """No request while list A paints another view or list B another view than the top view: the paint would draw nothing, and the
+    UI would repaint that view for nothing. The change waits, checked every 25 ms, and the tick asks once they are back."""
+    settled(d)
+    d.lists(a, b)
+    d.event(0, 0.4)
+    assert d.ticks(100) == []
+    d.lists(HOME, TOP)
+    assert len(d.ticks(30)) == 1
+    assert d.ticks(30) == []
+
+
+def test_tick_asks_under_the_bank_view(d):
+    settled(d)
+    d.lists(HOME, TOP, bank=1)
+    d.event(0, 0.4)
+    assert d.ticks(30) == [1], 'the bars follow the pedal under it'
+
+
 def test_tick_asks_nothing_before_a_paint_or_with_both_sides_off(d):
     d.event(0, 0.4)
     assert d.ticks(60) == [], 'no paint yet: the sides are not known'
